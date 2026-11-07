@@ -1,0 +1,18 @@
+diff --git a/docs/DEPLOY.md b/docs/DEPLOY.md
+index ebb34a7..af73ca8 100644
+--- a/docs/DEPLOY.md
++++ b/docs/DEPLOY.md
+@@ -64,3 +64,13 @@
+ ## 보안 주의
+ - 키움 비밀번호, App Key, App Secret, Supabase `service_role` 키, `live/.env`는 **절대 저장소에 넣지 않기** (`.gitignore`로 막아 둠)
+ - 저장소가 Public이라 누구나 코드를 볼 수 있음 (`.gitignore`에 `.env`, `secrets/` 제외 설정해 둠)
++
++## 온톨로지 근거 화면의 공개 경계
++
++1~8번 상세 기록은 `agent/work/ontology/trace_view/`에 준비하고 로컬 운영자 화면에서만 읽습니다. 이 폴더를 `docs/`, Supabase 또는 공개 웹 서버 아래로 복사하지 않습니다. 공개 화면에는 허용된 요약·연결 상태만 제공합니다. AI 판단 원문·계좌 스냅샷·주문번호·내부 경로·시험 입력은 공개 자료에 포함하지 않습니다.
++
++`agent` 폴더의 `python run.py export-trace-summary --view-id VIEW_ID`는 공개 묶음을 비공개 준비 경로에 생성할 뿐 게시하지 않습니다. 실제 게시를 별도로 요청한 경우에만 준비 결과의 파일 해시와 완료 상태를 검토하고, 해당 묶음의 버전 디렉터리와 manifest를 `docs/data/ontology/`에 옮깁니다. 파일들을 먼저 복사한 후 manifest를 마지막에 교체합니다. 불완전한 묶음은 기존 manifest를 교체하지 않습니다.
++
++새 공개 요약은 특정 버전에 고정됩니다. 파일 누락·해시 불일치·미완료 기록을 샘플 데이터나 현재 시세로 대체하지 않습니다. 이전 내보내기 형식의 자유문장이 남은 `trades/decision/debates/risk/briefing` JSON도 공개 허용 형식으로 갱신해야 하며, 실제 게시 전 전체 준비 디렉터리에서 비공개 원문이 남아 있지 않은지 확인합니다. 기존 `run.py publish()`는 `docs/data` 전체를 스테이징할 수 있으므로 내부 자료를 그 경로에 임시 보관하지 않습니다.
++
++로컬 상세와 공개 요약에서 보여 주는 연결 ID는 기존의 거래 배열 번호와 다릅니다. 공개 사이트는 localhost를 자동 호출하지 않으며, 연결 ID를 복사해 운영자 화면에서 조회합니다. 기존 수익 차트의 종목별 첫 후속 매도 가격은 참고 변화율로 표시하고, 개별 주문의 확인된 체결·손익과 혼동하지 않습니다.

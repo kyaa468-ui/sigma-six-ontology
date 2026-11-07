@@ -1,0 +1,41 @@
+diff --git a/agent/setup_tasks.ps1 b/agent/setup_tasks.ps1
+index f41508d..029bcc6 100644
+--- a/agent/setup_tasks.ps1
++++ b/agent/setup_tasks.ps1
+@@ -1,6 +1,6 @@
+ ﻿# 작업 스케줄러 등록 (한 번만 실행). 지우려면: .\setup_tasks.ps1 -Remove
+ # 평일: 08:25 잔고 루프 → 08:30 준비 · 손절·익절 감시 → 09:30~15:15 15분마다 정기 판단(매매는 09:45·10:45·11:45·12:30·13:15·14:15·15:15) → 15:45 마감 기록
+-# 평일 16:00 기준값 자동 조정 · 수·금 15:50 주간 회고
++# 평일 16:00 기준값 자동 조정 · 수·금 15:50 주간 회고 · 토 10:00 별도 사례 복기(KST)
+ # 코드 동기화: 로그온할 때(+ 매일 07:00 안전망) 켜져서 계속 돎. push 된 수정을 1분 안에 반영
+ param([switch]$Remove)
+ 
+@@ -17,19 +17,26 @@ $tasks = @(
+   @{ Name = "Hynix298-close";    Time = "15:45"; Days = $wk;  Cmd = "`"$agent\run.bat`" close" },
+   @{ Name = "Hynix298-tune";     Time = "16:00"; Days = $wk;  Cmd = "`"$agent\run.bat`" tune" },
+   # 11-06 S.Lee: 주간 회고 수·금 15:50 (토 10:00 에서 옮김). 16:00 기준값 조정이 회고를 기다렸다 그 제안을 바로 검토 → 목·월요일 장부터 반영
+-  @{ Name = "Hynix298-review";   Time = "15:50"; Days = "WED,FRI"; Cmd = "`"$agent\run.bat`" review" }
++  @{ Name = "Hynix298-review";   Time = "15:50"; Days = "WED,FRI"; Cmd = "`"$agent\run.bat`" review" },
++  @{ Name = "Hynix298-case-review"; Time = "10:00"; Days = "SAT"; Cmd = "`"$agent\run.bat`" case-review"; KST = $true }
+ )
+ 
+ # 예전 정기 판단 작업 (하루 3번) 정리
+ foreach ($old in "Hynix298-decide-am", "Hynix298-decide-mid", "Hynix298-decide-pm", "Hynix298-review-mid") { schtasks /Delete /TN $old /F 2>$null | Out-Null }
+ 
+ foreach ($t in $tasks) {
++  # schtasks /ST uses the PC timezone. Never silently schedule the new KST job
++  # at another local 10:00 or change the timezone of the existing trading PC.
++  if (-not $Remove -and $t.KST -and (Get-TimeZone).Id -ne "Korea Standard Time") {
++    Write-Warning "사례 복기 등록 생략: PC 시간대를 Korea Standard Time으로 확인한 뒤 다시 등록하세요. 기존 작업은 유지합니다."
++    continue
++  }
+   schtasks /Delete /TN $t.Name /F 2>$null | Out-Null
+   if (-not $Remove) {
+     $rep = if ($t.Every) { @("/RI", $t.Every, "/DU", $t.For) } else { @() }
+     schtasks /Create /TN $t.Name /TR $t.Cmd /SC WEEKLY /D $t.Days /ST $t.Time @rep /F | Out-Null
+     # 기본값은 "AC 전원일 때만 시작"이라 노트북이 배터리면 대기에 멈춤 → 배터리에서도 실행, 놓친 회차는 켜지면 바로 실행
+-    $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 8)
++    $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 8) -MultipleInstances IgnoreNew
+     Set-ScheduledTask -TaskName $t.Name -Settings $s | Out-Null
+     Write-Output ("등록: {0}  {1} {2}{3}" -f $t.Name, $t.Days, $t.Time, $(if ($t.Every) { " 부터 $($t.Every)분마다" } else { "" }))
+   }

@@ -1,0 +1,212 @@
+diff --git a/agent/src/logger.py b/agent/src/logger.py
+index 3353fd9..e4b5725 100644
+--- a/agent/src/logger.py
++++ b/agent/src/logger.py
+@@ -8,14 +8,137 @@
+ """
+ import os
+ import sys
++import copy
++import hashlib
++import json
++import math
++import re
++from pathlib import Path
+ from datetime import datetime, timedelta
+ 
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ import common as C  # noqa: E402
++import execution_trace as E  # noqa: E402
++
++
++TRACE_FIELDS = ("judgment_id", "plan_id", "order_attempt_id", "position_episode_id", "order_no", "execution_quality", "run_attempt_id")
++
++
++def trace_fields(row):
++    """새 기록에 실제로 있던 연결만 공개한다. 과거 기록에 현재 ID를 채우지 않는다."""
++    return {key: copy.deepcopy(row[key]) for key in TRACE_FIELDS if key in row}
++
++
++def _public_scalar(value):
++    if value is None or isinstance(value, bool):
++        return value
++    if isinstance(value, (int, float)):
++        return value if math.isfinite(value) else None
++    if isinstance(value, str):
++        return value[:200]
++    return None
++
++
++def _public_fields(row, keys):
++    return {key: _public_scalar(row[key]) for key in keys if key in row}
++
++
++def public_origin_refs(row):
++    """Only explicit references are encoded; a symbol/time match is never a link."""
++    result = []
++    for kind in ('judgment_id', 'order_attempt_id', 'plan_id'):
++        value = row.get(kind)
++        if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_.:@-]{1,200}', value):
++            result.append({'kind': kind, 'ref': 'public-ref-' + hashlib.sha256((kind + ':' + value).encode()).hexdigest()})
++    return result
++
++
++def public_payload(name, data):
++    """Public boundary: no arbitrary prose, broker IDs, snapshots or extra keys.
++
++    The internal projection helpers retain their legacy contracts and numbers.
++    This final writer boundary is shared by ordinary exports and offline migration.
++    """
++    def trade(row):
++        result = _public_fields(row, ('id','time','code','name','side','action','qty','price','amount','confidence',
++            'regime','execution_quality','reconciliation_quality','reconciliation_recording_status','vol20','exchange'))
++        result.update(bull='상세 주장 비공개', bear='상세 주장 비공개', decision='판단 원문은 로컬 상세에서 확인',
++                      origin_refs=public_origin_refs(row), confidence_kind='legacy_recorded_value',
++                      connection_status='reference_available' if public_origin_refs(row) else 'not_recorded')
++        if row.get('blocked'):
++            result['blocked'] = '규칙 차단 · 상세 사유 비공개'
++        return result
++    def last(row):
++        if not isinstance(row, dict): return None
++        result = _public_fields(row, ('time','regime','watch','hold'))
++        for key in ('bought','sold','blocked'):
++            result[key] = [_public_fields(x, ('name','qty')) for x in row.get(key, []) if isinstance(x, dict)]
++            if key == 'blocked':
++                for item in result[key]: item['rule'] = '규칙 차단'
++        return result
++    def decision(row):
++        if not isinstance(row, dict) or not row: return {}
++        result = _public_fields(row, ('time','regime','cap','mode','next_trade'))
++        result.update(reason='AI 국면 분류 · 근거 원문 비공개', items=[trade(x) for x in row.get('items', []) if isinstance(x, dict)])
++        if 'last_trade' in row: result['last_trade'] = last(row['last_trade'])
++        return result
++    rows = data if isinstance(data, list) else []
++    if name == 'trades': return [trade(x) for x in rows if isinstance(x, dict)]
++    if name == 'decision': return decision(data)
++    if name == 'debates': return [decision(x) for x in rows]
++    if name == 'risk':
++        return [{**_public_fields(x, ('id','time','name','code','side')), 'rule':'규칙 차단',
++                 'detail':'차단 원문은 로컬 상세에서 확인', 'origin_refs':public_origin_refs(x)} for x in rows]
++    if name == 'reviews':
++        return [{**_public_fields(x, ('week','mid','period','status')), 'suggestion':'회고 기록 있음 · 원문 비공개'} for x in rows]
++    if name == 'tuning':
++        return [{**_public_fields(x, ('time',)), 'summary':'기준값 조정 기록 · 상세 근거 비공개',
++                 'applied':[{**_public_fields(a, ('key','label','from','to')), 'reason':'조정 기록'} for a in x.get('applied', [])],
++                 'rejected':[{'key':a.get('key'), 'to':_public_scalar(a.get('to')), 'rejected':'조정 규칙에 따라 거절'} for a in x.get('rejected', [])]} for x in rows]
++    if name == 'briefing':
++        if not isinstance(data, dict) or not data: return {}
++        result = _public_fields(data, ('created','asof','universe','source'))
++        result['market'] = _public_fields(data.get('market') or {}, ('source','close','ma20','ma60','ret5','ret20','rsi14','rule_hint'))
++        result['market']['closes'] = [_public_scalar(x) for x in (data.get('market') or {}).get('closes', []) if isinstance(x, (int,float))]
++        result['intraday'] = _public_fields(data.get('intraday') or {}, ('time','kept_prep','pool','passed'))
++        if (data.get('intraday') or {}).get('error'): result['intraday']['error'] = '갱신 실패 · 상세 비공개'
++        result['candidates'] = [_public_fields(x, ('code','name','close','ret5','ret20','rsi14','vol20','foreign_net','inst_net','score','price','chg','activity','foreign_today','inst_today','exchange')) for x in data.get('candidates', [])]
++        return result
++    if name == 'status':
++        if not isinstance(data, dict): return {}
++        result = _public_fields(data, ('last_run','last_ok','next_run','runs_today','failures_today'))
++        result['note'] = '실행 상태 요약 · 원문 비공개'
++        result['sync'] = {'ok': bool(data['sync'].get('ok')), 'error':'동기화 실패 · 상세 비공개' if data['sync'].get('ok') is False else ''} if isinstance(data.get('sync'), dict) else None
++        return result
++    schemas = {'equity': ('date','total','kospi','regime','cap'),
++               'holdings': ('code','name','qty','avg_price','price','value','pnl_pct','weight','stop','take','held_days','max_days'),
++               'system': ('date','runs','failures','tokens_k')}
++    if name in schemas: return [_public_fields(row, schemas[name]) for row in rows]
++    if name == 'exchange':
++        return {key:value for key,value in (data or {}).items() if re.fullmatch(r'\d{6}',key) and value in ('KOSPI','KOSDAQ','ETF')}
++    raise ValueError('UNSUPPORTED_PUBLIC_PAYLOAD')
++
++
++def sanitize_public_directory(source, destination):
++    """Prepare a separate migration bundle. Never overwrite the source or publish."""
++    source, destination = Path(source).resolve(), Path(destination).resolve()
++    if destination == source or source in destination.parents or destination in source.parents:
++        raise ValueError('SEPARATE_STAGING_DIRECTORY_REQUIRED')
++    if destination.exists() and any(destination.iterdir()):
++        raise ValueError('EMPTY_STAGING_DIRECTORY_REQUIRED')
++    names = ('equity','holdings','trades','risk','system','reviews','status','decision','briefing','tuning','debates','exchange')
++    prepared = {}
++    for name in names:
++        path = source / (name + '.json')
++        if path.is_file(): prepared[name] = public_payload(name, json.loads(path.read_text(encoding='utf-8')))
++    destination.mkdir(parents=True, exist_ok=True)
++    for name, payload in prepared.items():
++        C.write_json(str(destination / (name + '.json')), payload)
++    return {'status':'prepared', 'files':[name + '.json' for name in prepared], 'published':False}
+ 
+ 
+ def out(name, data):
+-    C.write_json(os.path.join(C.DOCS_DATA, name + ".json"), data)
++    C.write_json(os.path.join(C.DOCS_DATA, name + ".json"), public_payload(name, data))
+ 
+ 
+ def names():
+@@ -34,7 +157,7 @@ def trades(rows):
+     out_ = [{"id": i + 1, "time": r["time"], "code": r["code"], "name": r["name"], "side": r["side"],
+              "qty": r["qty"], "price": r["price"], "amount": r["amount"], "confidence": r["confidence"],
+              "regime": r.get("regime"), "bull": r["bull"], "bear": r["bear"], "decision": r["decision"],
+-             "ordered": r.get("ordered") or FIXES.get(f'{r["time"][:16]}|{r["code"]}')}
++             "ordered": r.get("ordered") or FIXES.get(f'{r["time"][:16]}|{r["code"]}'), **trace_fields(r)}
+             for i, r in enumerate(x for x in rows if x["kind"] == "fill")]
+     return reconcile(out_)
+ 
+@@ -48,6 +171,7 @@ def reconcile(ts):
+     acc = C.read_json(C.ACCOUNT, {}) or {}
+     if not acc.get("holdings") and not ts:
+         return ts
++    before = copy.deepcopy(ts)
+     held = {h["code"]: h["qty"] for h in acc.get("holdings", [])}
+     for code in {t["code"] for t in ts}:
+         mine = [t for t in ts if t["code"] == code]
+@@ -66,11 +190,38 @@ def reconcile(ts):
+         q = last["qty"] + (diff if last["side"] == "매수" else -diff)
+         if diff and q > 0:
+             last["qty"], last["amount"] = q, q * last["price"]
++    _record_reconciliations(before, ts, acc)
+     for t in ts:
+         t.pop("ordered", None)
+     return ts
+ 
+ 
++def _record_reconciliations(before, after, account):
++    """잔고 차이로 고친 숫자는 체결 확인과 구별해 원래 값·입력을 남긴다."""
++    for original, corrected in zip(before, after):
++        if (original["qty"], original["amount"]) == (corrected["qty"], corrected["amount"]):
++            continue
++        fields = {"source": "account_balance_reconciliation", "execution_quality": "balance_reconciled_estimate",
++                  "code": original["code"], "side": original["side"],
++                  "before": {key: original[key] for key in ("qty", "price", "amount")},
++                  "after": {key: corrected[key] for key in ("qty", "price", "amount")},
++                  "source_rows": [copy.deepcopy(row) for row in before if row["code"] == original["code"]],
++                  "source_account": copy.deepcopy(account), "journal_unchanged": True,
++                  "run_attempt_id": original.get("run_attempt_id"),
++                  **{key: value for key, value in trace_fields(original).items() if key != "execution_quality"}}
++        # 같은 journal·계좌 스냅샷으로 공개 자료를 다시 생성해도 보정 이력을 늘리지 않는다.
++        key = hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
++        try:
++            event = E.record_once("balance_reconciliation", key, **fields)
++        except Exception as exc:
++            # 공개 수량을 맞추던 기존 동작은 계측 저장 실패에 영향을 받지 않는다.
++            event = {"recording_status": "recording_error", "error": str(exc)}
++        corrected["reconciliation_quality"] = "balance_reconciled_estimate"
++        corrected["reconciliation_recording_status"] = event["recording_status"]
++        if event.get("recording_status") == "recorded":
++            corrected["reconciliation_event_id"] = event["event_id"]
++
++
+ def risks(rows, nm):
+     seen, res = set(), []
+     for r in rows:
+@@ -184,10 +335,10 @@ def run_items(run, nm):
+     for r in run:
+         if r["kind"] == "decision":
+             items[r["code"]] = {"code": r["code"], "name": nm.get(r["code"], r.get("name")), "action": r["action"],
+-                                "confidence": r["confidence"], "bull": r["bull"], "bear": r["bear"], "decision": r["decision"]}
++                                "confidence": r["confidence"], "bull": r["bull"], "bear": r["bear"], "decision": r["decision"], **trace_fields(r)}
+         elif r["kind"] == "fill":
+             items[r["code"]] = {"code": r["code"], "name": r["name"], "action": r["side"], "qty": r["qty"], "price": r["price"],
+-                                "confidence": r["confidence"], "bull": r["bull"], "bear": r["bear"], "decision": r["decision"]}
++                                "confidence": r["confidence"], "bull": r["bull"], "bear": r["bear"], "decision": r["decision"], **trace_fields(r)}
+     for r in run:
+         if r["kind"] == "block" and r["code"] in items and "blocked" not in items[r["code"]]:
+             items[r["code"]]["blocked"] = f'{r["rule"]}: {r["detail"]}'

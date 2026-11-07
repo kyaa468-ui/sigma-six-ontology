@@ -1,0 +1,61 @@
+diff --git a/live/snapshot.py b/live/snapshot.py
+index 72cde32..949e0b6 100644
+--- a/live/snapshot.py
++++ b/live/snapshot.py
+@@ -97,18 +97,41 @@ def get_balance(env, token):
+     url = env["KIWOOM_BASE"] + "/api/dostk/acnt"
+     body = {"qry_tp": "1", "dmst_stex_tp": "KRX"}
+     head, items, cont, key = None, [], "N", ""
++    pages, holding_prices, fields_present, exhausted, continuation_valid = [], [], True, False, True
++    seen_keys = set()
++    def observed_number(value):
++        import math
++        try:
++            return type(value) is not bool and value not in (None, '') and math.isfinite(float(str(value).replace(',', '')))
++        except (TypeError, ValueError):
++            return False
+     for _ in range(10):
+         h = {"api-id": "kt00018", "authorization": "Bearer " + token}
+         if cont == "Y":
+             h.update({"cont-yn": "Y", "next-key": key})
+         res, rh = post_json(url, body, h)
++        received_at = datetime.now(KST).isoformat()
+         if res.get("return_code", 0) not in (0, "0"):
+             raise RuntimeError(f"잔고 조회 실패: {res.get('return_msg')}")
+         head = head or res
++        raw_items = res.get("acnt_evlt_remn_indv_tot")
++        fields_present = fields_present and isinstance(raw_items, list) and res.get('return_code') in (0, '0')
++        if isinstance(raw_items, list):
++            fields_present = fields_present and all(isinstance(it, dict) and it.get('stk_cd') not in (None, '') and all(
++                observed_number(it.get(k)) for k in ('rmnd_qty', 'pur_pric', 'cur_prc', 'evlt_amt')) for it in raw_items)
++            holding_prices.extend({'code': str(it.get('stk_cd', '')).lstrip('A'),
++                'source': 'kiwoom:kt00018.cur_prc', 'received_at': received_at,
++                'provider_observed_at': None} for it in raw_items if isinstance(it, dict))
+         items += res.get("acnt_evlt_remn_indv_tot") or []
+         rh = {k.lower(): v for k, v in rh.items()}
++        pages.append({'received_at': received_at, 'row_count': len(raw_items) if isinstance(raw_items, list) else None,
++                      'continuation': rh.get('cont-yn'), 'next_key_present': bool(rh.get('next-key'))})
+         cont, key = rh.get("cont-yn", "N"), rh.get("next-key", "")
++        if cont == 'Y':
++            continuation_valid = continuation_valid and bool(key) and key not in seen_keys
++            seen_keys.add(key)
+         if cont != "Y":
++            exhausted = rh.get('cont-yn') == 'N'
+             break
+         time.sleep(1.1)   # 같은 API 연속 호출은 초당 1회 (모의서버 유량 제한)
+     holdings = []
+@@ -128,7 +151,13 @@ def get_balance(env, token):
+         })
+     total = num(head.get("prsm_dpst_aset_amt"))
+     stock_eval = num(head.get("tot_evlt_amt"))
+-    return {"total": total, "stock_eval": stock_eval, "pur_amt": num(head.get("tot_pur_amt")), "holdings": holdings}
++    fields_present = fields_present and all(observed_number(head.get(k)) for k in ('prsm_dpst_aset_amt', 'tot_evlt_amt'))
++    exhausted = exhausted and continuation_valid
++    return {"total": total, "stock_eval": stock_eval, "pur_amt": num(head.get("tot_pur_amt")), "holdings": holdings,
++            'capture_metadata': {'source': 'kiwoom:kt00018', 'pagination_complete': exhausted,
++                'required_fields_present': bool(fields_present), 'pages': pages, 'holding_prices': holding_prices,
++                'provider_observed_at': None, 'received_at': datetime.now(KST).isoformat(),
++                'provenance': 'provider_response', 'completeness_reason': None if exhausted and fields_present else 'pagination_or_fields_unverified'}}
+ 
+ 
+ def get_kospi(env, token):

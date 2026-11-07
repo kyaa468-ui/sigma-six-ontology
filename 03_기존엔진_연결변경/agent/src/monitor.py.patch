@@ -1,0 +1,214 @@
+diff --git a/agent/src/monitor.py b/agent/src/monitor.py
+index dd73b4c..d3b62aa 100644
+--- a/agent/src/monitor.py
++++ b/agent/src/monitor.py
+@@ -4,12 +4,15 @@
+ 
+ 키움 호출을 늘리지 않도록 live 모드에서는 live/snapshot.py 가 남긴 last_snapshot.json 만 읽습니다.
+ """
++import copy
++import json
+ import os
+ import subprocess
+ import sys
+ import time
+ 
+ import common as C
++from audit_inputs import capture
+ 
+ STATE = os.path.join(C.WORK, "monitor_state.json")
+ RETRY_SEC = 10 * 60   # 매도 실행 뒤에도 잔고에 남아 있으면 이만큼 지나서 다시
+@@ -28,36 +31,118 @@ def holdings():
+ TRADE_FROM = 930   # 11-06 S.Lee: 09:30 전엔 손절·익절·보유일에 걸려도 매도하지 않음 (09:10 손절 보류에서 넓힘)
+ 
+ 
+-def triggers(hs):
+-    """{code: (매수 건 키, 사유)}. 키는 진입일·손절가·익절가로 만들어 다시 사거나 더 사면 새 건으로 봄."""
+-    meta = C.position_meta(hs)
+-    hit = {}
++def _record(kind, **data):
++    """Telemetry must not alter legacy monitor scheduling or cooldown state."""
++    try:
++        import execution_trace as E
++        row = E.record(kind, **({'account_scope': E.account_scope()} if kind == 'monitor_check' else {}), **data)
++        if kind == 'monitor_check':
++            try:
++                import portfolio_capture
++                portfolio_capture.record_monitor_check(row)
++            except Exception:
++                pass  # Collection failure never changes the legacy retry path.
++        return row
++    except Exception as exc:
++        try:
++            import judgment_coverage as JC
++            JC.recording_error("monitor." + kind, exc)
++        except Exception:
++            pass
++        return {}
++
++
++def evaluate_triggers(hs, p=None):
++    """One legacy evaluation, with optional audit. The old retry key is unchanged."""
++    exchange_cache_before = copy.deepcopy(C._EXCH)
++    with capture() as actual_reads:
++        p = p or C.params()
++        meta = C.position_meta(hs, p)
++    hit, evaluations = {}, []
+     for h in hs:
+         m = meta.get(h["code"])
+         if not m:
+             continue
+         key = f"{h['code']}@{m.get('entry_date')}/{m.get('stop')}/{m.get('take')}"
+-        if m.get("stop") and h["price"] <= m["stop"]:
+-            hit[h["code"]] = (key, f"{h['name']} 현재가 {h['price']:,} ≤ 손절가 {m['stop']:,}")
+-        elif m.get("take") and h["price"] >= m["take"]:
+-            hit[h["code"]] = (key, f"{h['name']} 현재가 {h['price']:,} ≥ 익절가 {m['take']:,}")
+-        elif m.get("entry_date") and C.business_days(m["entry_date"], C.today()) >= m.get("max_days", 99):
+-            hit[h["code"]] = (key, f"{h['name']} 보유 {C.business_days(m['entry_date'], C.today())}일 ≥ 최대 {m['max_days']}일")
++        checks = []
++        stop_hit = bool(m.get("stop")) and h["price"] <= m["stop"]
++        checks.append({"rule": "STOP_LOSS@v1", "left": h["price"], "operator": "<=", "right": m.get("stop"),
++                       "status": "matched" if stop_hit else "not_matched" if m.get("stop") else "not_applicable"})
++        reason, rule = None, None
++        if stop_hit:
++            reason, rule = f"{h['name']} 현재가 {h['price']:,} ≤ 손절가 {m['stop']:,}", "STOP_LOSS@v1"
++        else:
++            take_hit = bool(m.get("take")) and h["price"] >= m["take"]
++            checks.append({"rule": "TAKE_PROFIT@v1", "left": h["price"], "operator": ">=", "right": m.get("take"),
++                           "status": "matched" if take_hit else "not_matched" if m.get("take") else "not_applicable"})
++            if take_hit:
++                reason, rule = f"{h['name']} 현재가 {h['price']:,} ≥ 익절가 {m['take']:,}", "TAKE_PROFIT@v1"
++            else:
++                days = C.business_days(m["entry_date"], C.today()) if m.get("entry_date") else None
++                age_hit = days is not None and days >= m.get("max_days", 99)
++                checks.append({"rule": "MAX_HOLD_DAYS@v1", "left": days, "operator": ">=", "right": m.get("max_days", 99),
++                               "status": "matched" if age_hit else "not_matched" if days is not None else "not_applicable"})
++                if age_hit:
++                    reason, rule = f"{h['name']} 보유 {C.business_days(m['entry_date'], C.today())}일 ≥ 최대 {m['max_days']}일", "MAX_HOLD_DAYS@v1"
++        if reason:
++            hit[h["code"]] = (key, reason)
++        evaluations.append({"code": h["code"], "monitor_key": key, "holding": copy.deepcopy(h),
++                            "position_meta": copy.deepcopy(m), "params": copy.deepcopy(p),
++                            "comparisons": checks, "matched_rule": rule, "reason": reason,
++                            "actual_reads": copy.deepcopy(actual_reads)})
+     n = C.now()
+-    if hit and n.hour * 100 + n.minute < TRADE_FROM:   # 장 전·장 초반 투매 구간 (11-06 KODEX 200 이 시가 −8.6% 에 손절된 일)
++    deferred = bool(hit and n.hour * 100 + n.minute < TRADE_FROM)
++    if deferred:
+         for _, why in hit.values():
+             print(f"  매도 보류 ({TRADE_FROM // 100}:{TRADE_FROM % 100:02d} 전): {why}", flush=True)
+-        return {}
+-    return hit
++        hit = {}
++    # New bookkeeping is after the legacy comparisons/time gate. Its IDs never
++    # replace `monitor_key` in fired/due(), including after add-on buys.
++    episodes = {}
++    try:
++        import position_episodes as PE
++        # holdings() intentionally keeps its old list contract; it cannot attest
++        # account-snapshot completeness. Full account observations close episodes.
++        episodes = PE.observe({"holdings": hs, "complete": False},
++                              source={"kind": "monitor_snapshot", "observed_at": None})
++    except Exception as exc:
++        _record("monitor_recording_error", error=str(exc))
++    ids = {}
++    for ev in evaluations:
++        ev.update(position_episode_id=episodes.get(ev["code"]), evaluated_at=n.isoformat(),
++                  runtime_context={'at': n.isoformat(), 'date': n.date().isoformat(),
++                                   'module_state':{'common._EXCH':exchange_cache_before},
++                                   'environment': {k: os.environ.get(k) for k in ('RUN_ID', 'RUN_MODE', 'RUN_ATTEMPT_ID')}},
++                  deferred_before_trade_from=bool(ev["matched_rule"] and deferred))
++        recorded = _record("rule_trigger", **ev)
++        if ev["code"] in hit and recorded.get("event_id") and recorded.get("recording_status") == "recorded":
++            ids[ev["code"]] = recorded["event_id"]
++    return {"hits": hit, "evaluations": evaluations, "rule_trigger_ids": ids, "params": copy.deepcopy(p),
++            "actual_reads": copy.deepcopy(actual_reads)}
++
++
++def triggers(hs):
++    """Compatibility result; actual retry key remains code@entry_date/stop/take."""
++    return evaluate_triggers(hs)["hits"]
+ 
+ 
+ def check_once():
+     hs = holdings()
+     if hs is None:
+         print("  (최근 잔고 스냅샷이 없어 건너뜀)", flush=True)
++        _record('monitor_check', status='skipped', reason='missing_recent_holdings')
+         return
+-    hit = triggers(hs)
++    counterfactual_reads = []
++    try:
++        import portfolio_capture
++        counterfactual_reads = portfolio_capture.capture_monitor_inputs()
++    except Exception:
++        pass
++    exchange_cache_before = copy.deepcopy(C._EXCH)
++    evaluation = evaluate_triggers(hs)
++    hit = evaluation["hits"]
+     st = C.read_json(STATE, {}) or {}
++    state_before = copy.deepcopy(st)
+     if st.get("date") != C.today().isoformat() or not isinstance(st.get("fired"), dict):
+         st = {"date": C.today().isoformat(), "fired": {}}
+     n = C.now()
+@@ -70,25 +155,58 @@ def check_once():
+         return at is None or (hm >= 905 and t - at >= RETRY_SEC)
+ 
+     new = {c: why for c, (key, why) in hit.items() if due(key)}
++    audit = {'holdings': copy.deepcopy(hs), 'evaluation': evaluation, 'state_before': state_before,
++             'normalized_state': copy.deepcopy(st), 'at': n.isoformat(), 'epoch': t,
++             'retry_seconds': RETRY_SEC, 'due': new, 'retry_key_definition': 'code@entry_date/stop/take'}
++    audit['counterfactual_reads'] = counterfactual_reads
++    audit['module_state'] = {'common._EXCH':exchange_cache_before}
+     if not new:
++        _record('monitor_check', status='skipped', reason='no_due_trigger', **audit)
+         return
+     print(f"[{C.now().strftime('%H:%M')}] 조건 도달: " + " / ".join(new.values()), flush=True)
+-    r = subprocess.run([sys.executable, os.path.join(C.AGENT, "run.py"), "exit",
+-                        "--codes", ",".join(new), "--why", " / ".join(new.values())], cwd=C.AGENT)
++    command = [sys.executable, os.path.join(C.AGENT, "run.py"), "exit",
++               "--codes", ",".join(new), "--why", " / ".join(new.values())]
++    trigger_ids = {c: evaluation["rule_trigger_ids"][c] for c in new if c in evaluation["rule_trigger_ids"]}
++    if trigger_ids:
++        command += ["--rule-trigger-ids", json.dumps(trigger_ids, ensure_ascii=False)]
++    try:
++        r = subprocess.run(command, cwd=C.AGENT)
++    except Exception as exc:
++        _record('monitor_check', status='execution_error', error=str(exc), command=command, **audit)
++        raise
+     if r.returncode == 0:   # 실행이 잠금으로 건너뛰었으면 다음 회차에 다시
+         st["fired"].update({hit[c][0]: t for c in new})
+         C.write_json(STATE, st)
++    _record('monitor_check', status='executed', returncode=r.returncode, command=command,
++            state_after=copy.deepcopy(st), **audit)
+ 
+ 
+ def loop():
+     s = C.params()["schedule"]
+     start, end = (int(t.replace(":", "")) for t in (s["monitor_start"], s["monitor_end"]))
+     print(f"장중 감시 시작 · {s['monitor_interval_sec']}초 간격 · {s['monitor_end']} 종료", flush=True)
++    session = None
++    try:
++        import portfolio_capture
++        n = C.now()
++        planned_start = n.replace(hour=start // 100, minute=start % 100, second=0, microsecond=0)
++        planned_end = n.replace(hour=end // 100, minute=end % 100, second=0, microsecond=0)
++        if n < planned_end and n.weekday() < 5:
++            session = portfolio_capture.begin_session(planned_start.isoformat() if planned_start > n else None,
++                planned_end.isoformat(), interval_seconds=s['monitor_interval_sec'], source='monitor.loop',
++                cadence='sleep_after_check', valuation_policy='registered_window_boundaries_and_observed_checks')
++    except Exception:
++        pass
+     while True:
+         n = C.now()
+         hm = n.hour * 100 + n.minute
+         if n.weekday() >= 5 or hm > end:
+             print("감시 종료", flush=True)
++            if session and session.get('session_id'):
++                try:
++                    portfolio_capture.finish_session(session['session_id'])
++                except Exception:
++                    pass
+             return
+         if hm >= start:
+             try:

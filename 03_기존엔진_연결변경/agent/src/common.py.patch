@@ -1,0 +1,170 @@
+diff --git a/agent/src/common.py b/agent/src/common.py
+index 8b145fa..6a306cf 100644
+--- a/agent/src/common.py
++++ b/agent/src/common.py
+@@ -1,8 +1,10 @@
+ """경로·설정·작업 파일·날짜 계산 등 모든 모듈이 같이 쓰는 도구."""
+ import json
++import copy
+ import math
+ import os
+ import sys
++from audit_inputs import observed_read
+ from datetime import date, datetime, timedelta, timezone
+ 
+ try:
+@@ -60,8 +62,11 @@ def mode():
+ def read_json(path, default=None):
+     try:
+         with open(path, encoding="utf-8") as f:
+-            return json.load(f)
++            value = json.load(f)
++        observed_read(path, value)
++        return value
+     except (OSError, ValueError):
++        observed_read(path, default, "default_missing_or_invalid")
+         return default
+ 
+ 
+@@ -88,12 +93,15 @@ def read_jsonl(path):
+                     rows.append(json.loads(line))
+     except OSError:
+         pass
++    observed_read(path, rows)
+     return rows
+ 
+ 
+ def journal(kind, **fields):
+     """kind: regime | decision | fill | block | review"""
+     row = {"kind": kind, "time": stamp(), "run": os.environ.get("RUN_ID", ""), "mode": os.environ.get("RUN_MODE", ""), **fields}
++    if os.environ.get("RUN_ATTEMPT_ID") and "run_attempt_id" not in row:
++        row["run_attempt_id"] = os.environ["RUN_ATTEMPT_ID"]
+     append_jsonl(JOURNAL, row)
+     return row
+ 
+@@ -103,6 +111,15 @@ def risk_limits():
+ 
+ 
+ def params():
++    import policy_registry
++    context = policy_registry.current_context()
++    policy = (context or {}).get('policy') or {}
++    if policy.get('params') and policy['params'].get(policy_registry.MARKER):
++        # Numeric values and the optional policy pointer are one pinned version.
++        import copy
++        value = copy.deepcopy(policy['params'])
++        observed_read(os.path.join(CONFIG, 'params.json'), value, status='policy_pinned')
++        return value
+     return read_json(os.path.join(CONFIG, "params.json"))
+ 
+ 
+@@ -320,15 +337,19 @@ def exit_levels(code, p=None, briefing=None):
+     return d["stop_loss_pct"], d["take_profit_pct"], d["max_hold_days"]
+ 
+ 
+-def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
++def _conf_boost_details(code, side, conf, p=None, briefing=None, regime=None, policy_context=None):
+     """확신도 보정 (보정 후 확신도, 보정 설명 또는 None). plan_order·리스크 검사·체결 기록이 같은 함수를 써서 결과가 항상 같음.
+     1. RSI(14): 매수 RSI < buy_below(과매도) → + add (악재 뉴스 ⚠ 있으면 제외), 매도 RSI ≥ sell_at(과열) → + add.
+        장중이면 지금 가격을 오늘 종가로 본 RSI(rsi14_live, intraday.py 가 채움), 없으면 전일 종가 RSI.
+     2. 시장 하락: 오늘 국면이 market_boost.regimes 중 하나면 매수 + add (악재 뉴스 ⚠ 있으면 제외)."""
+     p = p or params()
+     conf = float(conf or 0)
++    details = {"version": "CONF_BOOST@v1", "code": code, "side": side, "raw": conf,
++               "at": now().isoformat(timespec="microseconds"), "params": {k: p.get(k) for k in ("rsi_boost", "market_boost")},
++               "parameter_snapshot":copy.deepcopy(p),
++               "adjustments": [], "cap": 1.0, "round_digits": 3}
+     if side not in ("매수", "매도"):
+-        return conf, None
++        return {**details, "adjusted": conf, "note": None, "reason": "invalid_side"}
+     b = briefing if briefing is not None else (read_json(BRIEFING, {}) or {})
+     row = next((r for r in b.get("candidates", []) + b.get("holdings", []) if r.get("code") == code), None) or {}
+     bad_news = any(n.get("risk") for n in row.get("news", []))
+@@ -347,6 +368,14 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
+         elif side == "매도" and rsi >= cfg["sell_at"]:
+             add += cfg["add"]
+             notes.append(f"{tag} {rsi} ≥ {cfg['sell_at']} 과열 매도 +{cfg['add']:.2f}")
++    details["inputs"] = {"rsi": rsi, "rsi_field": "rsi14_live" if live else "rsi14",
++                         "rsi_provenance": (row.get("_sources") or {}).get("rsi14_live" if live else "daily"),
++                         "bad_news": bad_news, "news": row.get("news", [])}
++    details["adjustments"].append({"rule": "rsi", "applied": bool(add), "amount": add,
++        "reason": "disabled" if not cfg else "missing_rsi" if rsi is None else
++                  "applied" if add else "bad_news" if bad_news and side == "매수" and rsi < cfg["buy_below"] else "condition_false"})
++    rsi_add = add
++    regime_source = "explicit" if regime is not None else "latest_regime"
+     mb = p.get("market_boost")
+     if mb and side == "매수":
+         regime = regime if regime is not None else (latest_regime() or {}).get("regime")
+@@ -356,7 +385,44 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
+             else:
+                 add += mb["add"]
+                 notes.append(f"{regime} 국면 매수 +{mb['add']:.2f}")
+-    return round(min(1.0, conf + add), 3), (" · ".join(notes) or None)
++    details["inputs"].update(regime=regime, regime_source=regime_source)
++    details["adjustments"].append({"rule": "market", "applied": add != rsi_add, "amount": add - rsi_add,
++        "reason": "disabled" if not mb else "side_not_buy" if side != "매수" else
++                  "condition_false" if regime not in mb["regimes"] else "bad_news" if bad_news else "applied"})
++    # Explicit empty context disables the extension during historical replay.
++    # Runtime entrypoints pin one context across planning, risk and logging.
++    import policy_registry as policy
++    context = policy.current_context() if policy_context is None else policy_context
++    if context and (context.get("policy") or {}).get("policy_revision"):
++        adjustment = policy.evaluate_adjustment(context, code, side, conf, params=p)
++        details["policy"] = {k:(context.get("policy") or {}).get(k) for k in ("revision","policy_revision","status")}
++        details["adjustments"].append(adjustment)
++        add += adjustment["amount"]
++        if adjustment["applied"]:
++            notes.append(f"검증 후 채택한 조건 보정 {adjustment['amount']:+.3f}")
++    return {**details, "before_cap": conf + add, "capped": min(1.0, conf + add),
++            "adjusted": round(min(1.0, conf + add), 3), "note": " · ".join(notes) or None}
++
++
++def conf_boost_details(code, side, conf, p=None, briefing=None, regime=None, policy_context=None):
++    """Record this call's actual reads and clock without another input read."""
++    from audit_inputs import capture, runtime_context
++    try:
++        runtime=runtime_context()
++        runtime['explicit_inputs']={
++            'p':p is not None,'briefing':briefing is not None,'regime':regime is not None,
++            'policy_context':policy_context is not None}
++    except Exception as exc:
++        runtime={'recording_status':'recording_error','error':type(exc).__name__}
++    with capture() as reads:
++        result=_conf_boost_details(code,side,conf,p,briefing,regime,policy_context)
++    return {**result,'actual_reads':reads,'runtime_context':runtime}
++
++
++def conf_boost(code, side, conf, p=None, briefing=None, regime=None, policy_context=None):
++    """기존 숫자·설명 반환 계약을 유지한다."""
++    d = conf_boost_details(code, side, conf, p, briefing, regime, policy_context)
++    return d["adjusted"], d["note"]
+ 
+ 
+ def _slot(t=None):
+@@ -458,10 +524,22 @@ def market_of(code, p=None, markets=None):
+ _EXCH = None
+ 
+ 
+-def trend_ok(px, row, regime=None, p=None):
+-    """후보 추세 조건. 평소엔 현재가 > 5일선 > 20일선(단기 상승 추세), 하락 국면(screen.falling_trend.regimes)이면 현재가 > 20일선만."""
++def trend_evaluation(px, row, regime=None, p=None, price_ma20=None):
++    """기존 비교 순서·단락 평가를 보존하며 실제 읽은 비교를 반환."""
+     p = p or params()
+     ft = p["screen"].get("falling_trend") or {}
++    comparisons = []
++    def compare(cid, left, right):
++        result = price_ma20["above"] if cid == "PRICE_ABOVE_MA20" and price_ma20 and price_ma20["above"] is not None else left > right
++        comparisons.append({"criterion_id": cid, "left": left, "right": right, "result": bool(result)})
++        return result
+     if regime in ft.get("regimes", []):
+-        return px > row["ma20"]
+-    return px > row["ma5"] > row["ma20"]
++        passed = compare("PRICE_ABOVE_MA20", px, row["ma20"])
++    else:
++        passed = compare("PRICE_ABOVE_MA5", px, row["ma5"]) and compare("MA5_ABOVE_MA20", row["ma5"], row["ma20"])
++    return {"passed": bool(passed), "comparisons": comparisons, "regime": regime}
++
++
++def trend_ok(px, row, regime=None, p=None):
++    """기존 호출 계약: 추세 조건의 통과 여부만 반환."""
++    return trend_evaluation(px, row, regime, p)["passed"]

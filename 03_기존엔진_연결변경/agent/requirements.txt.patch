@@ -1,0 +1,11 @@
+diff --git a/agent/requirements.txt b/agent/requirements.txt
+index b432f6d..ed8d69e 100644
+--- a/agent/requirements.txt
++++ b/agent/requirements.txt
+@@ -2,3 +2,6 @@ pandas>=2.2
+ pykrx>=1.2.9
+ gs-quant>=2.2
+ mcp>=1.2,<2
++exchange-calendars==4.13.2
++statsmodels==0.15.0
++scipy==1.18.1

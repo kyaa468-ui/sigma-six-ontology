@@ -1,0 +1,95 @@
+diff --git a/docs/index.html b/docs/index.html
+index a6376ba..a0b7c66 100644
+--- a/docs/index.html
++++ b/docs/index.html
+@@ -464,7 +464,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex="0"]:foc
+     <div class="more-body">
+       <div class="grid">
+         <section class="card c6 m-hide">
+-          <div class="hd"><h2 class="eyebrow">확신도 vs 수익</h2><span class="sub">원 크기 = 매수 금액, 흐린 원 = 보유 중</span></div>
++          <div class="hd"><h2 class="eyebrow">확신도 vs 수익</h2><span class="sub">참고 가격 변화율 · 점을 선택하면 근거 연결 요약</span></div>
+           <div class="chart" id="ch-scatter" style="min-height:240px"></div>
+         </section>
+         <section class="card c6 m-hide">
+@@ -494,6 +494,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex="0"]:foc
+ <script id="sample-data" type="application/json">{}</script>
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+ <script src="config.js"></script>
++<script src="trace-summary.js" defer></script>
+ <script>
+ // 매매 회차 (agent/config/params.json 의 schedule.trade_times 와 맞출 것). 판단 카드·상단 칩이 같이 씀
+ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00', '11:15', '11:30', '11:45', '12:00', '12:15', '12:30', '12:45', '13:00', '13:15', '13:30', '13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15'];   // 15분마다 매매 (하루 24번). agent params.schedule 과 맞출 것
+@@ -766,7 +767,7 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+       peak = Math.max(peak, r.total); r.dd = r.total / peak - 1;
+     });
+     const last = eq[eq.length - 1], prevFri = eq.length > 5 ? eq[eq.length - 6] : { total: INIT };   // 5거래일 전 마감, 없으면 시작 원금
+-    const trades = d.trades.map(t => ({ ...t, d: toD(t.time), qty: +t.qty, price: +t.price, amount: +t.amount, confidence: +t.confidence }));
++    const trades = d.trades.map(t => ({ ...t, d: toD(t.time), qty: +t.qty, price: +t.price, amount: +t.amount, confidence: t.confidence == null ? null : +t.confidence }));
+     const hold = d.holdings.map(h => ({ ...h, value: +h.value, pnl: +h.pnl_pct }));
+     trades.filter(t => t.side === '매수').forEach(b => {
+       const s = trades.find(x => x.side === '매도' && x.code === b.code && x.d >= b.d);
+@@ -1284,7 +1285,7 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+       + `<span>주식 비중 상한 <b>${Math.round(+dc.cap * 100)}%</b></span>`
+       + (liveTag() ? `<span class="it">${liveTag()}</span>` : '');
+     if (dc.reason) {   // 국면 근거 문장은 화면에서 빼고 툴팁으로
+-      const rg = head.querySelector('.rg'), html = `<div class="t">${esc(dc.regime)} 국면 근거</div><p class="tp">${esc(dc.reason)}</p>`;
++      const rg = head.querySelector('.rg'), html = `<div class="t">${esc(dc.regime)} 국면 근거</div><p class="tp">AI 국면 분류 · 근거 원문 비공개</p>`;
+       tipTarget(rg, html);
+     }
+     const itEl = head.querySelector('.it'), it = BRIEF.intraday;
+@@ -1304,16 +1305,19 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+       const exch = d.exchange ?? ((BRIEF.candidates || []).find(c => c.code === d.code) || {}).exchange ?? EXCH[d.code];
+       return `<div class="dec-row${cls ? '' : ' quiet'}" data-i="${i}"><span class="nm">${esc(d.name)}${exTag(exch)}${volTag(vol)}</span><span class="act ${cls}">${esc(act)}</span>`
+         + `<span class="cf"><i><b class="${c >= .6 ? 'hi' : ''}" style="width:${Math.round(c * 100)}%"></b></i>${c.toFixed(2)}</span>`
+-        + `<span class="why">${d.blocked ? '<em>차단</em> · ' : ''}${esc(d.decision)}</span></div>`;
++        + `<span class="why">${d.blocked ? '<em>차단</em> · ' : ''}${esc(d.connection_status ? d.decision : "판단 원문은 로컬 상세에서 확인")}</span></div>`;
+     }).join('');
+     list.querySelectorAll('.dec-row').forEach(el => {
+       const d = items[+el.dataset.i], lc = (BRIEF.candidates || []).find(c => c.code === d.code && c.activity !== undefined);
+       const html = `<div class="t">${esc(d.name)} ${esc(d.action)}, 확신도 ${(+d.confidence).toFixed(2)}</div>`
+         + (lc ? row('오늘 외국인 · 기관', eok(lc.foreign_today) + ' · ' + eok(lc.inst_today))
+           + (lc.activity != null ? row('거래 활발도', '평소의 ' + lc.activity.toFixed(1) + '배') : '') : '')
+-        + `<p class="tp"><span class="up">매수 측</span> ${esc(d.bull)}</p><p class="tp"><span class="down">매도 측</span> ${esc(d.bear)}</p>`
+-        + `<p class="tp"><b>결정</b> ${esc(d.decision)}</p>` + (d.blocked ? `<p class="tp"><span class="up">Hook 차단</span> ${esc(d.blocked)}</p>` : '');
++        + `<p class="tp"><span class="up">매수 측</span> 상세 주장 비공개</p><p class="tp"><span class="down">매도 측</span> 상세 주장 비공개</p>`
++        + `<p class="tp"><b>결정</b> ${esc(d.connection_status ? d.decision : "판단 원문은 로컬 상세에서 확인")}</p>` + (d.blocked ? `<p class="tp"><span class="up">Hook 차단</span> ${esc(d.blocked)}</p>` : '');
+       tipTarget(el, html, d.code);
++      el.tabIndex = 0; el.setAttribute('role', 'button'); el.setAttribute('aria-label', `${d.name} 근거 연결 요약`);
++      el.addEventListener('click', () => window.SigmaTrace?.open(d));
++      el.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); window.SigmaTrace?.open(d); } });
+     });
+   }
+ 
+@@ -1413,7 +1417,7 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+   }
+ 
+   function scatter() {
+-    const pts = D.trades.filter(t => t.side === '매수' && t.outcome != null);
++    const pts = D.trades.filter(t => t.side === '매수' && t.outcome != null && Number.isFinite(t.confidence));
+     if (!pts.length) return none($('ch-scatter'), '매수 기록이 생기면 확신도와 수익률이 표시돼요.');
+     const el = $('ch-scatter'), { svg, W, H } = svgIn(el, 240);
+     const ym = Math.max(.02, d3.max(pts, p => Math.abs(p.outcome)) || 0);
+@@ -1429,7 +1433,10 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+       .attr('cx', p => x(p.confidence)).attr('cy', p => y(p.outcome)).attr('r', p => Math.max(4, rr(p.amount)))
+       .attr('fill', p => p.outcome >= 0 ? C.red : C.blue).attr('fill-opacity', p => p.status === '보유 중' ? .3 : .85)
+       .attr('stroke', p => p.outcome >= 0 ? C.redHi : C.blue).attr('stroke-width', 1.25)
+-      .call(tipMark, p => `<div class="t">${md(p.d)} · ${esc(p.name)}</div>${row('확신도', p.confidence.toFixed(2))}${row(p.status === '청산' ? '실현 수익' : '평가 수익', pct(p.outcome), p.outcome >= 0 ? 'up' : 'down')}${row('매수 금액', won(p.amount))}`);
++      .attr('tabindex', 0).attr('role', 'button').attr('aria-label', p => `${p.name} 근거 연결 요약`)
++      .on('click.trace', (event, p) => window.SigmaTrace?.open(p))
++      .on('keydown.trace', (event, p) => { if (event.key === 'Enter') { event.preventDefault(); window.SigmaTrace?.open(p); } })
++      .call(tipMark, p => `<div class="t">${md(p.d)} · ${esc(p.name)}</div>${row('기록된 주문 보정 확신도', p.confidence.toFixed(2))}${row('기존 방식의 참고 가격 변화율', pct(p.outcome), p.outcome >= 0 ? 'up' : 'down')}${row('매수 금액', won(p.amount))}<p class="tp">동일 종목 후속 매도·현재 보유 가격을 이용한 참고값이며 개별 판단의 확정 손익이 아닙니다.</p>`);
+   }
+ 
+   function tokens() {
+@@ -1496,9 +1503,10 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+     const tb = $('log-body'); tb.textContent = '';
+     D.trades.forEach(t => {
+       const tr = document.createElement('tr');
+-      [t.time.slice(5), t.name, t.side, won(t.qty), won(t.price), t.confidence ? t.confidence.toFixed(2) : '규칙', t.bull, t.bear, t.decision].forEach((v, i) => {
++      [t.time.slice(5), t.name, t.side, won(t.qty), won(t.price), t.confidence == null ? '미확인' : t.confidence.toFixed(2), '상세 주장 비공개', '상세 주장 비공개', '판단 원문은 로컬 상세에서 확인'].forEach((v, i) => {
+         const td = document.createElement('td'); if (i < 5) td.className = 'k'; if (i === 2) td.style.color = t.side === '매수' ? C.redHi : C.blue; td.textContent = v; tr.appendChild(td);
+       });
++      const cell = document.createElement('td'), open = document.createElement('button'); open.textContent = '근거 연결'; open.addEventListener('click', () => window.SigmaTrace?.open(t)); cell.append(open); tr.append(cell);
+       tb.appendChild(tr);
+     });
+   }

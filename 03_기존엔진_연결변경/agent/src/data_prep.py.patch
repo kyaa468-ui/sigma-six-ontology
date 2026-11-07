@@ -1,0 +1,369 @@
+diff --git a/agent/src/data_prep.py b/agent/src/data_prep.py
+index 345a89d..74f57fe 100644
+--- a/agent/src/data_prep.py
++++ b/agent/src/data_prep.py
+@@ -21,9 +21,11 @@ import urllib.parse
+ import urllib.request
+ import warnings
+ from datetime import datetime, timedelta, timezone
++from importlib.metadata import version as package_version
+ 
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ import common as C  # noqa: E402
++import ontology as O  # noqa: E402
+ 
+ C.load_env()
+ os.environ.setdefault("MPLCONFIGDIR", os.path.join(C.WORK, ".mpl"))
+@@ -59,16 +61,28 @@ def completed(df):
+ 
+ def ohlcv(code, days=150):
+     end = C.today()
++    start = ymd(end - timedelta(days=days * 1.6))
+     if C.market_etf(code)[0]:   # ETF 는 ETF 시세 (종목 시세 조회에 안 나올 수 있음)
+         try:
+-            df = stock.get_etf_ohlcv_by_date(ymd(end - timedelta(days=days * 1.6)), ymd(end), code)
++            df = stock.get_etf_ohlcv_by_date(start, ymd(end), code)
+             time.sleep(0.15)
+             if df is not None and not df.empty:
++                df.attrs['daily_provenance'] = {
++                    'source': 'pykrx:krx_etf_ohlcv', 'provider_version': package_version('pykrx'),
++                    'price_basis': 'provider_published_close', 'instrument_kind': 'etf',
++                    'request_parameters': {'start': start, 'end': ymd(end), 'code': code, 'freq': 'd'}}
+                 return completed(df)
+         except Exception as e:  # noqa: BLE001  아래 일반 시세로 한 번 더
+             print(f"  ! {code} ETF 시세 실패, 일반 시세로: {e}")
+-    df = stock.get_market_ohlcv(ymd(end - timedelta(days=days * 1.6)), ymd(end), code)
++    # adjusted=True is the existing pykrx default; making it explicit records
++    # which source/basis was used without changing candidate indicator values.
++    df = stock.get_market_ohlcv(start, ymd(end), code, adjusted=True)
+     time.sleep(0.15)
++    if df is not None:
++        df.attrs['daily_provenance'] = {
++            'source': 'pykrx:naver_ohlcv', 'provider_version': package_version('pykrx'),
++            'price_basis': 'adjusted_close', 'instrument_kind': 'equity',
++            'request_parameters': {'start': start, 'end': ymd(end), 'code': code, 'freq': 'd', 'adjusted': True}}
+     return completed(df)
+ 
+ 
+@@ -82,7 +96,7 @@ def name_of(code):
+ 
+ 
+ # ---------------- 지표 (GS Quant) ----------------
+-def indicators(close):
++def indicators(close, details=None):
+     """종가 시리즈 → 숫자 요약. 데이터가 60일 미만이면 None."""
+     close = close.astype(float)
+     if len(close) < 60:
+@@ -94,6 +108,12 @@ def indicators(close):
+     vol = gts.volatility(close, gts.Window(20, 0))          # 연율화 %
+     mdd = gts.max_drawdown(close, gts.Window(60, 0))        # 60일 최대 낙폭 (음수)
+     c = float(close.iloc[-1])
++    if details is not None:
++        details.update(asof=str(close.index[-1].date()), available_at=O.stamp(),
++                       completion_policy="exclude_today_before_15:30", provider_finality="unconfirmed",
++                       ma20_raw=[{"date": str(close.index[i].date()), "value": float(ma20.iloc[i])} for i in (-6, -1)],
++                       cross_bars=[{"date": str(close.index[i].date()), "close": float(close.iloc[i]),
++                                    "ma20": float(ma20.iloc[i])} for i in (-2, -1)])
+     return {
+         "close": round(c),
+         "ma5": round(float(ma5.iloc[-1])),
+@@ -121,8 +141,12 @@ def market_summary():
+             raise RuntimeError("empty")
+     except Exception:  # noqa: BLE001
+         df, src = ohlcv(INDEX_PROXY, 200), "KODEX 200 (KOSPI 대용)"
+-    ind = indicators(df["종가"])
++    details = {}
++    ind = indicators(df["종가"], details=details)
++    details.update(df.attrs.get('daily_provenance', {}))
++    details['close_series'] = [{"date": str(i.date()), "close": float(v)} for i, v in df["종가"].tail(65).items()]
+     return {"source": src, "asof": df.index[-1].strftime("%Y-%m-%d"), **(ind or {}),
++            "_sources": {"daily": details},
+             "rule_hint": rule_hint(ind) if ind else "횡보",
+             "us": us_overnight(),   # 11-06 밤사이 미국장 (국면 판단 참고)
+             "closes": [round(float(v), 2) for v in df["종가"].tail(65)]}   # 장중 실시간 힌트 계산용 (대시보드·판단)
+@@ -156,7 +180,7 @@ def us_overnight():
+             with urllib.request.urlopen(req, timeout=10) as res:
+                 v = us_parse(json.load(res))
+             if v:
+-                out.append({"symbol": sym, "name": name, **v})
++                out.append({"symbol": sym, "name": name, **v, "source": "yahoo:chart", "available_at": O.stamp()})
+         except Exception as e:  # noqa: BLE001
+             print(f"  ! 미국 지수 {name} 조회 실패: {e}")
+         time.sleep(0.5)
+@@ -183,7 +207,13 @@ def live_market(b):
+     ma = lambda n, off=0: sum(s[len(s) - off - n:len(s) - off]) / n   # noqa: E731
+     ind = {"close": round(float(px), 2), "ma5": round(ma(5)), "ma20": round(ma(20)), "ma60": round(ma(60)),
+            "ma20_slope5": round(ma(20) / ma(20, 5) - 1, 4)}
+-    return {**ind, "rule_hint": rule_hint(ind), "time": C.now().strftime("%H:%M")}
++    return {**ind, "rule_hint": rule_hint(ind), "time": C.now().strftime("%H:%M"),
++            "source": "live:last_snapshot.kospi", "observed_at": None,
++            "available_at": datetime.fromtimestamp(snap["epoch"], timezone.utc).isoformat(),
++            "provenance": {"price": px, "closes": closes,
++                           "close_series": ((m.get("_sources") or {}).get("daily") or {}).get("close_series"),
++                           "calculation_version": "live-market-ma@v1", "calculated_at": O.stamp(),
++                           "interpretation": "current_price_as_todays_close", "provider_time_status": "not_provided"}}
+ 
+ 
+ # ---------------- 종목 ----------------
+@@ -210,14 +240,25 @@ def universe_krx(p, asof):
+     return out
+ 
+ 
+-def flows(code, asof, n):
++def flows(code, asof, n, details=None):
+     """최근 n거래일 외국인·기관 순매수 금액 합 (원). KRX 로그인 필요."""
+     try:
+         df = stock.get_market_trading_value_by_date(ymd(asof - timedelta(days=n * 2 + 7)), ymd(asof), code)
+         time.sleep(0.15)
+         df = df.tail(n)
++        if details is not None:
++            for actor, col in (("foreign", "외국인합계"), ("institution", "기관합계")):
++                known = len(df) > 0 and df[col].notna().all()
++                details[actor] = O.measurement(int(df[col].sum()) if known else None, "KRW", "pykrx:trading_value",
++                    observed_at=str(df.index[-1].date()) if len(df) else None, available_at=O.stamp(),
++                    period=[str(d.date()) for d in df.index], requested_days=n,
++                    reason=None if known else "empty_or_missing_values", raw=O.clean(df[col].tolist()),
++                    effective_value=int(df[col].sum()))
+         return int(df["외국인합계"].sum()), int(df["기관합계"].sum())
+-    except Exception:  # noqa: BLE001
++    except Exception as exc:  # noqa: BLE001
++        if details is not None:
++            for actor in ("foreign", "institution"):
++                details[actor] = O.measurement(None, "KRW", "pykrx:trading_value", available_at=O.stamp(), reason=type(exc).__name__)
+         return None, None
+ 
+ 
+@@ -236,6 +277,7 @@ def news(rows):
+         try:
+             with urllib.request.urlopen(req, timeout=10) as res:
+                 items = json.loads(res.read().decode("utf-8")).get("items", [])
++                received_at = O.stamp()
+         except Exception:  # noqa: BLE001
+             continue
+         finally:
+@@ -247,7 +289,9 @@ def news(rows):
+             if pd.isna(d) or d.date() < since or r["name"] not in title or title in seen:
+                 continue
+             seen.add(title)
+-            hits.append({"date": d.strftime("%m-%d"), "title": title, "risk": any(w in title for w in RISK_WORDS)})
++            hits.append({"date": d.strftime("%m-%d"), "title": title, "risk": any(w in title for w in RISK_WORDS),
++                         "published_at": d.isoformat(), "url": it.get("originallink") or it.get("link"),
++                         "available_at": received_at, "source": "naver:news_search"})
+         hits.sort(key=lambda h: not h["risk"])  # 악재 단어가 있는 제목을 먼저
+         if hits:
+             out[r["code"]] = hits[:3]
+@@ -258,35 +302,54 @@ def analyze(code, name, p, asof, login):
+     df = ohlcv(code)
+     if df is None or len(df) < 60:
+         return None
+-    ind = indicators(df["종가"])
++    daily = {}
++    ind = indicators(df["종가"], details=daily)
++    daily.update(df.attrs.get('daily_provenance', {}))
+     if not ind:
+         return None
+     s = p["screen"]
+     tv = df["거래대금"] if "거래대금" in df else df["종가"] * df["거래량"]
++    daily.update(close_series=[{"date": str(d.date()), "value": float(v)} for d, v in df["종가"].items()],
++                 trading_value_source="reported" if "거래대금" in df else "close_times_volume",
++                 trading_value_window=[{"date": str(d.date()), "value": O.clean(v)} for d, v in tv.tail(20).items()])
+     lim = df["등락률"].tail(s["limit_up_lookback"]) >= 29.5 if "등락률" in df else pd.Series([False])
+     row = {"code": code, "name": name, **ind,
+            "trading_value_20d": int(tv.tail(20).mean()),
+            "limit_up_recent": bool(lim.any()),
+            "closes": [round(float(x)) for x in df["종가"].tail(120)]}   # 장중 RSI 계산용 (intraday.py)
+     if login:
+-        f, i = flows(code, asof, s["flow_days"])
++        flow = {}
++        f, i = flows(code, asof, s["flow_days"], details=flow)
+         row["foreign_net"], row["inst_net"] = f, i
++    else:
++        flow = {actor: O.measurement(None, "KRW", "pykrx:trading_value", reason="not_requested") for actor in ("foreign", "institution")}
++    row["_sources"] = {"daily": daily, "flow": flow}
+     return row
+ 
+ 
+-def screen(rows, p, login, regime=None):
++def screen(rows, p, login, regime=None, trace=None):
+     """추세 조건 + (정식 모드) 수급 조건 → 점수순 상위."""
+     s = p["screen"]
++    trace = trace or O.SelectionTrace("prep", p, regime, "market.rule_hint")
++    trace.screen_input(rows, login)
+     ok = []
+     for r in rows:
++        observed = trace.begin(r, r["close"])
++        trace.gate(r["code"], "liquidity_limit_up", not (r["limit_up_recent"] or r["trading_value_20d"] < s["min_trading_value"]),
++                   {"limit_up_recent": r["limit_up_recent"], "trading_value_20d": r["trading_value_20d"], "minimum": s["min_trading_value"]})
+         if r["limit_up_recent"] or r["trading_value_20d"] < s["min_trading_value"]:
+             continue
+         hv = p.get("high_vol") or {}
+         r["high_vol"] = r["vol20"] > s.get("max_vol20", 9)   # 변동성이 크면 손절 -7%가 소음에도 걸림 → 고변동 몫으로 따로, 작게
++        trace.gate(r["code"], "volatility", not (r["high_vol"] and not (hv.get("enabled") and r["vol20"] <= hv.get("max_vol20", 0))),
++                   {"vol20": r["vol20"], "high_vol": r["high_vol"]})
+         if r["high_vol"] and not (hv.get("enabled") and r["vol20"] <= hv.get("max_vol20", 0)):
+             continue
+-        if not C.trend_ok(r["close"], r, regime, p):   # 단기 상승 추세 (11-03 5·20일선). 하락 국면이면 20일선 위만 (11-05)
++        trend = C.trend_evaluation(r["close"], r, regime, p, (observed or {}).get("price_comparison"))
++        trace.trend(r["code"], trend)
++        if not trend["passed"]:
+             continue
++        trace.flow(r["code"], login and r.get("foreign_net") is not None, r.get("foreign_net"), r.get("inst_net"))
+         if login and r.get("foreign_net") is not None:
+             if r["foreign_net"] <= 0 and r["inst_net"] <= 0:
+                 continue
+@@ -294,18 +357,32 @@ def screen(rows, p, login, regime=None):
+         ok.append(r)
+     if not ok:
+         return []
+-    df = pd.DataFrame(ok)
+-    df["trend_gap"] = df["close"] / df["ma20"] - 1
++    # Provenance must not participate in pandas' column/dtype inference or ranking.
++    metadata = {r["code"]: {k: v for k, v in r.items() if k.startswith("_")} for r in ok}
++    df = pd.DataFrame([{k: v for k, v in r.items() if not k.startswith("_")} for r in ok])
++    if all((trace.records.get(x["code"], {}).get("price_comparison") or {}).get("gap") is not None for x in ok):
++        df["trend_gap"] = [trace.records[x["code"]]["price_comparison"]["gap"] for x in ok]
++    else:
++        df["trend_gap"] = df["close"] / df["ma20"] - 1
+     score = df["ret20"].rank(pct=True) + df["trend_gap"].rank(pct=True)
+     if "flow_ratio" in df:
+         score += df["flow_ratio"].fillna(0).rank(pct=True)
+     score -= (df["ret5"] > s.get("spike_ret5", 9)).astype(float) * s.get("spike_penalty", 0)   # 5일 급등 종목 감점 (꼭대기 추격 방지)
+     score = score.clip(lower=0)
+     df["score"] = (score / score.max()).round(3) if score.max() > 0 else 0.0
++    for r in df.to_dict("records"):
++        trace.ranked(r, r["trend_gap"], O.clean(r.get("flow_ratio")),
++                     {"ret20": r["ret20"], "ret5": r["ret5"], "flow_rank_missing_as_zero": "flow_ratio" in df and O.clean(r.get("flow_ratio")) is None,
++                      "ranking_pool": [x["code"] for x in ok]})
+     df = df.drop(columns=["trend_gap"]).sort_values("score", ascending=False)
+     hv_n = (p.get("high_vol") or {}).get("max_candidates", 0)
+-    return (df[~df["high_vol"]].head(s["max_candidates"]).to_dict("records")
+-            + df[df["high_vol"]].head(hv_n).to_dict("records"))
++    result = (df[~df["high_vol"]].head(s["max_candidates"]).to_dict("records")
++              + df[df["high_vol"]].head(hv_n).to_dict("records"))
++    for r in result:
++        r.update(metadata[r["code"]])
++    trace.attach(result)
++    trace.screen_output(result)
++    return result
+ 
+ 
+ def inverse_rows(p, asof, login, held, kinds=("inverse", "index")):
+@@ -346,7 +423,7 @@ def build():
+     if not login:
+         uni = [(c, name_of(c)) for c in p["screen"]["fallback_universe"]]
+ 
+-    rows, done = [], set()
++    rows, done, skipped = [], set(), []
+     for code, nm in uni + [(c, n) for c, n in held.items()]:
+         if code in done:
+             continue
+@@ -355,12 +432,24 @@ def build():
+             r = analyze(code, nm, p, asof, login)
+         except Exception as e:  # noqa: BLE001
+             print(f"  ! {code} 건너뜀: {e}")
++            skipped.append({'code': code, 'reason': 'analysis_failed', 'error': str(e)})
+             continue
+         if r:
+             rows.append(r)
+-
+-    cands = screen([r for r in rows if r["code"] not in held and not C.market_etf(r["code"], p)[0]], p, login, market.get("rule_hint"))
+-    cands += inverse_rows(p, asof, login, held)
++        else:
++            skipped.append({'code': code, 'reason': 'analysis_unavailable'})
++
++    trace = O.SelectionTrace("prep", p, market.get("rule_hint"), "market.rule_hint", login=login, universe=uni,
++                            held=held, ordered_analysis_input=uni + list(held.items()), skipped=skipped,
++                            pipeline_scope='screen_and_archived_append', pipeline_complete=True,
++                            completeness_meaning='actual supplied rows and append results; not hypothetical successful data acquisition')
++    cands = screen([r for r in rows if r["code"] not in held and not C.market_etf(r["code"], p)[0]], p, login, market.get("rule_hint"), trace=trace)
++    appended = inverse_rows(p, asof, login, held)
++    trace.snapshot['context']['append_rows'] = __import__('copy').deepcopy(appended)
++    for row in appended:
++        trace.begin(row, row["close"])
++        trace.attach([row], "inverse" if row.get("inverse") else "index")
++        cands.append(row)
+     holdings = [r for r in rows if r["code"] in held]
+     found = news(cands + holdings)
+     for r in cands + holdings:
+@@ -372,6 +461,7 @@ def build():
+         "market": market, "candidates": cands, "holdings": holdings,
+         "universe_size": len(rows),
+     }
++    trace.finish(out)
+     C.write_json(C.BRIEFING, out)
+     C.write_json(os.path.join(C.WORK, "prep_rows.json"), [{k: v for k, v in r.items() if k != "news"} for r in rows])   # 장중 후보 갱신(intraday.py)이 재사용
+     return out
+@@ -383,7 +473,21 @@ def pct(x):
+ 
+ 
+ def eok(x):
+-    return "-" if x is None else f"{x / 1e8:+,.0f}억"
++    return "미확인" if O.clean(x) is None else f"{x / 1e8:+,.0f}억"
++
++
++def flow_text(row, actor, daily=False):
++    """Never present the engine's zero substitution as an observed flow."""
++    evidence = (row.get("_ontology") or {}).get("observation")
++    if evidence and not daily:
++        return eok(evidence["measurements"][actor]["value"])
++    source = ((row.get("_sources") or {}).get("flow") or {}).get(actor)
++    if source is not None:
++        return eok(source["value"])
++    if not daily:
++        return "미확인 (원천 상태 미보관)"
++    key = "foreign_net" if actor == "foreign" else "inst_net"
++    return eok(row.get(key))
+ 
+ 
+ def to_text(b):
+@@ -404,7 +508,7 @@ def to_text(b):
+     if lv:
+         lines[-1:-1] = [f"장중 실시간 ({lv['time']}, 지금 KOSPI를 오늘 종가로 가정): {lv['close']:,} · 5일선 {lv['ma5']:,} · 20일선 {lv['ma20']:,} · "
+                         f"60일선 {lv['ma60']:,} · 20일선 5일 기울기 {pct(lv['ma20_slope5'])} · 실시간 힌트: {lv['rule_hint']}"]
+-    cols = "| 코드 | 종목 | 종가 | 5일선 | 20일선 | 60일선 | 5일 | 20일 | RSI | 변동성 | 60일 낙폭 | 외국인 5일 | 기관 5일 | 점수 |"
++    cols = "| 코드 | 종목 | 일봉 종가 | 5일선 | 20일선 | 60일선 | 5일 | 20일 | RSI | 변동성 | 60일 낙폭 | 외국인 일봉 누적 | 기관 일봉 누적 | 점수 |"
+     sep = "|" + "---|" * 14
+ 
+     def row(r):
+@@ -414,12 +518,12 @@ def to_text(b):
+         tag += " 📉급락" if r.get("dip") else ""
+         return (f"| {r['code']} | {r['name']}{tag} | {r['close']:,} | {ma5} | {r['ma20']:,} | {r['ma60']:,} | {pct(r['ret5'])} | "
+                 f"{pct(r['ret20'])} | {r['rsi14']} | {r['vol20'] * 100:.0f}% | {pct(r['mdd60'])} | "
+-                f"{eok(r.get('foreign_net'))} | {eok(r.get('inst_net'))} | {r.get('score', '-')} |")
++                f"{flow_text(r, 'foreign', daily=True)} | {flow_text(r, 'institution', daily=True)} | {r.get('score', '-')} |")
+ 
+     it = b.get("intraday") or {}
+     if it and not it.get("kept_prep"):
+-        lines += [f"## 장중 수급 ({it['time']} 기준) — 아래 후보는 오늘 장중 거래대금·외국인·기관 순매수로 다시 뽑은 것",
+-                  "지표(5일선·RSI 등)는 전일 종가 기준, 현재가·등락·거래대금·순매수는 지금 기준. "
++        lines += [f"## 장중 수급 (갱신 {it['time']}) — 일반 선별·보충·예외 편입 경로는 종목별 근거 참조",
++                  "이동평균은 완료 일봉 기준이며 종목별 날짜는 아래 근거에 표시. 장중 값은 각 API 수신값이며 동시점으로 보장되지 않음. "
+                   "활발도 = 오늘 거래대금 ÷ 평소 같은 시각까지 거래대금 (1.0 = 평소 수준)", "",
+                   "| 코드 | 종목 | 현재가 | 오늘 등락 | 오늘 거래대금 | 활발도 | 외국인 오늘 | 기관 오늘 |", "|" + "---|" * 8]
+         for r in b["candidates"]:
+@@ -427,12 +531,13 @@ def to_text(b):
+                 lines.append(f"| {r['code']} | {r['name']} | - | - | - | - | - | - |   ({'인버스' if r.get('inverse') else '지수추종' if r.get('index') else '08:30 후보로 채움'})")
+                 continue
+             act = r.get("activity")
+-            lines.append(f"| {r['code']} | {r['name']}{' 📉급락' if r.get('dip') else ''} | {r.get('price', 0):,} | {pct(r.get('chg'))} | "
++            price_text = f"{r['price']:,}" if r.get('price') else "미확인 (선별 시 종가 대체)"
++            lines.append(f"| {r['code']} | {r['name']}{' 📉급락' if r.get('dip') else ''} | {price_text} | {pct(r.get('chg'))} | "
+                          f"{(r.get('value') or 0) / 1e8:,.0f}억 | {'-' if act is None else f'{act:.1f}배'} | "
+-                         f"{eok(r.get('foreign_today'))} | {eok(r.get('inst_today'))} |")
++                         f"{flow_text(r, 'foreign')} | {flow_text(r, 'institution')} |")
+         lines.append("")
+     elif it:
+-        lines += [f"장중 수급 갱신({it['time']}): 조건 통과 종목이 없어 08:30 후보를 그대로 씀", ""]
++        lines += [f"장중 수급 갱신({it['time']}): 갱신하지 못해 직전 후보 목록과 당시 선별 근거를 유지함", ""]
+     for title, rs in (("후보 종목", b["candidates"]), ("보유 종목", b["holdings"])):
+         lines.append(f"## {title} ({len(rs)})")
+         if rs:
+@@ -443,7 +548,7 @@ def to_text(b):
+         if notes:
+             lines += ["", f"최근 뉴스 ({NEWS_DAYS}일, ⚠ = 악재 단어 포함):"] + notes
+         lines.append("")
+-    return "\n".join(lines)
++    return "\n".join(lines) + O.render(b)
+ 
+ 
+ if __name__ == "__main__":

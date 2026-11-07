@@ -1,0 +1,74 @@
+diff --git a/agent/src/sizing.py b/agent/src/sizing.py
+index 7d078f2..5e7f643 100644
+--- a/agent/src/sizing.py
++++ b/agent/src/sizing.py
+@@ -3,9 +3,11 @@
+ 
+ 에이전트는 "이 종목을 확신도 0.72로 산다"까지만 정하고, 몇 주를 살지는 여기서 정합니다.
+ """
++import copy
+ import math
+ 
+ import common as C
++from audit_inputs import captured
+ 
+ 
+ def target_weight(conf, p, r, top=None):
+@@ -36,7 +38,8 @@ def equity_cap(p, r, account, regime=None):
+     return round(cap, 4), regime
+ 
+ 
+-def plan_buy(code, conf, price, account, p=None, r=None, regime=None, today_change=None):
++@captured
++def plan_buy(code, conf, price, account, p=None, r=None, regime=None, today_change=None, audit=None):
+     p, r = p or C.params(), r or C.risk_limits()
+     total, cash = account["total"], account["cash"]
+     held = next((h for h in account["holdings"] if h["code"] == code), None)
+@@ -100,6 +103,16 @@ def plan_buy(code, conf, price, account, p=None, r=None, regime=None, today_chan
+     if xd:   # 급락일 지수 예외: 익절 순익 +3% · 최대 5일
+         take_pct, max_days = C.dip_exit(code, p, take_pct, max_days)
+         stop_pct = C.dip_stop(code, p, stop_pct)
++    if audit is not None:
++        audit.update(version="SIZING_BUY@v1", inputs=copy.deepcopy({"code": code, "confidence": conf,
++            "price": price, "today_change": today_change, "account": account, "params": p, "risk": r,
++            "regime": regime}),
++            limits={k: {"value": v if math.isfinite(v) else None, "unbounded": not math.isfinite(v)} for k, v in limits.items()},
++            target_weight_before_display_rounding=w, equity_cap=cap, held_value=held_value,
++            stock_value=stock_value, binding=binding, budget=budget, unit_with_fee=unit,
++            rounding="floor", unrounded_qty=budget / unit if price > 0 else None, qty=qty,
++            exit_levels={"stop_pct": stop_pct, "take_pct": take_pct, "max_days": max_days},
++            flags={"inverse": bool(inv), "index": bool(ix), "dip": bool(dp), "index_dip": bool(xd), "high_vol": bool(hv)})
+     return {
+         "side": "매수", "code": code, "qty": qty, "price": price, "amount": qty * price,
+         "confidence": conf, "target_weight": round(w, 4), "regime": regime, "equity_cap": cap,
+@@ -121,13 +134,15 @@ def sell_qty(have, conf, p, rule_exit=False):
+     return min(have, math.ceil(have * ps["fraction"])), True
+ 
+ 
+-def plan_sell(code, conf, price, account, p=None, rule_exit=False):
++@captured
++def plan_sell(code, conf, price, account, p=None, rule_exit=False, audit=None):
+     """판단 매도는 확신도에 따라 일부 또는 전량, 손절·익절·보유일 규칙 매도(rule_exit)는 전량.
+     분할 매도는 종목당 하루 1번 (11-05): 이미 오늘 판 종목은 확신도가 full_at 이상일 때만 나머지 전량."""
+     p = p or C.params()
+     held = next((h for h in account["holdings"] if h["code"] == code), None)
+     have = held["qty"] if held else 0
+     qty, part = sell_qty(have, conf, p, rule_exit)
++    initial_qty = qty
+     again = part and C.sold_today(code)   # 11-05 HMM: 15분마다 절반씩 팔아 1시간 만에 97% 매도 → 분할은 하루 1번
+     if again:
+         qty = 0
+@@ -137,6 +152,13 @@ def plan_sell(code, conf, price, account, p=None, rule_exit=False):
+     wait = not rule_exit and have and C.etf_wait(code, p)   # 11-06 시장 ETF 판단 매도도 trade_from 이후만
+     if wait:
+         qty = 0
++    if audit is not None:
++        audit.update(version="SIZING_SELL@v1", inputs=copy.deepcopy({"code": code, "confidence": conf,
++            "price": price, "account": account, "params": p, "rule_exit": rule_exit}),
++            held_qty=have, partial=part, fraction=(p["decision"].get("partial_sell") or {}).get("fraction"),
++            rounding="ceil_capped_by_holding" if part else "all_holding",
++            initial_qty=initial_qty, qty=qty, restrictions={"sold_today_partial": bool(again),
++            "dip_held": bool(hold), "etf_wait": wait or None})
+     return {"side": "매도", "code": code, "qty": qty, "price": price, "amount": qty * price, "held_qty": have,
+             "confidence": conf, "partial": part, "rule_exit": rule_exit,
+             "limited_by": (f"{wait} 이후에만 판단 매도" if wait

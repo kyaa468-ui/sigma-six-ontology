@@ -1,0 +1,408 @@
+diff --git a/agent/README.md b/agent/README.md
+index 70f2635..66cf1e6 100644
+--- a/agent/README.md
++++ b/agent/README.md
+@@ -2,6 +2,142 @@
+ 
+ The trading agent. **The agent proposes, the rules decide**: Claude Code reads the market and debates each stock; Python code computes indicators and order sizes; a Claude Code hook blocks any order that breaks a risk limit.
+ 
++## Candidate evidence (ontology v1)
++
++`get_briefing()` now separates the candidate-selection snapshot from quotes fetched when the briefing is called. A price comparison links “above MA20” and its percentage gap to the same observation. Daily accumulated flows and intraday quantity × selection-price estimates remain separate. Missing flow is shown as unknown even where the unchanged engine used zero; the positive-only ranking ratio is not the signed sum of foreign and institutional flow.
++
++Definitions are pinned under `config/ontology/` in the workbench's `local-ontology-ir` v1 format. `ontology_adapter.py` accepts a bounded expression subset; `ontology.py` records actual filter inputs, criterion/rule versions and admission routes. Normal/high-volatility selection, prep fill, dip admission, ETFs and retention of the previous candidate list are distinguished. No order, confidence or candidate threshold is changed.
++
++Each selection is archived in `work/ontology/selections/<run_id>.json`, including input snapshots, definitions, engine source and final ordering. Each successful briefing delivery is archived in `work/ontology/deliveries/<delivery_id>.json`, including its exact returned text and SHA-256, original selection IDs and separately timestamped quote observations. Archives are exclusive-create, local, git-ignored and not automatically pruned or published. A recording failure is reported in the briefing and does not change candidate selection. Old briefings are marked unrecorded rather than supplied with current definitions. Supplier timestamps are left unknown when unavailable; receive times do not prove simultaneous observations. The daily-bar completion rule is the existing 15:30 cutoff, not independent confirmation of supplier finality.
++
++Verification (from repository root, Python 3.12; install `agent/requirements.txt` and `pytest` into an isolated environment):
++
++```sh
++python agent/tests/test_rules.py
++python -m pytest agent/tests/test_ontology.py -q
++```
++
++Run these separately: the original rule script owns module-level test state. The ontology suite uses a local fake broker, blocks network/order attempts, isolates output paths, compares against frozen `25f7da4` source and expected results, and calls the real `get_briefing()` function. The fixtures record the exact dependency versions used. Example prices and flows are synthetic, not operational thresholds. These checks establish the briefing contract and candidate parity, not AI adoption of evidence or investment performance.
++
++To rebuild/verify the isolated design with an existing local workbench checkout (without modifying its business data):
++
++```sh
++python agent/tools/build_ontology_definition.py --workbench /path/to/ontology-workbench
++python agent/tools/verify_ontology_workbench.py --workbench /path/to/ontology-workbench
++```
++
++## AI judgments and coverage (ontology step 2)
++
++The four MCP tools are `record_ai_judgments(items)`, `get_ai_judgments(run_attempt_id?, code?, delivery_id?)`, `record_external_evidence(items)`, and `get_judgment_coverage(run_attempt_id?)`. Briefing text and account responses now include an explicit evidence catalog. Only those returned catalog entries are citeable; stored internal fields are not. Evidence includes candidates, holdings, RSI inputs, market classifications, news titles, account values, configuration and lessons. Source classifications/reporting remain distinct from observed market values.
++
++Example **synthetic** submission after reading an actual delivery (replace both IDs with returned IDs):
++
++```json
++{
++  "request_key": "institution-review-1",
++  "code": "000001",
++  "recommended_action": "관망",
++  "confidence_for": "매수",
++  "confidence_raw": 0.5,
++  "decision": "기관 매도 압력을 고려해 관망한다. 이 문장 전체는 미검증 AI 해석이다.",
++  "delivery_ids": ["delivery-RETURNED_ID"],
++  "arguments": [
++    {
++      "id": "institution-sale", "kind": "fact_claim", "proposer": "bear",
++      "stance": "support", "adoption": "adopted",
++      "evidence": {"delivery_id": "delivery-RETURNED_ID", "evidence_id": "RETURNED_EVIDENCE_ID"},
++      "measurement_kind": "intraday_estimate",
++      "assertion": {"op": "sign", "direction": "sell"}
++    }
++  ],
++  "premises": []
++}
++```
++
++`fact_claim` accepts structured `value`/`unit`, actor-flow `sign`, same-observation `compare` (`operator`, `right` reference, boolean `result`), or `unknown`. The server produces factual summaries and rejects contradictory signs, units, values, measurement kinds and hidden references per item. `hypothesis` stores `text` and `claim_ids` as `submitted_unverified`. `source_quote` checks only whether `quote` occurs in the stored source text; it does not authenticate reporting. External evidence accepts `request_key`, `subject`, `url`, `text`, optional `title`; no URL is fetched. Numeric precision never changes actor sign checks. Received-value arithmetic sums retain their time-alignment limitation.
++
++For an accepted item, pass its explicit `judgment_id` to every relevant `plan_order`, `place_order` and `record_decision`. Supply `confidence_for` on decisions, especially `보유`: sell-review and add-on buy-review are separate targets. This metadata does not change legacy action-based confidence arithmetic. A zero-sized plan, failed order or blocked Hook can still be linked; linkage does not claim a fill. `get_ai_judgments` returns judgments plus coverage events, including submission-reference and actual plan/risk/fill/decision confidence inputs, adjustments, cap and rounding. Raw recommendation is never overwritten by the execution outcome.
++
++New premises use `MA20_MAINTENANCE@v2`, requiring explicit `direction` (`above`/`below`), positive integer `days`, and `claim_ids`. The immutable contract starts on the next trading day; daily close equals MA20 counts as maintained. Version 1 remains readable with its original incomplete definition and is not silently upgraded. Reuse with only `application_id`; changed conditions create a new application. Other premises are unverified proposals. Same request key/content is idempotent; changed submissions require a new key, optionally `supersedes_judgment_id` for a previously accepted judgment.
++
++Before launching an AI process, `run.py` persists a unique `RUN_ATTEMPT_ID`, while retaining legacy `RUN_ID`. `decide/view` coverage counts `(attempt, code, confidence_for)` targets and preserves initial candidates/holdings even if later sold. The five statuses are `not_submitted`, `rejected`, `accepted_unlinked`, `linked`, `recording_error`. Missing IDs are not inferred, and later submissions cannot repair earlier events. Ambiguous hold decisions retain `direction_unresolved`. System `exit` and general-run `rule_exit` calls are reported separately; a flag cannot erase general targets. Review/tuning runs have no ordinary judgment denominator.
++
++Normal exit, errors and timeout write a terminal event; a killed process remains `unfinished` and its next coverage query reconstructs the persisted events. Known zero targets is `not_applicable`, incomplete initial target sets or recording errors never report 100%. Existing trading success and coverage are separate fields in `work/runs.jsonl`. No automatic backfill, archive deletion or public dashboard export is performed.
++
++Storage is append-only under `work/ontology/`: `deliveries`, `judgments`, `submissions`, `requests` (request-key/hash registry), `premises`, `premise_proposals`, `attempts`, `coverage_events`, and `coverage_errors`. Audit writes fail open for trading policy but report recording errors; the preexisting risk Hook still fails closed on risk-check errors. If the filesystem itself cannot store an error, the current process and stderr retain it; historical persistence cannot be claimed in that case.
++
++Run local checks from the repository root with an interpreter containing `agent/requirements.txt` and pytest:
++
++```sh
++python agent/tests/test_rules.py
++python -m pytest -q agent/tests/test_ontology.py agent/tests/test_evidence_v2.py agent/tests/test_ai_judgment.py agent/tests/test_judgment_coverage.py agent/tests/test_judgment_integration.py
++```
++
++The old rule script runs separately because it changes module-level globals. Integration tests invoke actual MCP functions, Hook and runner with local fake data/processes, block network calls, redirect files to temporary directories, compare confidence results to frozen `25f7da4` code, and verify missing/rejected/linked judgments leave existing order results intact. No actual model, broker or external search is used. These checks validate structured claims and observed use; they do not certify the AI's entire interpretation or premise outcomes.
++
++## Ontology step 3: plans, dispatch and execution evidence
++
++`plan_order` returns immutable `plan_id` and a reserved `order_attempt_id`. Pass both, plus the original `judgment_id`, to `place_order`. A zero-quantity plan can be linked to `record_decision(plan_id=...)`. The plan archives the actual quote/account, sizing constraints, confidence adjustment and source definitions. Hook and server record their own actual risk inputs and evaluated/not-evaluated checks; a later quote or RSI never replaces the earlier plan. `order_logging` is the confidence used by the legacy order log, not an adjustment measured at execution time.
++
++The dispatch ledger `work/ontology/order_dispatch.sqlite3` commits a permanent claim before calling the broker. The account scope and `order_attempt_id` identify the attempt; tool invocation IDs do not replace it. Same ID/content returns the stored result or `submission_unknown`, including across restarts. Different content is rejected. Hook forwards an ID through `updatedInput`: it recovers a known plan's issued token, or reserves a deterministic token for the same legacy intent within one run/session. A new transport invocation alone cannot mint another attempt. A direct call without an issued ID is blocked. **Never obtain a new ID to retry an unknown order.** This guarantees at most one POST for a preserved attempt, not exactly one execution: a process killed between the durable claim and POST can leave zero sends and an unknown outcome.
++
++Do not delete/reset the dispatch ledger or its `.identity.json` companion. A missing/mismatched ledger identity, read failure or pre-send write failure blocks sending. This is the narrow fail-closed exception to fail-open ontology audit writes. Only order APIs `kt10000`/`kt10001` disable the existing HTTP 429 retry; read API retries remain. After-send receipt/log failures never reopen the dispatch claim. Ordinary risk limits, candidate rankings and quantities remain the existing engine's results.
++
++`get_execution_trace(plan_id=..., order_attempt_id=..., judgment_id=..., position_episode_id=...)` reads the stored graph. `refresh_execution_status(order_attempt_id=...)` performs read-only confirmation. The collector uses Kiwoom `kt00009` (`/api/dostk/acnt`, `acnt_ord_cntr_prst_array`), follows `cont-yn`/`next-key`, and reads `cntr_no/cntr_qty/cntr_uv/cntr_tm`, not `cnfm_qty`. Each date/account batch is limited to 20 pages and 30 seconds. Completion of decide/view/exit and close refresh today's unresolved attempts; older attempts require explicit refresh. There is no additional daemon. The [official API contract](https://openapi.kiwoom.com/m/guide/apiguide/08/kt00009) supports the mock KRX request shape; actual account permissions and provider responses have not been exercised by these local tests.
++
++Confirmations deduplicate account/date/exchange/order/execution IDs. A request for 100 shares with 40 confirmed has 60 **unconfirmed**, not necessarily unfilled. Missing rows do not mean zero; conflicting rows remain conflicts. Broker acceptance, broker execution, balance-delta inference and legacy effective quantities remain distinct. Legacy dashboard numbers remain, with stable references and separately attributed balance reconciliation. Historical rows receive no invented order or position IDs.
++
++`position_episode_id` links an observed holding interval. An initial pre-existing holding has `origin_unrecorded`; add-on buys and stop changes retain that interval. An order without a known interval stays `episode_pending`, and a later same-code holding does not retroactively prove its attribution. MA20 premise applications remain instrument scoped and keep their original dates. The monitor retry key remains exactly `code@entry_date/stop/take`, independent of the episode ID; its 09:30 gate, ten-minute retry and successful-exit update behavior are unchanged.
++
++Immutable events and engine definitions are in `work/ontology/executions/`; intervals use `position_episodes.sqlite3`. Coverage events/errors are scoped by run attempt, with unassignable legacy corruption shown separately. Evidence delivery failures mark that run's coverage incomplete. New episode context is linked only from evidence actually delivered to a judgment. Step 4 uses these original validated links; later feedback stages remain separate.
++
++## 사후 평가 (온톨로지 4번)
++
++`close_evaluation.py`는 수락된 판단에 실제 포함된 전제만 읽고, 기존 행동 결과와 전제 결과를 별도로 저장합니다. 적용 ID가 같은 전제를 여러 판단에서 재사용해도 대상은 한 건입니다. 매도·추가 매수·재진입·주문 차단은 원래 판단일·N거래일을 변경하지 않습니다. 자유 가설은 자동 채점하지 않습니다.
++
++새 `MA20_MAINTENANCE@v2`는 당일을 포함한 **정확히 20개 거래일의 종가를 반올림 없이 평균**합니다. 주식은 pykrx의 `adjusted=True` 경로(Naver 수정 종가), ETF는 KRX 공표 종가를 쓰며 출처·버전·옵션·원천 행을 보관합니다. 결측·거래정지 등으로 필요한 종가가 없거나 0이면 채우지 않습니다. 장후 최초 수신은 임시 값이며, **이후 실제 거래일 날짜의 재조회에서 20개 입력 전체가 일치해야 `policy_complete`**입니다. 다음 거래일 08:30 조회도 가능하지만 주말 반복 조회만으로는 완료되지 않습니다. 공급자 확정 여부는 별도이며, 현재 공급자는 이를 제공하지 않습니다.
++
++반증일과 반증을 확인한 시각을 구분합니다. 기간 중 반증이 확인되면 결과는 `refuted`가 될 수 있지만 기간 진행 상태와 데이터 완전성은 그대로 표시합니다. 앞선 날짜가 미확인이면 최초 반증으로 단정하지 않습니다. 최종 결과는 `maintained/refuted/pending/unknown`, 기간은 `not_started/in_progress/ended/calendar_unknown`, 데이터와 저장 상태는 각각 별도 필드입니다. 기존 v1은 빠진 계산·수정주가 정의를 소급 보완하지 않고 `definition_incomplete`로 둡니다.
++
++거래일 달력은 고정된 `exchange-calendars==4.13.2`와 출처가 있는 보완 사항을 기록합니다. 2026년 6월 3일·7월 17일·8월 17일은 [KRX 공지](https://strn.krx.co.kr/corebbs5/BHPSTRN0401/list)를 반영했습니다. [교육부가 발표한 2026년 11월 19일 수능일](https://www.moe.go.kr/boardCnts/viewRenew.do?boardID=294&boardSeq=100526&lev=0&m=020402&opType=N&s=moe&statusYN=W)의 거래소 폐장 시각은 별도 공지를 확인하기 전까지 미확인입니다. 검토하지 않은 2021~2025년 특별 시각·2027년 이후 일정은 추정하지 않습니다. 달력이 미확인이어도 기존 매매에 쓰는 주말 제외 `business_days()`와 감시 재시도 키는 바꾸지 않습니다.
++
++```sh
++# 장후 채점 / 다음 장전 미확인 일봉 재조회: 기존 실행에 연결
++python agent/run.py close
++python agent/run.py prep
++
++# 주문·AI·계좌 조회 없이 채점만 실행 (일봉 공급자 조회는 발생 가능)
++python agent/run.py score --as-of 2026-11-11
++# 보관 자료만으로 당시 지식 시점 재현; 오늘 내려받은 값의 소급 사용 금지
++python agent/run.py score --as-of 2026-11-10 --knowledge-as-of 2026-11-11T08:30:00+09:00
++# 새 score 명령의 dry는 조회·저장 모두 생략
++python agent/run.py score --dry
++```
++
++회차별 수집 한도는 `--max-symbols`(기본 50)입니다. 한도는 원래 전제 기간을 줄이지 않습니다. 자동 `prep/close`는 완료된 일봉을 재사용하고 미확인 자료를 먼저 수집하며, 수집 시도 시각이 오래된 종목부터 진행합니다. 장전 `prep`의 시장 기준일은 전날까지이며, 재조회 수신 시각은 실제 오늘 시각으로 남깁니다. `score`는 완료된 값의 정정 확인에도 사용합니다. 수집 한도·기간 부족·공급자 실패는 미확인 사유로 남습니다. 계좌 조회가 실패해도 독립 채점은 시도하며, 채점 오류를 과거 AI 실행의 적용률 오류로 기록하지 않습니다.
++
++`get_close_evaluations(scoring_job_id?, market_as_of?, limit=20)`와 `get_premise_evaluations(application_id?, judgment_id?, scoring_job_id?, knowledge_as_of?, include_history=False)`는 **저장된 기록만 조회**합니다. 조회 시 수집·채점·주문·복구 저장은 없습니다. 새 결과를 기존 자동 조정 도구의 입력이나 허용목록에 넣지 않았으며 교훈·설정도 변경하지 않습니다.
++
++`work/ontology/scoring/`에 회차 시작 목록, 달력·거래일 구간, 일봉 수신 자료, 전체 20개 입력, 정의 소스·해시, 전제 평가, 기존 결과 입력, 주문 연결 문맥, 오류를 보관합니다. JSON은 무결성 해시와 함께 불변 저장하며, 수정은 `supersedes`가 있는 새 평가입니다. A→B→A 정정도 세 번째 이력으로 남습니다. 동일 입력 재평가는 기존 평가를 참조하지만 실행 회차 ID는 별도입니다. 강제 종료·마지막 저장 실패는 `unfinished`로 조회됩니다. 과거 기록이 없으면 현재 값으로 채우지 않습니다. 기존 행동 결과는 실제 조회 당시 자료의 `current_snapshot_reference`로 표시하며 과거 계좌를 복원했다고 주장하지 않습니다.
++
++주문 문맥은 해당 시도의 원래 `coverage_event_id`에 검증된 연결이 있을 때만 귀속합니다. 요청 100주 중 확인 40주라면 나머지 60주는 계속 미확인입니다. 잔고 차이 추정 체결·기존 가격 수익률은 참고값이며 수수료를 포함한 순손익이나 보유 구간별 확정 회계가 아닙니다.
++
++```sh
++python -m pytest -q agent/tests --ignore=agent/tests/test_rules.py
++python agent/tests/test_rules.py  # 기존 전역 상태를 분리해 실행
++```
++
++새 검증은 고정 제출값·가짜 브로커·가짜 일봉을 사용하고 네트워크를 차단합니다. 실제 `get_briefing()`→판단 제출→주문→다음 거래일 확인→조회 도구까지 검증합니다. 계산 예시의 가격·기간은 테스트 자료이며 운영 설정을 변경하지 않습니다.
++
++Local verification (temporary files, fake broker/AI/HTTP, no network or orders):
++
++```sh
++python agent/tests/test_rules.py
++python -m pytest -q agent/tests --ignore=agent/tests/test_rules.py
++```
++
++Regression fixtures freeze the original `25f7da4` sizing/risk/monitor functions. Tests compare actual monitor subprocess timing after add-on buys, changed stops, exit return code 3 and retry boundaries; exercise concurrent dispatch and process termination; and run real MCP/Hook entry points from briefing through judgment, plan, one broker send and partial confirmation. Runtime deployment and real model adherence remain untested.
++
+ ## Daily schedule (weekdays, KST)
+ 
+ | Time | Run | LLM |
+@@ -11,7 +147,8 @@ The trading agent. **The agent proposes, the rules decide**: Claude Code reads t
+ | 09:30–15:15, every 15 min | `decide` — intraday re-screen → regime → bull ⇄ bear debate → lead agent decides → orders in every slot since 11-05 (`params.schedule.trade_times` lists all 24); a stock sold today is not bought back the same day | yes |
+ | 15:45 | `close` — record today's equity, publish to dashboard | no |
+ | 16:00 | `tune` — agent proposes 0–2 threshold changes; `src/tuning.py` applies only those inside `config/tuning.json` and commits | yes |
+-| Sat 10:00 | `review` — weekly review + report draft | yes |
++| Wed/Fri 15:50 | `review` — existing review + report draft | yes |
++| Sat 10:00 | `case-review` — frozen ontology cases, statistics and separate AI hypotheses | yes (omit with `--no-ai`) |
+ | always (from logon) | `sync` — every minute, pulls pushed code, checks it, restarts `monitor` / the balance loop if their code changed | no |
+ 
+ Register them with `setup_tasks.ps1` (Windows Task Scheduler). The agent runs on an always-on PC and is edited from a laptop; see [MOVE_PC.md](MOVE_PC.md) (Korean) for moving it between machines.
+@@ -62,3 +199,250 @@ copy .env.example .env      :: fill KRX_ID / KRX_PW / NAVER_CLIENT_ID / NAVER_CL
+ - Without `KRX_ID` / `KRX_PW`, data prep falls back to a fixed large-cap list without investor flow data.
+ 
+ > Kiwoom App Key / Secret and any `.env` file are never committed (excluded via `.gitignore`).
++
++
++## 5번: 별도 사례 복기·통계·사전 예측
++
++`case-review`는 보관된 판단·전제·평가만 읽는 별도 실행입니다. 수·금 `review`, 평일 `tune`, 후보 선별·확신도·수량·손절 감시와 분리합니다. 첫 구현은 전제의 반증 여부를 분석하며 매매 개선이나 원인을 입증하지 않습니다. 교훈·변경안 자동 생성과 적용은 6~7번 범위입니다.
++
++```sh
++# 가장 최근 토요일 10:00 KST를 지식 기준으로 비교·통계·복기 AI 실행
++python agent/run.py case-review
++# 같은 계산까지 수행, AI를 호출하지 않음
++python agent/run.py case-review --no-ai
++# 실제 저장된 자료만으로 명시적 기준시각 재현
++python agent/run.py case-review --as-of 2026-11-13 --knowledge-as-of 2026-11-14T10:00:00+09:00 --no-ai
++# 기존 주간 결과를 덮어쓰지 않는 정정/재실행
++python agent/run.py case-review --revision calendar-correction-1 --no-ai
++# 실행만 확인: 수집·저장·AI 호출 없음
++python agent/run.py case-review --dry
++```
++
++기본 시장 기준일은 직전 금요일입니다. 토요일 10시 전이면 지난 토요일을 사용합니다. 금요일 종가는 다음 거래일 재조회로 정책상 완료가 확인되기 전까지 미확인입니다. 최초 실행은 입력·정의·설정·선택한 평가를 고정하고, 같은 주·기준시각·재실행 키는 기존 결과를 재사용합니다. 중단된 실행은 자동으로 과거 입력을 다시 만들어 완료하지 않으며 `unfinished`로 남습니다. 명시적인 `--revision`은 이전 비교를 가리키는 새 이력을 생성합니다.
++
++`setup_tasks.ps1`에 `Hynix298-case-review`(토요일 10:00)가 추가됩니다. Windows PC의 시간대가 `Korea Standard Time`일 때만 새 작업을 등록합니다. 다른 시간대라면 새 작업을 건너뛰고 이유를 출력하며 기존 매매 작업의 시간대는 바꾸지 않습니다. 코드 변경만으로 운영 PC에 작업이 등록되는 것은 아니므로 해당 PC에서 등록 스크립트를 실행해야 합니다. 별도 저장 잠금으로 통계 작업자를 하나만 실행하고 `--case-timeout`(기본 1,500초) 초과 시 부분 결과를 남깁니다. 복기 AI도 25분 제한이 있으며 중단된 AI를 조용히 재실행하지 않습니다.
++
++### 고정 사례와 조회
++
++`case_dataset.build_cases()`는 수락된 전제 목록에서 시작합니다. 같은 적용 ID 재사용·여러 날짜 채점은 한 사례이며, 미채점·손상·충돌은 목록과 제외 사유에 남습니다. 시장 기준일과 실제 기록 시각을 모두 제한해 평가 하나를 선택하고, 기간 종료 및 전체 기간 확인이 충족된 `반증/(반증+유지)`만 주 반증률로 제공합니다. 조기 반증은 별도 상태입니다. 대상 목록이 불완전하면 관측된 기록에 한정된 비교라고 표시합니다.
++
++최초 판단의 `comparison_context={delivery_id, observation_id}`는 실제 전달된 같은 종목 관측만 지정할 수 있습니다. 명시 참조나 유일한 관측이 없으면 특징을 미확인으로 둡니다. `set_regime()`의 불변 등록 기록과 판단 당시 국면을 별도 보관하며, 국면은 AI 분류입니다. 이후 브리핑·현재 국면·전제 재사용이 원래 특징이나 주장 채택 상태를 덮어쓰지 않습니다. 기존 기록에 없는 국면·특징을 현재 값으로 채우지 않습니다.
++
++`get_case_review(review_id)`, `get_review_cases(review_id, offset=0, limit=50)`는 고정 결과만 조회합니다. 같은 실행에 배정된 `CASE_REVIEW_ID`를 가진 `RUN_MODE=case_review`에서만 호출됩니다. 이 모드에서는 나머지 매매·계좌·브리핑·국면·튜닝 도구를 서버가 거절하고, 실행기의 허용 도구도 위 조회 둘과 제출 하나뿐입니다. 파일 읽기·웹·하위 AI 도구도 허용하지 않습니다. 일반 `review/tune`의 주문·계획은 서버·리스크·주문 전 Hook에서 거절됩니다. 튜닝의 교훈 저장도 실행 모드·요일·중복 검사 이후로 이동했습니다.
++
++복기 AI는 `metric_catalog`에 있는 계산값만 사실 주장으로 제출합니다.
++
++```json
++{
++  "review_id": "실제 비교 ID",
++  "request_key": "submission-1",
++  "findings": [{"id": "f1", "metric_id": "조회한 metric_id", "op": "value", "value": 25, "unit": "%"}],
++  "hypotheses": [{"id": "h1", "text": "기관 매도 압력을 외국인 매수가 흡수했을 수 있다는 사후 가설", "finding_ids": ["f1"], "case_ids": []}]
++}
++```
++
++예시의 25%는 실제 결과가 아닙니다. `record_case_review()`가 값·명시적 단위 환산·원래 부호·비교를 검사하고 사실 요약 문장을 생성합니다. `op=direction`은 `positive/negative/zero`, `op=compare`는 같은 단위의 `right_metric_id`, `operator=gt/gte/lt/lte/eq`, `result`를 받습니다. 자유 문장은 검증된 사실 항목으로 받을 수 없습니다. 가설은 `submitted_unverified`이며 최초 전제와 구분합니다. 잘못된 항목을 거절해도 같은 제출의 유효 항목은 보관하고, 다른 요청 키로 수정 제출할 수 있습니다. 동일 요청 키·같은 내용은 재사용하고 다른 내용은 거절합니다.
++
++`analysis_status`(계산), `ai_status`(미제출·거절·수락·대상 없음), `ai_execution_status`(정상 종료·시간 초과·오류·중단·미요청), `recording_status`를 분리합니다. `--no-ai`는 `analysis_only`이며 AI 수락으로 표시하지 않습니다. 표본 부족은 통계의 `insufficient_data`이고 모형 적합 성공이 아닙니다.
++
++### 통계와 시간 분리
++
++`case_statistics.SPEC`의 `PREMISE_LOGIT@v1`은 설명변수를 미리 고정합니다. 이격률·MA20 기울기·부호 있는 외국인/평균거래대금·기관/평균거래대금·표준화 이격률×기울기·국면을 사용합니다. 훈련값의 평균·표준편차만 저장해 변환하고, 측정 방식·기간·비교층이 다른 사례를 섞지 않습니다. 체결·손절·사후 가격·참고 수익률을 설명변수로 쓰지 않습니다.
++
++완료 200건, 각 결과 `max(30, 10×모수 수)`건, 고유 종목 10개, 판단 날짜 `10L`거래일(`L=max(5,2N)`)을 모두 충족해야 적합을 시도합니다. 이는 분석 시작 기준이지 정확성을 보장하는 법칙이 아닙니다. 결측 0 대체와 정규화 모형 자동 대체는 없습니다. 선형 계획으로 완전/준완전 분리를 별도 검사하고 행렬 순위·조건수·수렴·정보행렬·유한 계수도 검사합니다. 의존성은 `statsmodels==0.15.0`, `scipy==1.18.1`로 고정하고 실제 버전을 기록합니다.
++
++거래일별 사례를 한 묶음으로 유지하는 연속 날짜 블록 재표집을 고정 난수로 1,000회 수행합니다. L과 2L의 95% 구간을 각각 제공하며 적합 성공률 95% 미만이면 구간을 숨기고 불안정 사유를 표시합니다. 관측된 종목 집합의 탐색적 연관이며, 인과·새 종목 일반화·모든 장기 상관 해소를 뜻하지 않습니다.
++
++과거 재현은 토요일마다 그때 실제 기록된 라벨만으로 훈련하고 다음 주를 시험합니다. 시험 시작과 검증 기간이 겹치는 훈련 사례는 제외합니다. 실제 사전 예측은 완전히 저장·공개된 주간 모형을 다음 주 최초 전제 수락 때만 사용합니다. 예측 기록은 원래 판단을 변경하지 않고 재시도·전제 재사용으로 추가되지 않습니다. 최초 수락 후 지연된 콜백은 예측을 소급하지 않고 누락 사유를 남깁니다.
++
++성능은 같은 사례에 대한 훈련 반증률 상수 예측과 Brier·로그 손실·ROC-AUC·고정 10구간 확률 보정 표로 비교합니다. 손실 차이 구간에도 날짜 블록을 유지합니다. 누적 시험 표본·기간 기준 미달이면 성능 수치 대신 예측·대기·누락·제외 건수만 표시합니다. 과거 재현과 실제 사전 예측은 별도입니다. 결과 정정은 새 비교 버전을 만들며 이미 기록한 예측은 고정합니다.
++
++### 보관·회귀 검사
++
++`work/ontology/case_review/` 아래에 `jobs`, `datasets`, `definitions`, `results`, `models`, `model_publications`, `publication_commits`, `prediction_targets`, `predictions`, `review_submissions`, `ai_attempts`, `ai_results`, `research_usage`, `errors`를 불변 JSON으로 보관합니다. 새 경로는 매매 AI의 파일 읽기에서 제외되고 예측 확률은 브리핑·판단 조회·주문 반환에 노출하지 않습니다. 모형 공개는 전체 저장 후 완료 표식이 있어야 유효합니다. 저장 실패는 2번 적용률이나 주문 허용 정책을 바꾸지 않습니다. 분석에 사용한 적용 ID를 `research_usage`에 남겨 7번에서 독립적인 미사용 자료로 다시 취급하지 않게 합니다.
++
++`tests/test_case_dataset.py`, `test_case_statistics.py`, `test_case_prediction.py`, `test_case_review.py`, `test_case_review_tools.py`, `test_calendar_extension.py`는 임시 저장소·고정 시각·합성 자료·가짜 브로커를 사용합니다. 네트워크와 실제 주문을 차단하고, 기존 1~4번의 후보 순위·손절 재시도·중복 주문·판단 적용률 검사를 함께 실행합니다. 현재 대회 기록이 표본 기준에 미달하는 것은 정상이며 존재하지 않았던 판단으로 채우지 않습니다.
++
++### 검토된 달력 범위 확장
++
++```sh
++python agent/run.py import-calendar --calendar-file /absolute/path/reviewed-krx-calendar.json
++```
++
++파일에는 `source`, `version`, `reviewer`, `coverage_start`, `coverage_end`, `sessions:[{date,open_at,close_at}]`, `closed_dates:[{date,reason}]`가 필요합니다. 주말도 명시적 휴장으로 열거하고 범위 안의 모든 날짜를 한 번씩 분류해야 합니다. 확정하지 못한 특별 마감은 `close_at:null`과 `close_status` 사유로 남깁니다. 실제 공급자 공지·검토자가 확인한 자료를 등록하는 경로이며, 등록 함수 자체가 외부 원문의 진실성을 검증하지는 않습니다. 입력한 `available_at`은 신뢰하지 않고 실제 최초 등록 시각을 사용합니다.
++
++검토본끼리 충돌하면 미확인으로 남기고, 정정은 `supersedes_calendar_ids`로 기존 기록을 명시합니다. 미래에 등록한 정정은 과거 지식 시각에 소급되지 않습니다. 검토한 스냅샷으로 다음 연도까지 범위를 확장할 수 있고, 없으면 기존 검토 범위 밖의 휴장·특별 시간을 추정하지 않습니다. 테스트의 2027년 일정은 합성 자료이며 실제 운영 달력으로 등록하지 않았습니다.
++
++## 6번: 교훈·변경안 제안
++
++5번의 완료된 비교를 고정해 교훈 후보·기준값 변경안·조건부 규칙 변경안·현행 유지 의견을 보관합니다. **수락은 검증 후보 저장**입니다. 새 제안은 `params.json`, `lessons.json`, `last_weekly_review`를 바꾸지 않으며 기존 튜닝과 별도로 동작합니다. 7번의 검증·채택 기능은 아직 연결되지 않았습니다.
++
++```sh
++# 완료된 5번 비교를 사용한 별도 제안 AI 실행
++python agent/run.py propose --review-id 실제_비교_ID
++# 입력·현재 코드·설정을 고정하되 AI는 호출하지 않음
++python agent/run.py propose --review-id 실제_비교_ID --no-ai
++# 중단/정정은 기존 기록을 덮어쓰지 않고 새 실행으로 생성
++python agent/run.py propose --review-id 실제_비교_ID --revision retry-1
++python agent/run.py propose --review-id 실제_비교_ID --dry
++```
++
++토요일 `case-review`의 계산과 AI 제출이 모두 정상 완료되면 별도 제안 실행이 이어집니다. 기존 예약 작업을 이용하므로 추가 예약 작업은 필요하지 않습니다. `case-review --no-ai`는 후속 제안 AI도 호출하지 않습니다. 6번 실패는 5번 결과를 실패로 바꾸지 않습니다. 동일 비교·재실행 키는 기존 기록을 재사용하며 중단된 AI는 자동으로 다시 시작하지 않습니다. 표본 부족은 현행 유지 제안을 낼 수 있는 정상 자료지만, 부분 계산·불완전 대상 목록·저장 실패 자료는 제안 입력으로 받지 않습니다.
++
++### 도구와 제출 계약
++
++`RUN_MODE=proposal_review`와 배정된 `PROPOSAL_RUN_ID`가 있어야 다음 네 도구를 호출할 수 있습니다. 이 모드의 계좌·시세·주문·국면·기존 튜닝 도구는 서버와 주문 전 Hook에서 거절합니다. AI 실행기에는 파일·웹·하위 AI 도구가 없으며, 매매 AI의 파일 읽기에서도 `work/ontology/learning_proposals/`를 제외합니다.
++
++| 도구 | 반환·처리 |
++|---|---|
++| `get_proposal_context(proposal_run_id)` | 고정 비교, 자료 범위, 목표 규칙·코드·설정 해시, 조건 필드, 제출 스키마, 전달 ID |
++| `get_proposal_cases(proposal_run_id, offset=0, limit=50)` | 당시 판단·근거·평가·실행 문맥이 연결된 사례 페이지와 전달 ID |
++| `record_learning_proposals(proposal_run_id, request_key, items)` | 항목별 사실·단위·조건·대상 검증, 수락·거절과 이유 |
++| `get_learning_proposals(proposal_run_id, proposal_id=None)` | 불변 제안, 제출·실행 상태, 이전 버전, 현재 기준과의 차이 |
++
++제출 형식은 `get_proposal_context().schema`와 `targets`에서 가져옵니다. 각 `fact_claims` 항목은 `id`, `reference={review_id,result_hash,metric_id}`, `op`, 구조화 값·단위를 포함합니다. 계수·당시 특징·수급 주장은 `feature_name`도 정확히 제출합니다. 같은 metric ID라도 다른 비교 결과의 값으로 해석할 수 없으며, 실제 받은 전달 기록에 없는 값이나 아직 조회하지 않은 사례는 인용할 수 없습니다. 서버가 사실 요약 문장을 만들고 `reason`, `expected_change`는 미검증 해석으로 남깁니다.
++
++예를 들어 이격률 양수와 기관 순매도 조건은 다음처럼 표현합니다. 아래 조건과 수치는 **스키마 예시**이며 운영 기준이 아닙니다.
++
++```json
++{
++  "op": "and",
++  "left": {"op": "gt", "left": {"field": "features.gap"}, "right": {"value": 0, "unit": "ratio"}},
++  "right": {"op": "lt", "left": {"field": "signed_flows.institution"}, "right": {"value": 0, "unit": "KRW"}}
++}
++```
++
++조건은 사전에 등록된 당시 판단 필드만 허용하며 사후 결과·수익률은 사용할 수 없습니다. 결측과 분모 0은 조건 미확인입니다. 서버가 지정 비교층의 전체 일치 사례·반대 결과·미확인·조건 밖 사례를 남기므로 AI가 선택한 사례 목록으로 분모를 줄이지 않습니다. 조건이 맞는 표본이 없어도 숨기지 않고 후속 검증 입력 부족으로 표시합니다.
++
++제안 종류는 `lesson_candidate`, `parameter_change`, `conditional_rule_change`, `retain_current`입니다. 변경 제안에는 조회한 정확한 `target_ref`, `effect`, `validation_kind`, `expected_change`, `validation_question`이 필요합니다. 기준값은 현재 튜닝 허용 키·범위·변화 폭·일관성 검사를 사용하지만 실제로 적용하지 않습니다. 조건부 확신도 효과의 위치도 명시합니다. `retain_current`는 `validation_kind=none`, `reason_kind=insufficient_evidence` 또는 `no_supported_change`이며 효과를 넣지 않습니다.
++
++### 1~5번 연결과 후속 검증
++
++관망·보유·계획만 생성·수량 0 경로도 4~5번 실행 문맥에 포함합니다. 당시 검증된 판단 연결이 없는 호출은 별도 미연결 자료로 남기고 나중에 제출한 ID로 연결을 복구하지 않습니다. Hook·서버 리스크·도구 결과에는 각 호출의 정의를 남기며 이전 주문 계획의 정의로 대체하지 않습니다. AI 입력·허용 도구·알려진 모델 설정과 결과는 회차 ID별로 보관해 같은 분 재실행도 덮어쓰지 않습니다. 공급자의 내부 프롬프트나 공개하지 않은 기본 모델 설정까지 기록했다고 주장하지 않습니다.
++
++분석·전달 전에 사용 이력을 예약하고, 실패·거절된 제안에서 본 사례도 사용된 자료로 남깁니다. 이력이 없다는 이유로 독립적인 미사용 검증 자료로 판정하지 않습니다. 기존 5번의 조회 함수는 읽기 전용이며 새 6번의 조회 두 개는 실제 반환한 본문 해시·근거 목록·사례 페이지를 별도로 보관합니다.
++
++`learning_proposals.export_validation_bundle(proposal_id)`는 7번에 전달할 원래 사례·평가·코드·설정·AI 입력·사용 이력과 검증 준비 상태를 반환합니다. 계산 규칙은 원래 AI 점수를 고정한 재현 경로가 필요하고, 문구·교훈은 모델 재호출 실험이 필요합니다. 현재 기준이 바뀌면 `stale_base`, 당시 입력이 없으면 `replay_inputs_incomplete`로 표시하며 현재 값으로 메우지 않습니다. 이 함수는 검증을 실행하거나 채택하지 않습니다.
++
++향후 채택 교훈 소비 경로는 검증·채택·유효 기간·기준 버전·종목별 적용 조건을 확인하고 실제 브리핑 전달 목록과 판단의 채택 기록에 연결하도록 준비했습니다. 현재 운영 검증기는 연결되지 않아 후보 파일, `approved=true`, 임의 검증 ID로 활성화할 수 없습니다. 가짜 검증기를 넣는 로컬 검사만 실행합니다. 기존 튜닝 교훈은 기존 표시·동작을 유지합니다.
++
++### 상태와 보관
++
++`submission_status`는 미제출·거절·수락, `ai_execution_status`는 정상·시간 초과·오류·중단·미요청, `recording_status`는 기록 여부를 구분합니다. `no_targets`, `source_not_ready`, `analysis_only`, `partial`, `unfinished`를 정상 수락과 혼동하지 않습니다. 같은 요청 키·내용은 재사용하고 내용이 다르면 거절합니다. 수정은 새 요청 키와 `supersedes_proposal_id`로 원본을 보존합니다.
++
++제안 자료는 `work/ontology/learning_proposals/`에 불변 파일과 완료 표식으로, AI 입력·결과는 `work/ontology/runtime_inputs/`에 저장합니다. 사용 이력은 기존 `case_review/usage_events`와 연결합니다. 운영 삭제나 기존 파일 마이그레이션은 수행하지 않습니다.
++
++`test_learning_proposals.py`, `test_research_evidence.py`, `test_execution_context_v2.py`, `test_lesson_registry.py`, `test_proposal_integration.py`에서 잘못된 사실·변수·단위·미전달 인용, 반대 사례, 재시도·저장 실패, 모드 격리, 위조 채택, 동일 시각 재실행을 검사합니다. 기존 1~5번 및 규칙 검사도 함께 실행합니다. 모든 실행 검사는 임시 저장소·고정 입력·가짜 브로커/AI 프로세스를 사용합니다.
++
++## 7번: 변경안 검증과 수동 채택
++
++7번은 **원래 계산 재현**, **같은 계좌에서 한 호출의 차이**, **서로 독립적인 모의 계좌의 누적 차이**를 구분합니다. 새 검증 결과가 후보 순위·확신도·주문에 자동 반영되지 않습니다. 5·6번에서 사용한 자료는 발견용 자료이며, 사용 이력이 없다는 이유만으로 독립 검증 자료라고 표시하지 않습니다.
++
++- `validation_spec.py`가 제안 버전·기준 정의·기간·범위·비용·체결 가정·최소 표본·허용 위험·실험군 수를 실행 전에 고정합니다. 기준이 빠진 명세는 개발용입니다.
++- `validation_dataset.py`는 `(실행 시도, 종목, 점수 방향)` 전체를 모읍니다. 미제출·거절·관망·누락도 남습니다. 과거 입력을 현재 시세·설정으로 보충하지 않습니다.
++- `replay_context.py`는 보관된 소스와 실제 로드된 함수·상수의 일치 여부를 확인하고 등록된 현재 엔진으로만 재현합니다. 보관한 문자열을 실행하지 않습니다. 지원하지 않는 과거 정의는 재현 불가입니다.
++- `simulation.py`는 원래 AI 판단을 고정한 두 계좌 비교입니다. 실제 모델이 다른 상황에서 어떻게 판단했을지는 뜻하지 않습니다. 주문 이후 관측·실행 가능 수량·수수료·세금·지연·슬리피지가 필요합니다. 현재 일봉 자료만으로 체결 가격이나 남은 수량의 체결을 만들어내지 않습니다.
++- `validation_holdout.py`가 검증용 기간·범위를 사전 예약합니다. 5번 비교·예측 및 6번 제안은 이 자료를 추출·분석하기 전에 제외합니다. 4번 채점은 계속됩니다. 예약은 적용률 분모를 늘리지 않습니다.
++- `policy_adoption.py`는 사람이 명시적으로 실행하는 채택·해제·되돌리기입니다. AI 도구로 노출하지 않습니다. 숫자 설정과 활성 패키지 참조를 한 번에 공개하며, 기존 튜닝과 같은 잠금 및 현재 리비전 비교를 사용합니다.
++
++아래 명령은 **사용 예시이며 자동 실행되지 않습니다**. 저장소의 `agent` 폴더에서 격리 Python 환경을 사용합니다. 실제 ID·기간·효과 기준은 검토 후 입력해야 합니다.
++
++```text
++python run.py register-validation --proposal-id PROPOSAL_ID --request-key UNIQUE_KEY --spec-file /absolute/path/spec.json
++python run.py validate-policy --validation-id VALIDATION_ID
++python run.py validate-policy --validation-id VALIDATION_ID --validation-mode portfolio
++python run.py get-policy-validation --validation-id VALIDATION_ID
++```
++
++명세의 `mode`는 `retrospective` 또는 `prospective`, `comparison_kind`는 `fixed_judgment_stream`, `prompt_pair`, `screen_only`입니다. 기간에는 시간대가 있는 `start/end/knowledge_as_of`, 범위에는 `codes/confidence_for`, 실험군에는 `family_id`를 명시합니다. 운영 적격에는 `metrics`, `costs`, `execution`, `minimums`, `risk_limits`가 모두 필요합니다. 5번 통계의 200건·AUC 기준을 매매 효과의 기준으로 재사용하지 않습니다. 상세 필드와 허용값은 `validation_spec.validate_spec()`가 검사합니다. 지원하지 않는 추가 종료 규칙이나 모델 설정은 무시하지 않고 등록을 거절합니다.
++
++독립적으로 준비한 로컬 시장 관측은 다음처럼 등록할 수 있습니다. 각 행은 `observation_id/code/observed_at/available_at/price/price_basis/source/executable_qty`를 갖습니다. 가격 기준은 `unadjusted`이며 공급자의 실행 가능 수량이 없으면 미확인입니다. 운영자가 제출한 파일의 시각·수량은 검증된 공급자 기록으로 승격하지 않습니다.
++
++```text
++python run.py import-validation-market --validation-id VALIDATION_ID --request-key TAPE_KEY --market-file /absolute/path/market.json
++```
++
++현재 자료에 원래 실행 환경·일봉 외 가격 관측·가상 보유까지 덮는 감시 일정·초기 상태가 없으면 `insufficient_data/incomplete`가 정상입니다. 기존 자료를 재현 가능하다고 소급 표시하지 않습니다. 당시 설정이 현재 설정과 달라도 과거 조회는 가능하지만, 채택 전에는 현재 기준과 다시 대조합니다.
++
++새 실행은 `portfolio_capture.py`를 통해 주문 계획 당시 계좌·보유 메타데이터·저널, 수신한 가격의 출처와 시각, 미리 선언한 감시 일정과 실제 점검 기록을 함께 남깁니다. 실제 감시 기록의 ID와 해시를 대조하며, 빠진 점검이나 종료되지 않은 수집 구간을 연속 감시 완료로 표시하지 않습니다. 기존 감시의 점검 후 대기 방식과 손절 재시도 키는 유지합니다. 수집·저장 오류도 기존 수량과 주문 허용·차단 결과를 바꾸지 않습니다.
++
++가격의 공급자 기준시각과 수신 시각은 별도입니다. 공급자가 실행 가능 수량을 주지 않으면 거래량으로 대신하지 않습니다. 잔고 조회가 성공해도 연속조회 종료·필수 값·현금 출처가 확인되지 않으면 완전한 초기 계좌로 표시하지 않으며, 기존 현금 추정값은 추정으로 남깁니다. 실제 보유가 없어 실행하지 않은 분기에 필요한 브리핑도 당시 값으로 보관하되, 이후 자료로 과거 빈칸을 채우지 않습니다. 모의 실행에 명시적으로 넣은 가격·체결 가능 수량은 합성 입력이며, 실제 시장의 체결 가능성을 증명하지 않습니다.
++
++### 실제 AI 비교는 별도 실행
++
++`prompt_validation.py`는 두 실행 모두 같은 명시적 모델·반복 횟수·총예산을 사용합니다. 원래 프롬프트·실제 전달 근거를 고정하고, 후보 실행에만 제안된 지침을 추가합니다. 현재 계좌·시세·웹·주문 도구는 없습니다. 보관된 bull → bear → 총괄 프롬프트를 별도 격리 호출하고, 각 역할의 실제 반환값·도구 입출력을 보관합니다. 한 비교군의 예산을 25%·25%·50%로 나누며 모든 역할에 같은 등록 모델을 씁니다. 구조화 주장은 2번 사실 검사를 재사용하며, 가설은 미검증으로 남습니다. 한쪽 실패·누락은 성공한 짝으로 집계하지 않습니다. 반복 모델 호출은 독립적인 시장 표본 수를 늘리지 않습니다.
++
++```text
++python run.py validate-policy --validation-id VALIDATION_ID --with-ai --model EXPLICIT_MODEL --repetitions REGISTERED_COUNT --budget-usd REGISTERED_TOTAL
++```
++
++실제 호출은 `--with-ai`와 등록된 모델·반복·예산이 모두 일치해야 가능합니다. 재시작으로 예산을 다시 쓰지 않도록 시작 기록이 있는 실험은 재호출하지 않습니다. 재시험은 같은 실험군의 새 명세로 등록합니다. CLI는 저장소 밖의 임시 작업 폴더, 명시적인 도구 목록·설정 및 전용 `validation_mcp.py`를 사용합니다. 현재 사용자·프로젝트 메모리는 제외하며 조직의 관리 정책은 우회하지 않습니다. CLI의 설정 계약은 [공식 설정 문서](https://code.claude.com/docs/en/settings-reference#claudemdexcludes)를 기준으로 합니다. 과거 모델 기본값·내부 상태가 없으면 “원래 AI의 정확한 재현” 대신 “새 모델의 짝 비교”라고 표시합니다.
++
++### 사람이 검토한 뒤 채택
++
++```text
++python run.py prepare-adoption --validation-id VALIDATION_ID --request-key PREPARE_KEY --operator PERSON --effective-from ISO_TIME --effective-until ISO_TIME
++python run.py adopt-policy --adoption-id ADOPTION_ID --expected-revision EXACT_REVISION --request-key ADOPT_KEY --operator PERSON
++python run.py revoke-policy --expected-revision EXACT_REVISION --request-key REVOKE_KEY --operator PERSON --why REASON
++python run.py rollback-policy --activation-id ACTIVATION_ID --expected-revision EXACT_REVISION --request-key ROLLBACK_KEY --operator PERSON --why REASON
++```
++
++준비 결과에는 원래 값·후보 값·정의 해시·검증 결과·현재 리비전이 들어갑니다. 준비만으로 운영값이 바뀌지 않습니다. 전역 숫자 설정은 모든 종목과 매수·매도 양쪽을 검증한 범위에서만 채택할 수 있습니다. 조건부 보정과 교훈은 검증된 적용 범위·유효기간을 지킵니다. 보정은 기존 상한 적용 전 값에 더하고 상한·반올림을 한 번 적용합니다. 실제 사용한 정책과 조건 입력은 호출별로 보관합니다.
++
++이후 기존 튜닝이 값을 변경하면 검증된 조합의 효력이 끝나며 조건부 보정·교훈을 중지합니다. **해제·만료가 숫자 설정을 자동 복원하지는 않습니다.** 숫자 복원은 별도 rollback이 담당하며 이후 변경이 있으면 충돌로 거절합니다. 주문·체결·보유 상태는 되돌리지 않습니다. 새 정책 때문에 오래된 미전송 계획을 사용하면 다시 계획해야 하며, 이미 전송한 주문의 같은 시도 ID는 계속 조회만 합니다. 손절 감시의 기존 `code@entry_date/stop/take` 키와 호출 시점은 유지합니다.
++
++검증·모의 실행·AI 비교 기록은 `work/ontology/policy_validation/`, 채택과 운영 버전은 `work/ontology/policy_registry/`에 불변 기록으로 저장됩니다. 매매 AI의 파일 읽기 범위에서 제외합니다. 8번의 로컬 화면은 이 ID로 원래 결과를 연결합니다.
++
++## 8번: 저장된 판단과 결과를 따라가는 로컬 화면
++
++화면은 `실제 전달 근거 → 사실 주장·가설·전제 → 호출 당시 보정·규칙 → 주문·체결 → 사후 평가 → 복기·변경안 → 고정된 시험 결과`를 연결합니다. 관망·수량 0·Hook 차단·판단 미제출도 판단 목록에 남습니다. 종목과 날짜가 같다는 이유로 연결을 추정하지 않습니다.
++
++아래 명령은 `agent` 폴더에서 실행합니다. AI·브로커·시세를 호출하지 않고, 채택·운영 설정 변경·git push도 하지 않습니다. 날짜를 생략하면 서버의 KST 기준을 사용하며, 과거 지식 기준시각에는 시간대를 명시합니다.
++
++```text
++python run.py build-trace-view --as-of 2026-11-13 --knowledge-as-of 2026-11-14T10:00:00+09:00
++python run.py trace-view --view-id RETURNED_VIEW_ID --port 8765
++python run.py export-trace-summary --view-id RETURNED_VIEW_ID
++```
++
++첫 명령은 별도 `work/ontology/trace_view/`에 스냅샷을 준비합니다. 연구 자료는 준비 전에 사용 예약을 기록하며, 예약 저장 실패 시 내용을 내보내지 않습니다. 이후 같은 스냅샷의 새로고침·검색·페이지 이동은 원장이나 AI 전달 기록을 쓰지 않습니다. 새 자료를 보려면 다시 준비해 새 `view_id`를 사용합니다. 스냅샷과 공개 준비 경로는 매매 AI의 읽기 권한에서도 제외됩니다.
++
++두 시각의 범위는 다릅니다. `--as-of`는 **전제 평가에 사용할 시장 기준일**이고, 판단·전달·호출·연구 이력은 `--knowledge-as-of`의 **기록 조회 기준시각**까지 읽습니다. 전제 평가 목록에는 요청한 시장 기준일 대신 실제 선택한 평가의 기준일을 표시합니다. 현재 정책 상태는 별도의 수집 시각을 붙인 참고 상태이며, 과거 호출에 저장된 정책을 대체하지 않습니다.
++
++로컬 서버는 `127.0.0.1`에서만 동작하고 저장된 화면 자료만 제공합니다. 원본 디렉터리를 공개하지 않습니다. 화면의 ID·해시·기준시각은 고정되며, 후속 체결 확인이나 수정 일봉을 과거 화면에 채우지 않습니다. 보호 중인 독립 검증 사례는 직접 ID·검색·상세·집계·내보내기에서도 가립니다. 이미 노출한 사례는 이후의 독립적인 미사용 검증 자료가 아닙니다.
++
++다음 표시를 구분해서 읽습니다.
++
++- `20일선 위`와 이격률은 같은 비교의 결과와 정도입니다. 후보 점수는 AI 확신도가 아닙니다.
++- 검증된 사실 주장은 서버 대조를 통과한 구조화 주장입니다. AI의 자유문장·가설 전체가 검증됐다는 뜻은 아닙니다.
++- 체결 확인·잔고 보정 추정·응답 미확인은 다릅니다. 미확인 잔량은 미체결·취소의 증거가 아닙니다.
++- 기존 공개 차트의 종목별 후속 매도 비교는 참고 가격 변화율입니다. 추가 매수·부분 매도에서 개별 판단의 확정 손익을 뜻하지 않습니다.
++- 전제 유지·반증과 실제 수익은 별개입니다. 조기 반증은 전체 기간 완료 전까지 주 반증률의 분모에 넣지 않습니다.
++- 제안 수락, 시험 완료, 검증 적격, 사람의 채택, 현재 정책 효력, 해당 호출의 실제 사용은 서로 다른 상태입니다.
++- 원본 누락·손상·미완료 저장은 정상적인 0건이 아닙니다. 화면은 누락 기록을 복구하거나 시험을 다시 실행하지 않습니다.
++
++`export-trace-summary`는 공개 허용 필드만 **비공개 준비 경로**에 만듭니다. `docs/data`를 덮어쓰거나 `publish()`를 실행하지 않습니다. 실제 게시 여부는 준비된 묶음을 검토한 뒤 별도로 결정합니다. 공개 페이지에는 요약과 연결 상태만 표시하고, 전달·판단 원문과 계좌·주문 상세는 로컬에 둡니다. 공개 페이지는 로컬 서버에 자동 접속하지 않습니다.
++
++### 반복 원본의 공유 저장
++
++큰 불변 기록에서 반복되는 내용은 `work/ontology/snapshots/blobs/`에 내용 해시별로 한 번 저장하고, 각 기록은 이를 참조합니다. 읽을 때 원래 데이터 구조로 복원한 뒤 기존 논리 해시도 확인합니다. 과거 인라인 JSON은 그대로 읽으며, 기존 기록의 자동 이전·삭제나 공용 원본의 자동 정리는 하지 않습니다. 원본 누락·손상은 오류로 남기고 현재 값이나 빈 값으로 대체하지 않습니다.
++
++**백업·이동 시에는 참조 JSON만 복사하지 말고 `work/ontology/` 전체를 함께 보관해야 합니다.** 로컬 화면 자료도 공용 원본을 참조하지만 공개 요약은 별도의 독립 JSON입니다. 용량 비교에는 참조 문서와 모든 공용 원본을 포함해야 합니다. 디스크에서 작아져도 읽을 때 복원되는 데이터와 메모리 크기가 같은 비율로 줄어드는 것은 아닙니다. 화면 서버는 지원하는 브라우저에 큰 JSON 응답을 압축해 전송합니다.
++
++## 1~8번 전체 로컬 모의 실행
++
++검사 의존성(`requirements.txt`와 `pytest`)이 준비된 Python으로, `agent` 폴더에서 실행합니다.
++
++```text
++python tools/run_ontology_rehearsal.py
++python tools/run_ontology_rehearsal.py --baseline-report /absolute/path/previous-run/report.json
++python tools/run_ontology_rehearsal.py --serve work/rehearsals/실행폴더 --port 8765
++```
++
++첫 명령은 새 폴더에 코드와 설정을 복사하고, 장전·장중 후보 → 브리핑 → 구조화 판단 → 주문·부분 체결 → 며칠 뒤 종가 채점 → 주간 복기·변경안 → 검증 → 화면 준비까지 실행합니다. 실제 계산·검사·기록 함수를 사용하되 시세 공급자, 키움 전송, AI 응답, 거래일과 시각은 명시적인 모의 입력입니다. 네트워크·실제 모델 실행·격리 경로 밖 쓰기는 차단합니다. 운영 설정·계좌·공개 자료는 실행 전후 해시로 비교합니다.
++
++`report.json`에 단계별 상태, 실제 연결 ID, 미제출 집계, 원본 재현 결과, 모의 응답 유실·기록 장애·손절 재시도, 처리 시간과 한계를 남깁니다. 생성된 폴더가 이미 있으면 덮어쓰지 않습니다.
++
++`--baseline-report`를 지정하면 이전 모의 실행의 후보 목록·부분 체결 수량·판단 적용률·중복 전송 횟수·손절 호출 시점과 비교합니다. 공용 원본을 포함한 전체 저장 용량과 온톨로지 기록 용량도 따로 비교하므로, 작은 참조 문서만 보고 절감률을 계산하지 않습니다. `--serve`는 해당 실행의 고정된 Sigma Six 화면을 로컬에서 열기만 합니다.
++
++오류를 일부러 주입한 사례는 거절·미확인·기록 오류가 정상 기대 결과입니다. 100주 요청 중 40주만 체결 확인하면 나머지 60주는 미확인으로 유지합니다. 복기 표본 부족, 연속 시세·감시 기록 없는 포트폴리오 평가, 실제 AI 품질과 키움 인증은 모의 실행 성공과 구별해서 읽어야 합니다. 이 실행은 운영 채택이나 매매 수익성 검증을 수행하지 않습니다.

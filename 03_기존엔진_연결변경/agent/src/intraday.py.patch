@@ -1,0 +1,321 @@
+diff --git a/agent/src/intraday.py b/agent/src/intraday.py
+index dae6618..a1d5b96 100644
+--- a/agent/src/intraday.py
++++ b/agent/src/intraday.py
+@@ -18,9 +18,11 @@ import os
+ import re
+ import sys
+ import time
++import uuid
+ 
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ import common as C  # noqa: E402
++import ontology as O  # noqa: E402
+ 
+ RANK_PATH = "/api/dostk/rkinfo"
+ SESSION_MIN = 390   # 09:00~15:30
+@@ -38,7 +40,7 @@ def first_list(res, key):
+     return next((v for v in res.values() if isinstance(v, list)), [])
+ 
+ 
+-def fetch(brk, num):
++def fetch(brk, num, details=None):
+     """키움 순위 API 3번 → {code: {name, price, chg, value, foreign_qty, inst_qty}}. 원문은 work/rank_raw/ 에 남김."""
+     calls = [
+         ("value", "ka10032", {"mrkt_tp": "000", "mang_stk_incls": "0", "stex_tp": "1"}, "trde_prica_upper"),
+@@ -47,9 +49,12 @@ def fetch(brk, num):
+     ]
+     raw_dir = os.path.join(C.WORK, "rank_raw")
+     os.makedirs(raw_dir, exist_ok=True)
+-    pool, lists = {}, {}
++    pool, lists, received = {}, {}, {}
+     for tag, api, body, key in calls:
+         res = brk._call(RANK_PATH, api, body)
++        received[tag] = O.stamp()
++        if details is not None:
++            details[tag] = {"available_at": received[tag], "api": api, "body": body, "response": res}
+         C.write_json(os.path.join(raw_dir, f"{tag}.json"), {"time": C.stamp(), "api": api, "body": body, "response": res})
+         lists[tag] = first_list(res, key)
+     for i, x in enumerate(lists["value"]):
+@@ -60,6 +65,9 @@ def fetch(brk, num):
+         qty = abs(num(x.get("now_trde_qty")))
+         pool[c] = {"code": c, "name": str(x.get("stk_nm", "")).strip(), "price": price,
+                    "chg": round(num(x.get("flu_rt"), True) / 100, 4), "value": price * qty, "value_rank": i + 1}
++        pool[c]["_sources"] = {"price": O.measurement(price if x.get("cur_prc") not in (None, "") else None,
++            "KRW", "kiwoom:ka10032", available_at=received["value"], provider_time_status="not_provided",
++            raw={k: x.get(k) for k in ("cur_prc", "now_trde_qty", "flu_rt")})}
+     for tag in ("foreign", "inst"):
+         for i, x in enumerate(lists[tag]):
+             c = code6(x.get("stk_cd"))
+@@ -68,6 +76,11 @@ def fetch(brk, num):
+             r = pool.setdefault(c, {"code": c, "name": str(x.get("stk_nm", "")).strip()})
+             r[f"{tag}_qty"] = num(x.get("netslmt") or (num(x.get("buy_qty")) - num(x.get("sel_qty"))))
+             r[f"{tag}_rank"] = i + 1
++            r.setdefault("_sources", {})[f"{tag}_qty"] = O.raw_quantity(x, num, received[tag])
++    for row in pool.values():
++        for tag in ("foreign", "inst"):
++            row.setdefault("_sources", {}).setdefault(f"{tag}_qty", O.measurement(None, "share", "kiwoom:ka10065",
++                available_at=received[tag], reason="not_in_rank_list", provider_time_status="not_provided"))
+     return pool, {k: len(v) for k, v in lists.items()}
+ 
+ 
+@@ -99,34 +112,48 @@ def rank_pct(vals):
+     return out
+ 
+ 
+-def screen(rows, p, r, frac, regime=None):
++def screen(rows, p, r, frac, regime=None, trace=None):
+     """rows: 일봉 지표 + 장중 값(price, chg, value, foreign_qty, inst_qty)이 합쳐진 종목들 → 점수순 후보."""
+     s, it = p["screen"], p["screen"].get("intraday", {})
++    trace = trace or O.SelectionTrace("intraday", p, regime, "caller", r, elapsed_fraction=frac)
++    trace.screen_input(rows)
+     lim = r.get("max_buy_day_change", 0.10)
+     ok = []
+     for x in rows:
+         nm, px = x.get("name", ""), x.get("price") or x.get("close")
++        observed = trace.begin(x, px)
++        trace.gate(x["code"], "instrument", not (not x["code"].endswith("0") or any(k in nm for k in s["exclude_name_keywords"]) or C.other_etf(nm, p)),
++                   {"code": x["code"], "name": nm})
+         if not x["code"].endswith("0") or any(k in nm for k in s["exclude_name_keywords"]) or C.other_etf(nm, p):
+             continue
++        trace.gate(x["code"], "liquidity_limit_up", not (x.get("limit_up_recent") or x.get("trading_value_20d", 0) < s["min_trading_value"]),
++                   {"limit_up_recent": x.get("limit_up_recent"), "trading_value_20d": x.get("trading_value_20d", 0), "minimum": s["min_trading_value"]})
+         if x.get("limit_up_recent") or x.get("trading_value_20d", 0) < s["min_trading_value"]:
+             continue
+         hv = p.get("high_vol") or {}
+         x["high_vol"] = x.get("vol20", 0) > s.get("max_vol20", 9)
++        trace.gate(x["code"], "volatility", not (x["high_vol"] and not (hv.get("enabled") and x["vol20"] <= hv.get("max_vol20", 0))),
++                   {"vol20": x.get("vol20", 0), "high_vol": x["high_vol"]})
+         if x["high_vol"] and not (hv.get("enabled") and x["vol20"] <= hv.get("max_vol20", 0)):
+             continue
++        trace.gate(x["code"], "chase", (x.get("chg") or 0) < lim, {"chg": x.get("chg") or 0, "limit": lim})
+         if (x.get("chg") or 0) >= lim:              # 어차피 리스크 규칙이 막는 추격 매수
+             continue
+-        if not C.trend_ok(px, x, regime, p):          # 단기 상승 추세 (지금 가격 기준). 하락 국면이면 20일선 위만
++        trend = C.trend_evaluation(px, x, regime, p, (observed or {}).get("price_comparison"))
++        trace.trend(x["code"], trend)
++        if not trend["passed"]:
+             continue
+         f_amt = (x.get("foreign_qty") or 0) * px
+         i_amt = (x.get("inst_qty") or 0) * px
++        trace.flow(x["code"], it.get("require_flow", True), f_amt, i_amt)
+         if it.get("require_flow", True) and f_amt <= 0 and i_amt <= 0:
+             continue
+         value = x.get("value") or 0
+         x["foreign_today"], x["inst_today"] = round(f_amt), round(i_amt)
+         x["activity"] = round(value / (x["trading_value_20d"] * frac), 2) if value else None
+         x["flow_today_ratio"] = round((max(f_amt, 0) + max(i_amt, 0)) / x["trading_value_20d"], 4)
+-        x["trend_gap"] = px / x["ma20"] - 1
++        comparison = (observed or {}).get("price_comparison") or {}
++        x["trend_gap"] = comparison["gap"] if comparison.get("gap") is not None else px / x["ma20"] - 1
+         ok.append(x)
+     if not ok:
+         return []
+@@ -140,12 +167,17 @@ def screen(rows, p, r, frac, regime=None):
+             sc -= s.get("spike_penalty", 0)
+         raw.append(max(0.0, sc))
+     top = max(raw) or 1
+-    for x, sc in zip(ok, raw):
++    for x, sc, ai, fi, ti in zip(ok, raw, a, f, t):
+         x["score"] = round(sc / top, 3)
++        trace.ranked(x, x["trend_gap"], x["flow_today_ratio"],
++                     {"activity_rank": ai, "flow_rank": fi, "trend_rank": ti, "raw_score": sc, "normalizer": top, "frac": frac})
+         x.pop("trend_gap", None)
+     ok.sort(key=lambda x: -x["score"])
+     hv_n = (p.get("high_vol") or {}).get("max_candidates", 0)   # 고변동 종목은 따로 몇 개만 (작게 사는 몫)
+-    return [x for x in ok if not x["high_vol"]][: s["max_candidates"]] + [x for x in ok if x["high_vol"]][:hv_n]
++    result = [x for x in ok if not x["high_vol"]][: s["max_candidates"]] + [x for x in ok if x["high_vol"]][:hv_n]
++    trace.attach(result)
++    trace.screen_output(result)
++    return result
+ 
+ 
+ def ensure_inverse(b, p, held):
+@@ -167,7 +199,7 @@ def ensure_inverse(b, p, held):
+         print("시장 ETF 후보 추가: " + ", ".join(r["name"] for r in rows))
+ 
+ 
+-def fill_up(cands, prep, held, n):
++def fill_up(cands, prep, held, n, run_id=None):
+     """장중 통과가 n개보다 적으면 08:30 후보로 n개까지 채우고(from_prep), 08:30 시장 ETF(인버스·지수) 후보는 항상 붙임.
+     (11-04 09:30 처럼 통과 2개만 남아 판단할 게 없는 일 방지)"""
+     out, have = list(cands), {c["code"] for c in cands}
+@@ -176,6 +208,7 @@ def fill_up(cands, prep, held, n):
+             break
+         if x["code"] not in have and x["code"] not in held and not etf(x):
+             out.append({**x, "from_prep": True})
++            O.mark_route(out[-1], "prep_fill", run_id)
+             have.add(x["code"])
+     return out + [x for x in prep if etf(x) and x["code"] not in have and x["code"] not in held]
+ 
+@@ -211,7 +244,7 @@ def etf(x):
+     return x.get("inverse") or x.get("index")
+ 
+ 
+-def run(dry=False):
++def _run(dry=False, attempt=None):
+     import broker
+     p, r = C.params(), C.risk_limits()
+     it = p["screen"].get("intraday", {})
+@@ -224,7 +257,10 @@ def run(dry=False):
+     if brk.name != "live":
+         return print("mock 모드: 순위 API 가 없어 08:30 후보를 그대로 씀")
+ 
+-    pool, sizes = fetch(brk, num)
++    raw = {}
++    if attempt is not None:
++        attempt["raw_responses"] = raw
++    pool, sizes = fetch(brk, num, details=raw)
+     print(f"순위 API: 거래대금 {sizes['value']} · 외국인 {sizes['foreign']} · 기관 {sizes['inst']} → 풀 {len(pool)}종목")
+     if dry:
+         for x in sorted(pool.values(), key=lambda x: x.get("value_rank", 999))[:15]:
+@@ -246,6 +282,7 @@ def run(dry=False):
+                    key=lambda x: min(x.get("value_rank", 999), x.get("foreign_rank", 999), x.get("inst_rank", 999)))
+     login, asof, new = None, None, 0
+     rows = []
++    analysis_skips = []
+     for x in order:
+         ind = cache.get(x["code"])
+         if ind is None and new < it.get("max_new_analyze", 30):
+@@ -257,22 +294,43 @@ def run(dry=False):
+                 ind = data_prep.analyze(x["code"], x["name"] or data_prep.name_of(x["code"]), p, asof, login)
+             except Exception as e:  # noqa: BLE001
+                 print(f"  ! {x['code']} 지표 실패: {e}")
++                analysis_skips.append({'code': x['code'], 'reason': 'analysis_failed', 'error': str(e)})
+             new += 1
+             if ind:
+                 cache[x["code"]] = ind
+         if ind:
+-            rows.append({**ind, **{k: v for k, v in x.items() if v not in (None, "")}})
+-
+-    regime = (C.latest_regime() or {}).get("regime") or b.get("market", {}).get("rule_hint")
+-    cands = screen(rows, p, r, elapsed_frac(n), regime)
++            rows.append({**ind, **{k: v for k, v in x.items() if v not in (None, "")},
++                         "_sources": {**ind.get("_sources", {}), **x.get("_sources", {})}})
++        else:
++            analysis_skips.append({'code': x['code'], 'reason': 'missing_indicators_or_analysis_limit'})
++
++    latest = C.latest_regime() or {}
++    regime = latest.get("regime") or b.get("market", {}).get("rule_hint")
++    trace = O.SelectionTrace("intraday", p, regime, "latest_regime" if latest.get("regime") else "market.rule_hint", r,
++                             raw_responses=raw, elapsed_fraction=elapsed_frac(n), prior_selection=b.get("ontology"), regime_record=latest,
++                             ordered_pool=list(pool.values()), ordered_analysis_input=order, held=sorted(held),
++                             skipped=analysis_skips, prior_candidates=__import__('copy').deepcopy(b.get('candidates', [])),
++                             prep_candidates=__import__('copy').deepcopy(b.get('candidates_prep', b.get('candidates', []))),
++                             screen_rows=__import__('copy').deepcopy(rows),
++                             pipeline_scope='screen_and_archived_append', pipeline_complete=True,
++                             completeness_meaning='actual rows plus retained lists after ensure_inverse; no missing provider response invented')
++    cands = screen(rows, p, r, elapsed_frac(n), regime, trace=trace)
++    general_count = len(cands)
+     if not cands:
+-        print("장중 조건을 통과한 종목이 없어 08:30 후보를 그대로 씀")
++        print("장중 조건을 통과한 종목이 없어 직전 후보 목록을 유지함")
+         b["intraday"] = {"time": n.strftime("%H:%M"), "pool": len(pool), "passed": 0, "kept_prep": True}
++        trace.finish(b, update_route="previous_list_retained", general_count=0, final_count=len(b["candidates"]))
+         C.write_json(C.BRIEFING, b)
+         return
+     prep = b.get("candidates_prep", b.get("candidates", []))
+-    cands = fill_up(cands, prep, held, it.get("min_candidates", 0))
+-    cands += dips(rows, cands, held, p, n)
++    cands = fill_up(cands, prep, held, it.get("min_candidates", 0), trace.id)
++    extra = dips(rows, cands, held, p, n)
++    trace.attach(extra, "dip")
++    cands += extra
++    for row in cands:
++        if etf(row) and not row.get("_ontology"):
++            trace.begin(row, row["close"], daily_only=True)
++            trace.attach([row], "inverse" if row.get("inverse") else "index")
+     old = {c["code"]: c for c in prep}
+     need_news = [c for c in cands if c["code"] not in old]
+     if need_news:
+@@ -285,11 +343,31 @@ def run(dry=False):
+     b.setdefault("candidates_prep", b.get("candidates", []))
+     b["candidates"] = cands
+     b["intraday"] = {"time": n.strftime("%H:%M"), "pool": len(pool), "analyzed_new": new, "passed": len(cands), "kept_prep": False}
++    trace.finish(b, general_count=general_count, final_count=len(cands))
+     C.write_json(C.BRIEFING, b)
+     C.write_json(PREP_ROWS, list(cache.values()))
+     print(f"장중 후보 {len(cands)}개 ({n.strftime('%H:%M')}): " + ", ".join(f"{c['name']}({c['score']})" for c in cands))
+ 
+ 
++def run(dry=False):
++    """Preserve the legacy retained-list behavior on refresh failure, with an explicit failed attempt."""
++    attempt = {}
++    try:
++        return _run(dry, attempt)
++    except Exception as exc:
++        if dry:
++            raise
++        b = C.read_json(C.BRIEFING)
++        if not b:
++            raise
++        trace = O.SelectionTrace("intraday", C.params(), prior_selection=b.get("ontology"), **attempt)
++        trace.errors.append(f"refresh: {type(exc).__name__}: {exc}")
++        b["intraday"] = {"time": C.now().strftime("%H:%M"), "kept_prep": True, "error": str(exc)[:120]}
++        trace.finish(b, update_route="previous_list_retained", general_count=None, final_count=len(b["candidates"]))
++        C.write_json(C.BRIEFING, b)
++        print(f"장중 후보 갱신 실패, 직전 후보 목록 유지: {type(exc).__name__}: {exc}")
++
++
+ PREP_ROWS = os.path.join(C.WORK, "prep_rows.json")   # 08:30 준비에서 계산한 전 종목 일봉 지표 (data_prep.build 가 씀)
+ 
+ 
+@@ -321,25 +399,55 @@ def live_rsi():
+     for h in (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
+         if h["code"] not in {x["code"] for x in hold} and h["code"] in cache:
+             hold.append({**cache[h["code"]]})
+-    done, out = {}, []
++    done, provenance, out = {}, {}, []
+     for x in b.get("candidates", []) + hold:
+         c = x["code"]
+         if c not in done:
+             try:
+                 closes = x.get("closes") or cache.get(c, {}).get("closes")
++                daily = ((x.get("_sources") or {}).get("daily") or
++                         (cache.get(c, {}).get("_sources") or {}).get("daily") or {})
++                close_series = daily.get("close_series")
++                close_source = "briefing_or_prep_cache"
+                 if not closes:
+                     import data_prep
+-                    closes = [round(float(v)) for v in data_prep.ohlcv(c)["종가"].tail(120)]
++                    series = data_prep.ohlcv(c)["종가"].tail(120)
++                    closes = [round(float(v)) for v in series]
++                    close_series = [{"date": str(i.date()), "close": round(float(v))} for i, v in series.items()]
++                    close_source = "pykrx:ohlcv"
+                     x["closes"] = closes
+                 price = x.get("price") if x.get("activity") is not None else None   # 순위 API 로 방금 받은 가격
+-                price = price or brk.quote_info(c)["price"]
++                if price:
++                    price_source = {**((x.get("_sources") or {}).get("price") or {}), "value": price,
++                                    "kind": "intraday_current"}
++                else:
++                    quote = brk.quote_info(c)
++                    price = quote["price"]
++                    price_source = {"value": price, "source": quote.get("source", "unrecorded"),
++                                    "observed_at": quote.get("observed_at"), "available_at": quote.get("available_at"),
++                                    "kind": "daily_close" if quote.get("source") == "pykrx:mock_daily" else "intraday_current"}
+                 done[c] = rsi_now(closes, price) if len(closes) >= 15 and price else None
++                # The calculator uses the rounded trailing array, not every raw bar in the cache.
++                input_dates = [bar.get("date") for bar in close_series[-len(closes):]] if close_series and len(close_series) >= len(closes) else None
++                actual_series = [{"date": day, "value": value} for day, value in zip(input_dates, closes)] if input_dates else None
++                provenance[c] = {"observation_id": "rsi-" + uuid.uuid4().hex,
++                                 "calculation_version": "live-rsi14@v1", "algorithm": "gs_quant.relative_strength_index",
++                                 "window": 14, "closes": list(closes), "close_series": actual_series,
++                                 "close_source": close_source, "price": price_source,
++                                 "calculated_at": O.stamp(), "result": O.clean(done[c]),
++                                 "index_policy": "synthetic pandas.bdate_range ending on calculation date; not provider trading dates",
++                                 "interpretation": "current_price_as_todays_close",
++                                 "reason": None if done[c] is not None else "insufficient_closes_or_missing_price"}
+             except Exception as e:  # noqa: BLE001  한 종목 실패는 전일 RSI 로
+                 print(f"  ! {c} 장중 RSI 실패: {e}")
+                 done[c] = None
++                provenance[c] = {"observation_id": "rsi-" + uuid.uuid4().hex,
++                                 "calculation_version": "live-rsi14@v1", "result": None,
++                                 "calculated_at": O.stamp(), "reason": type(e).__name__}
+             if done[c] is not None:
+                 out.append(f"{x.get('name', c)} {x.get('rsi14')}→{done[c]}")
+         x["rsi14_live"] = done[c]
++        x["_sources"] = {**(x.get("_sources") or {}), "rsi14_live": provenance[c]}
+     b["rsi_live_time"] = n.strftime("%H:%M")
+     C.write_json(C.BRIEFING, b)
+     print(f"장중 RSI ({n.strftime('%H:%M')}): " + (", ".join(out) or "없음"))

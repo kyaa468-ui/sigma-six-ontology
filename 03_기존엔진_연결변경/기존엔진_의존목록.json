@@ -1,0 +1,245 @@
+{
+  "method": "static Python import analysis; dynamic/file/config dependencies are not exhaustive",
+  "modules": [
+    {
+      "module": "ai_judgment.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "audit_inputs.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "case_dataset.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "case_prediction.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "case_review.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "case_statistics.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "case_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "close_evaluation.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "daily_observations.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "evaluation_context.py",
+      "existing_engine_imports": [
+        "common",
+        "tuning"
+      ]
+    },
+    {
+      "module": "execution_reconcile.py",
+      "existing_engine_imports": [
+        "broker",
+        "common"
+      ]
+    },
+    {
+      "module": "execution_trace.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "judgment_context.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "judgment_coverage.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "learning_proposals.py",
+      "existing_engine_imports": [
+        "common",
+        "tuning"
+      ]
+    },
+    {
+      "module": "lesson_registry.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "market_calendar.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "ontology.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "policy_adoption.py",
+      "existing_engine_imports": [
+        "common",
+        "tuning"
+      ]
+    },
+    {
+      "module": "policy_registry.py",
+      "existing_engine_imports": [
+        "common",
+        "tuning"
+      ]
+    },
+    {
+      "module": "policy_validation.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "portfolio_capture.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "position_episodes.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "premise_evaluation.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "prompt_validation.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "proposal_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "replay_context.py",
+      "existing_engine_imports": [
+        "common",
+        "risk"
+      ]
+    },
+    {
+      "module": "research_evidence.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "runtime_inputs.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "scoring_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "simulation.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "snapshot_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "trace_export.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "trace_query.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "trace_snapshot.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "validation_dataset.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "validation_holdout.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "validation_spec.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "validation_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    }
+  ]
+}

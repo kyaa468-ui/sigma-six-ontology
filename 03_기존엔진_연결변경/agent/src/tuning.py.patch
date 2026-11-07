@@ -1,0 +1,192 @@
+diff --git a/agent/src/tuning.py b/agent/src/tuning.py
+index bf1fdae..cc6e453 100644
+--- a/agent/src/tuning.py
++++ b/agent/src/tuning.py
+@@ -10,8 +10,11 @@
+ import json
+ import os
+ import re
++import sqlite3
+ from collections import Counter, defaultdict
++from contextlib import contextmanager
+ from datetime import date
++from pathlib import Path
+ 
+ import common as C
+ 
+@@ -124,29 +127,38 @@ def context():
+ LESSONS = os.path.join(C.WORK, "lessons.json")   # 11-06 조정 실행이 남긴 '판단 점검 교훈' → 다음 판단 브리핑에 실림
+ 
+ 
+-def outcomes(rows):
++def outcomes(rows, snapshot=None, audit=None):
+     """11-06 S.Lee: 지난 판단이 맞았는지 결과로 채점. 판단한 날 종가(체결은 체결가) → 지금 가격.
+     관망했는데 +2% 넘게 오름 = 놓침(조정) · 내림 = 관망 맞음(유지) / 보유했는데 −3% 넘게 내림 = 안 판 게 손해(조정)
+     매수했는데 오름 = 맞음(유지) · 내림 = 틀림(조정) / 매도했는데 내림 = 맞음(유지) · +2% 넘게 오름 = 너무 일찍 팖(조정).
+     오늘 판단은 결과를 볼 시간이 없어 다음 날부터 채점."""
+-    today = C.today().isoformat()
+-    q = C.read_json(os.path.join(C.WORK, "quotes.json"), {}) or {}
+-    prep = {x["code"]: x for x in (C.read_json(os.path.join(C.WORK, "prep_rows.json"), []) or [])}
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    # 기본 호출은 기존 파일·시각·계산 순서를 유지한다. 사후 검사는 한 번 읽어
++    # 고정한 입력을 주입하며, 감사 정보는 운영 조정 결과에 섞지 않는다.
++    today = C.today().isoformat() if snapshot is None else snapshot["today"]
++    q = (C.read_json(os.path.join(C.WORK, "quotes.json"), {}) if snapshot is None else snapshot["quotes"]) or {}
++    prep_rows = (C.read_json(os.path.join(C.WORK, "prep_rows.json"), []) if snapshot is None else snapshot["prep_rows"]) or []
++    prep = {x["code"]: x for x in prep_rows}
++    b = (C.read_json(C.BRIEFING, {}) if snapshot is None else snapshot["briefing"]) or {}
+     asof = b.get("asof")
+-    acc = C.read_json(C.ACCOUNT, {}) or {}
++    acc = (C.read_json(C.ACCOUNT, {}) if snapshot is None else snapshot["account"]) or {}
+     held = {h["code"]: h.get("price") for h in acc.get("holdings", [])}
+     cand = {c["code"]: c for c in b.get("candidates", [])}
+ 
++    selected = {}
++
+     def now_px(code):
+         x = q.get(code)
+         if x and x.get("price") and date.fromtimestamp(x.get("ts", 0)).isoformat() == today:
++            selected[code] = {"source": "quotes.price", "source_time": x.get("ts"), "quote_day_policy": "host_local_date.fromtimestamp"}
+             return x["price"]
+         if held.get(code):
++            selected[code] = {"source": "account.holdings.price", "source_time": acc.get("ts")}
+             return held[code]
+         if (c := cand.get(code)) and c.get("price"):
++            selected[code] = {"source": "briefing.candidates.price", "source_time": c.get("available_at"), "briefing_asof": asof}
+             return c["price"]
+         r = prep.get(code)
++        selected[code] = {"source": "prep_rows.closes[-1]", "source_time": ((r or {}).get("_sources", {}).get("daily") or {}).get("available_at"), "briefing_asof": asof}
+         return (r.get("closes") or [None])[-1] if r else None
+ 
+     def close_on(code, d):
+@@ -156,19 +168,36 @@ def outcomes(rows):
+         n = C.business_days(d, date.fromisoformat(asof))
+         return cl[-1 - n] if 0 <= n < len(cl) else None
+ 
+-    last = {}
+-    for x in rows:   # 하루 마지막 판단만 (같은 날 15분마다 같은 판단이 반복되므로)
++    last, refs = {}, {}
++    if audit is not None:
++        audit.update(today=today, evaluations=[], excluded=[],
++                     limitations=["legacy_price_move_not_net_pnl", "weekday_only_close_alignment", "fallback_prices_may_have_different_dates", "legacy_fill_may_be_inferred"])
++    for index, x in enumerate(rows):   # 하루 마지막 판단만 (같은 날 15분마다 같은 판단이 반복되므로)
+         if x["time"][:10] >= today:
++            if audit is not None:
++                audit["excluded"].append({"row_index": index, "reason": "today_or_future"})
+             continue
+         if x["kind"] == "decision" and x.get("mode") == "decide" and x.get("action") in ("관망", "보유"):
+-            last[(x["code"], x["time"][:10], x["action"])] = x
++            key = (x["code"], x["time"][:10], x["action"])
+         elif x["kind"] == "fill":
+-            last[(x["code"], x["time"][:10], x["side"])] = x
++            key = (x["code"], x["time"][:10], x["side"])
++        else:
++            if audit is not None:
++                audit["excluded"].append({"row_index": index, "reason": "not_legacy_outcome_target"})
++            continue
++        if audit is not None and key in refs:
++            audit["excluded"].append({"row_index": refs[key], "reason": "superseded_same_day_action"})
++        last[key], refs[key] = x, index
+     res = []
+     for (code, d, act), x in last.items():
+         p0 = x.get("price") if act in ("매수", "매도") else (x.get("price") or close_on(code, d))
+         p1 = now_px(code)
++        detail = {"row_index": refs[(code, d, act)], "journal_time": x["time"], "code": code, "action": act,
++                  "p0": p0, "p1": p1, "p0_source": "journal.price" if act in ("매수", "매도") or x.get("price") else "prep_rows.weekday_aligned_close",
++                  "p1_source": selected[code]}
+         if not p0 or not p1:
++            if audit is not None:
++                audit["excluded"].append({**detail, "reason": "missing_or_zero_price"})
+             continue
+         ret = p1 / p0 - 1
+         if act == "관망":
+@@ -180,6 +209,8 @@ def outcomes(rows):
+         else:
+             v = "맞음 (유지)" if ret < 0 else "너무 일찍 팖 (조정)" if ret >= .02 else "중립"
+         conf = x.get("confidence_adj", x.get("confidence"))
++        if audit is not None:
++            audit["evaluations"].append({**detail, "return_unrounded": ret, "verdict": v})
+         res.append({"date": d, "code": code, "name": x.get("name"), "action": act, "confidence": conf, "ret_since": round(ret, 4), "verdict": v,
+                     "bull": (x.get("bull") or "")[:140], "bear": (x.get("bear") or "")[:140]})
+     summary = defaultdict(Counter)
+@@ -273,6 +304,12 @@ def _fmt(v):
+ 
+ 
+ def write_params(ok):
++    import policy_registry
++    with policy_registry.change_lock():
++        return _write_params_locked(ok)
++
++
++def _write_params_locked(ok):
+     """params.json 의 해당 숫자만 바꿔 씀 (주석·줄 배치를 지켜 diff 가 작게). 안 되면 통째로 다시 씀."""
+     with open(PARAMS_PATH, encoding="utf-8") as f:
+         text = f.read()
+@@ -285,9 +322,12 @@ def write_params(ok):
+             break
+         new = pat.sub(lambda m: m.group(1) + _fmt(x["to"]), new)
+     want = C.params()
++    before = json.loads(json.dumps(want))
+     for x in ok:
+         sec, leaf = x["key"].split(".", 1)
+         want[sec][leaf] = x["to"]
++    import policy_registry
++    want = policy_registry.after_legacy_tuning(before, want)
+     if new is None or json.loads(new) != want:
+         new = json.dumps(want, ensure_ascii=False, indent=2) + "\n"
+     tmp = PARAMS_PATH + ".tmp"
+@@ -296,15 +336,42 @@ def write_params(ok):
+     os.replace(tmp, PARAMS_PATH)
+ 
+ 
+-def apply(changes, summary):
+-    rl, p = rules(), C.params()
++def submission_error(rl=None):
++    """Shared preflight for every tuning write, including briefing lessons."""
+     run = os.environ.get("RUN_ID", "")
+     if os.environ.get("RUN_MODE") != "tune":
+         return {"ok": False, "error": "기준값 조정은 조정 실행(tune)에서만 할 수 있습니다."}
++    rl = rl or rules()
+     if not allowed_today(rl):
+         return {"ok": False, "error": "기준값 조정은 평일에만 반영합니다."}
+     if run and any(r.get("run") == run for r in history()):
+         return {"ok": False, "error": "이번 실행에서 이미 제출했습니다."}
++    return None
++
++
++@contextmanager
++def _submission_lock():
++    """Serialize duplicate checks and writes across MCP processes, on Windows too."""
++    import policy_registry
++    with policy_registry.change_lock():
++        yield
++
++
++def apply(changes, summary, lessons=None):
++    # Do not save a lesson before checking the request. A denied review could
++    # otherwise influence the next trading briefing despite changing no params.
++    denied = submission_error()
++    if denied:
++        return denied
++    with _submission_lock():
++        denied = submission_error()
++        if denied:
++            return denied
++        return _apply_authorized(changes, summary, lessons)
++
++
++def _apply_authorized(changes, summary, lessons):
++    rl, p = rules(), C.params()
+     ok, bad = check(changes, p, rl, cooldown_keys(rl=rl))
+     if ok:
+         trial = json.loads(json.dumps(p))
+@@ -318,5 +385,9 @@ def apply(changes, summary):
+     if ok:
+         write_params(ok)
+     C.journal("tune", summary=str(summary).strip()[:300], applied=ok, rejected=bad)
++    if lessons:
++        saved = [str(x)[:200] for x in lessons][:6]
++        C.write_json(LESSONS, {"time": C.stamp(), "lessons": saved})
++        C.journal("lessons", lessons=saved)
+     return {"ok": True, "applied": ok, "rejected": bad,
+             "note": "반영된 값은 다음 정기 판단부터 적용됩니다." if ok else "바뀐 값이 없습니다 (유지)."}

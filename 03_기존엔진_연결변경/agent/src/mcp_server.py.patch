@@ -1,0 +1,733 @@
+diff --git a/agent/src/mcp_server.py b/agent/src/mcp_server.py
+index 4d7480b..bec4548 100644
+--- a/agent/src/mcp_server.py
++++ b/agent/src/mcp_server.py
+@@ -13,10 +13,14 @@
+ 
+ stdout 은 MCP 통신용이라, pykrx 등이 찍는 메시지는 전부 stderr 로 돌립니다.
+ """
++import contextvars
++import inspect
+ import contextlib
+ import functools
+ import os
+ import sys
++import uuid
++from datetime import datetime
+ 
+ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ 
+@@ -25,6 +29,12 @@ with contextlib.redirect_stdout(sys.stderr):
+     C.load_env()
+     import broker as B
+     import data_prep
++    import ontology as O
++    import ai_judgment as J
++    import judgment_coverage as JC
++    import execution_trace as E
++    import execution_reconcile as ER
++    import position_episodes as PE
+     import risk
+     import sizing
+     import tuning
+@@ -33,6 +43,50 @@ with contextlib.redirect_stdout(sys.stderr):
+ mcp = FastMCP("kiwoom")
+ _broker = None
+ 
++CASE_REVIEW_TOOLS = frozenset({"get_case_review", "get_review_cases", "record_case_review"})
++PROPOSAL_TOOLS = frozenset({"get_proposal_context", "get_proposal_cases", "record_learning_proposals", "get_learning_proposals"})
++NON_TRADING_MODES = frozenset({"case_review", "proposal_review", "review", "tune"})
++VALIDATION_TOOLS = frozenset({"get_policy_validation", "get_validation_cases"})
++NON_TRADING_MODES |= {"validation_review", "prompt_validation"}
++
++
++def tool_access_error(fn, args, kwargs):
++    """Check before tool/audit code: a comparison run only sees its frozen bundle."""
++    mode, name = os.environ.get("RUN_MODE"), fn.__name__
++    if mode in {"validation_review", "prompt_validation"}:
++        if mode == "prompt_validation" or name not in VALIDATION_TOOLS:
++            return {"ok": False, "error_code": "VALIDATION_TOOL_FORBIDDEN"}
++    if name in VALIDATION_TOOLS:
++        if mode != "validation_review":
++            return {"ok": False, "error_code": "VALIDATION_MODE_REQUIRED"}
++        bound = inspect.signature(fn).bind(*args, **kwargs)
++        if not os.environ.get("VALIDATION_ID") or bound.arguments.get("validation_id") != os.environ["VALIDATION_ID"]:
++            return {"ok": False, "error_code": "VALIDATION_SCOPE_MISMATCH"}
++    if mode == "proposal_review" and name not in PROPOSAL_TOOLS:
++        return {"ok": False, "error_code": "PROPOSAL_TOOL_FORBIDDEN", "error": "제안 실행은 고정된 제안 자료만 사용합니다."}
++    if name in PROPOSAL_TOOLS:
++        if mode != "proposal_review":
++            return {"ok": False, "error_code": "PROPOSAL_MODE_REQUIRED", "error": "별도 제안 실행에서만 사용할 수 있습니다."}
++        bound = inspect.signature(fn).bind(*args, **kwargs)
++        if not os.environ.get("PROPOSAL_RUN_ID") or bound.arguments.get("proposal_run_id") != os.environ["PROPOSAL_RUN_ID"]:
++            return {"ok": False, "error_code": "PROPOSAL_SCOPE_MISMATCH", "error": "이번 실행에 고정된 제안 ID만 사용할 수 있습니다."}
++    if mode == "case_review" and name not in CASE_REVIEW_TOOLS:
++        return {"ok": False, "error_code": "CASE_REVIEW_TOOL_FORBIDDEN",
++                "error": "사례 복기는 지정된 비교 자료 조회·제출 도구만 사용할 수 있습니다."}
++    if name in CASE_REVIEW_TOOLS:
++        if mode != "case_review":
++            return {"ok": False, "error_code": "CASE_REVIEW_MODE_REQUIRED",
++                    "error": "사례 복기 도구는 별도 case_review 실행에서만 사용할 수 있습니다."}
++        bound = inspect.signature(fn).bind(*args, **kwargs)
++        assigned = os.environ.get("CASE_REVIEW_ID")
++        if not assigned or bound.arguments.get("review_id") != assigned:
++            return {"ok": False, "error_code": "CASE_REVIEW_SCOPE_MISMATCH",
++                    "error": "이번 실행에 고정된 비교 ID만 조회·제출할 수 있습니다."}
++    if mode in NON_TRADING_MODES and name in {"plan_order", "place_order"}:
++        return {"ok": False, "error_code": "NON_TRADING_MODE",
++                "error": "회고·튜닝 실행에서는 주문 계획·주문을 실행하지 않습니다."}
++    return None
++
+ 
+ def brk():
+     global _broker
+@@ -47,12 +101,126 @@ def quiet(fn):
+     def wrap(*a, **k):
+         with contextlib.redirect_stdout(sys.stderr):
+             try:
+-                return fn(*a, **k)
++                denied = tool_access_error(fn, a, k)
++                if denied is not None:
++                    return denied
++                result = fn(*a, **k)
++                # Recording is independent of trading acceptance and never causes
++                # a second invocation if publication fails.
++                try:
++                    import runtime_inputs
++                    bound = inspect.signature(fn).bind(*a, **k)
++                    runtime_inputs.record_tool_call(fn.__name__, dict(bound.arguments), result=result)
++                except Exception as exc:
++                    print(f"tool input recording unavailable: {exc}", file=sys.stderr)
++                return result
+             except Exception as e:  # noqa: BLE001  에이전트가 읽을 수 있게 오류를 결과로 돌려줌
+-                return {"error": f"{type(e).__name__}: {e}"}
++                result = {"error": f"{type(e).__name__}: {e}"}
++                try:
++                    import runtime_inputs
++                    bound = inspect.signature(fn).bind(*a, **k)
++                    runtime_inputs.record_tool_call(fn.__name__, dict(bound.arguments), result=result, error=result['error'])
++                except Exception:
++                    pass
++                return result
+     return wrap
+ 
+ 
++# 계측 실패는 거래 정책과 분리한다. 호출마다 실제 보정 입력을 보관한다.
++_AUDIT = contextvars.ContextVar("judgment_audit", default=None)
++
++
++def audit_call(fn, *args, **kwargs):
++    try:
++        return fn(*args, **kwargs)
++    except Exception as exc:  # audit must never grant or deny a trade
++        try:
++            return JC.recording_error(getattr(fn, "__name__", "audit_call"), exc)
++        except Exception:
++            print(f"judgment audit recording_error: {exc}", file=sys.stderr)
++            return {"status": "recording_error", "error": str(exc)}
++
++
++def audit_boost(stage, detail):
++    current = _AUDIT.get()
++    if current is not None:
++        current[stage] = detail
++
++
++def tracked(stage):
++    def decorate(fn):
++        signature = inspect.signature(fn)
++        @functools.wraps(fn)
++        def wrapped(*args, **kwargs):
++            bound = signature.bind(*args, **kwargs)
++            bound.apply_defaults()
++            a = bound.arguments
++            definition = E.capture_definition()
++            side = a.get("side")
++            if stage == "record_decision":
++                side = a.get("confidence_for") or {"관망": "매수", "매수 예정": "매수", "매도 예정": "매도"}.get(a.get("action"))
++            event = audit_call(JC.enter, stage, a.get("code"), side, a.get("confidence"),
++                               judgment_id=a.get("judgment_id"), rule_exit=a.get("rule_exit", False), action=a.get("action"))
++            token = _AUDIT.set({})
++            try:
++                import policy_registry as PR
++                ctx = PR.build_context(a.get("code"), side, judgment_id=a.get("judgment_id"))
++                audit_boost("policy", ctx.get("policy"))
++                audit_boost("policy_context", ctx)
++                with PR.use_context(ctx):
++                    result = fn(*args, **kwargs)
++            except Exception as exc:
++                audit_call(JC.finish_event, event if isinstance(event, str) else None,
++                           outcome={"error": f"{type(exc).__name__}: {exc}"}, boost=_AUDIT.get())
++                audit_call(E.record, "tool_error", stage=stage, coverage_event_id=event,
++                           code=a.get("code"), judgment_id=a.get("judgment_id"), plan_id=a.get("plan_id"),
++                           order_attempt_id=a.get("order_attempt_id"), error=str(exc), confidence_audit=_AUDIT.get(), definition=definition)
++                raise
++            else:
++                audit_call(JC.finish_event, event if isinstance(event, str) else None, outcome=result, boost=_AUDIT.get())
++                audit_call(E.record, "tool_result", stage=stage, coverage_event_id=event,
++                           code=a.get("code"), judgment_id=a.get("judgment_id"),
++                           plan_id=(result.get("plan_id") or a.get("plan_id")) if isinstance(result, dict) else a.get("plan_id"),
++                           order_attempt_id=(result.get("order_attempt_id") or a.get("order_attempt_id")) if isinstance(result, dict) else a.get("order_attempt_id"),
++                           result=result, confidence_audit=_AUDIT.get(), definition=definition)
++                return result
++            finally:
++                _AUDIT.reset(token)
++        return wrapped
++    return decorate
++
++
++def execution_payload(code, side, qty, confidence, rule_exit=False, judgment_id=None, plan_id=None, rule_trigger_id=None):
++    return {"code": str(code), "side": side, "qty": qty, "confidence": confidence,
++            "rule_exit": rule_exit, "judgment_id": judgment_id, "plan_id": plan_id, "rule_trigger_id": rule_trigger_id}
++
++
++def plan_link(plan_id, code, side, confidence, judgment_id):
++    if not plan_id:
++        return {"status": "missing", "reason": "plan_id_not_provided"}
++    try:
++        saved = E.load_plan(plan_id)
++        if not saved:
++            return {"status": "invalid", "reason": "unknown_plan"}
++        plan = saved.get("plan", {})
++        if plan.get("code") != code or plan.get("side") != side or plan.get("confidence_raw") != confidence:
++            return {"status": "invalid", "reason": "plan_inputs_mismatch"}
++        if saved.get("judgment_id") != judgment_id:
++            return {"status": "invalid", "reason": "judgment_mismatch"}
++        return {"status": "linked", "plan_id": plan_id}
++    except Exception as exc:
++        return {"status": "recording_error", "error": str(exc)}
++
++
++def rule_reference(code, supplied=None):
++    if supplied:
++        return supplied
++    try:
++        return __import__("json").loads(os.environ.get("RULE_TRIGGER_IDS", "{}" )).get(code)
++    except (ValueError, AttributeError):
++        return None
++
++
+ def name_of(code):
+     b = C.read_json(C.BRIEFING, {}) or {}
+     acc = C.read_json(C.ACCOUNT, {}) or {}
+@@ -63,11 +231,12 @@ def name_of(code):
+ 
+ 
+ def positions_view(acc):
++    episodes = PE.observe(acc, source="get_account")
+     meta = C.position_meta(acc["holdings"])
+     out = []
+     for h in acc["holdings"]:
+         m = meta.get(h["code"], {})
+-        out.append({**h, "weight": round(h["value"] / acc["total"], 4) if acc["total"] else 0,
++        out.append({**h, "position_episode_id": episodes.get(h["code"]), "weight": round(h["value"] / acc["total"], 4) if acc["total"] else 0,
+                     "stop": m.get("stop"), "take": m.get("take"),
+                     "held_days": C.business_days(m["entry_date"], C.today()) if m.get("entry_date") else None,
+                     "max_days": m.get("max_days")})
+@@ -81,6 +250,11 @@ def get_briefing() -> str:
+     b = C.read_json(C.BRIEFING)
+     if not b:
+         return "브리핑이 없습니다. 데이터 준비가 실행되지 않았습니다. 오늘은 관망하세요."
++    # This context is delivered now; never rewrite old observations or receipts.
++    for item in b.get("holdings", []) + b.get("candidates", []):
++        episode_id = PE.current(item["code"])
++        if episode_id:
++            item["position_episode_id"] = episode_id
+     p, r = C.params(), C.risk_limits()
+     ctx = [
+         "", "## 오늘 기준값 (코드가 강제함)",
+@@ -136,13 +310,46 @@ def get_briefing() -> str:
+         ctx.append(f"- 시장 하락 보정 (코드가 적용): set_regime 으로 기록한 국면이 {'·'.join(mb['regimes'])} 이면 "
+                    f"신규 매수 확신도 +{mb['add']:.2f} (악재 뉴스 ⚠ 제외). 국면을 이유로 스스로 확신도를 올리거나 내리지 않음")
+     b["market"]["live"] = data_prep.live_market(b)   # 장중이면 지금 KOSPI 반영 힌트도 같이
+-    ls = (C.read_json(tuning.LESSONS, {}) or {}).get("lessons") or []
++    legacy_lessons = C.read_json(tuning.LESSONS, {}) or {}
++    ls = legacy_lessons.get("lessons") or []
++    legacy_available_at = None
++    if legacy_lessons.get('time'):
++        # These local writers use KST wall clocks. Unknown old formats remain
++        # unknown; retrieval time is never substituted.
++        for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S'):
++            try:
++                legacy_available_at = datetime.strptime(legacy_lessons['time'], fmt).replace(tzinfo=C.KST).isoformat()
++                break
++            except (ValueError, TypeError):
++                pass
+     if ls:   # 11-06 S.Lee: 지난 판단 채점에서 나온 교훈 (맞은 판단 유지 · 틀린 판단 조정)
+         ctx += ["", "## 지난 판단 점검에서 배운 점 (기준값 조정 실행이 결과로 채점해 남김, 확신도에 반영할 것)"] + [f"- {x}" for x in ls]
+-    return data_prep.to_text(b) + "\n".join(ctx) + intraday(b, r) + C.prior_judgments()
+-
+-
+-def intraday(b, r):
++    import lesson_registry
++    lesson_selected_at = O.stamp()
++    try:
++        adopted = lesson_registry.select_for_briefing(b, at=lesson_selected_at)
++        ctx += lesson_registry.render_for_briefing(adopted)
++    except Exception as exc:
++        adopted = {'lessons': [], 'excluded': [], 'recording_status': 'recording_error',
++                   'status': 'unavailable', 'error': str(exc)}
++    if adopted.get('recording_status') == 'recording_error':
++        ctx.append('\n검증 후 채택된 교훈 조회에 오류가 있어 완전한 적용 여부는 미확인입니다.')
++    quotes = []
++    prior = C.prior_judgments()
++    text = data_prep.to_text(b) + "\n".join(ctx) + intraday(b, r, observations=quotes) + prior
++    audit_call(JC.observe_targets, briefing=b)
++    return O.deliver(text, b, quotes, p, r, context={"lessons": ls,
++        "lessons_available_at": legacy_available_at, "legacy_lessons_time_raw": legacy_lessons.get("time"),
++        "adopted_lessons": adopted.get("lessons", []), "lesson_selection_status": adopted.get("recording_status"),
++        "lesson_selection_state": adopted.get("status"), "lesson_selected_at": lesson_selected_at,
++        "lesson_exclusions": adopted.get("excluded", []), "lesson_selection_error": adopted.get("error"),
++        "prior_judgments": prior, "regime": C.latest_regime(),
++        "applied_config": {"buy_threshold": C.buy_threshold(p), "probe_floor": C.probe_floor(p),
++                           "week_factor": C.week_factor(p), "competition_week": C.competition_week(p=p),
++                           "fill_count": C.fill_count()}})
++
++
++def intraday(b, r, observations=None):
+     """후보·보유 종목의 지금 가격과 오늘 등락률. 지표는 전일 종가 기준이라 오늘 급등·급락을 여기서 봄."""
+     rows, seen = [], set()
+     for x in b.get("candidates", []) + (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
+@@ -151,16 +358,24 @@ def intraday(b, r):
+         seen.add(x["code"])
+         try:
+             q = brk().quote_info(x["code"])
+-        except Exception:  # noqa: BLE001  조회 실패는 표에서만 빠짐
++        except Exception as exc:  # noqa: BLE001  조회 실패는 표에서만 빠짐
++            if observations is not None:
++                observations.append({"observation_id": "quote-" + uuid.uuid4().hex, "instrument_id": x["code"], "status": "unknown", "reason": type(exc).__name__, "queried_at": O.stamp()})
+             continue
++        if observations is not None:
++            observations.append({"observation_id": "quote-" + uuid.uuid4().hex, "instrument_id": x["code"],
++                                 "use": "briefing_reference", "kind": "daily_close" if q.get("source") == "pykrx:mock_daily" else "intraday_current",
++                                 "queried_at": O.stamp(), **q})
+         chg = q["change"]
+-        rows.append(f"| {x['code']} | {x['name']} | {q['price']:,} | {'—' if chg is None else f'{chg:+.1%}'} |")
++        kind = "일봉 종가(mock)" if q.get("source") == "pykrx:mock_daily" else "장중 현재가"
++        rows.append(f"| {x['code']} | {x['name']} | {q['price']:,} | {'—' if chg is None else f'{chg:+.1%}'} | "
++                    f"{kind}, 수신 {q.get('available_at') or '미보관'} · 원천 기준 {q.get('observed_at') or '미제공'} ({q.get('source') or '미보관'}) |")
+     if not rows:
+         return ""
+     lim = r.get("max_buy_day_change", 0.10)
+-    return "\n".join(["", "", f"## 오늘 장중 ({C.now().strftime('%H:%M')} 현재가, 전일 종가 대비)",
+-                      f"위 지표는 전일 종가 기준입니다. 오늘 +{lim:.0%} 이상 오른 종목은 리스크 규칙상 매수할 수 없습니다 (추격 매수 금지).",
+-                      "", "| 코드 | 종목 | 현재가 | 오늘 등락 |", "|---|---|---|---|", *rows])
++    return "\n".join(["", "", f"## 브리핑 호출 시 가격 ({C.now().strftime('%H:%M')}, 후보 선별 가격과 별도 관측)",
++                      f"이 가격으로 앞선 후보 평가를 다시 계산하지 않습니다. 오늘 +{lim:.0%} 이상 오른 종목은 리스크 규칙상 매수할 수 없습니다 (추격 매수 금지).",
++                      "", "| 코드 | 종목 | 가격 | 오늘 등락 | 종류·시각·출처 |", "|---|---|---|---|---|", *rows])
+ 
+ 
+ 
+@@ -170,102 +385,359 @@ def get_account() -> dict:
+     """계좌 총자산·현금·보유 종목(평단, 현재가, 수익률, 비중, 손절가, 익절가, 보유일)과 오늘 손익, 지금 주식 비중 상한."""
+     acc = brk().account()
+     cap, regime = sizing.equity_cap(C.params(), C.risk_limits(), acc)
+-    return {"mode": brk().name, "total": acc["total"], "cash": acc["cash"], "stock_value": acc["stock_value"],
++    payload = {"mode": brk().name, "total": acc["total"], "cash": acc["cash"], "stock_value": acc["stock_value"],
+             "daily_pnl": round(risk.daily_pnl(acc), 4), "regime": regime, "equity_cap": cap,
+             "holdings": positions_view(acc)}
++    audit_call(JC.observe_targets, account=payload)
++    return O.account_delivery(payload)
+ 
+ 
+ @mcp.tool()
+ @quiet
+-def set_regime(regime: str, reason: str) -> dict:
++def set_regime(regime: str, reason: str, evidence_refs: list[dict] | None = None) -> dict:
+     """시장 국면을 기록합니다. regime 은 '상승' | '횡보' | '하락'. 이후 매수 수량은 이 국면의 비중 상한을 따릅니다."""
+     p = C.params()
+     if regime not in p["regime_cap"]:
+         return {"error": "regime 은 상승 / 횡보 / 하락 중 하나"}
+     cap = round(p["regime_cap"][regime] * C.week_factor(p), 4)
+-    C.journal("regime", regime=regime, cap=cap, reason=reason)
+-    return {"regime": regime, "equity_cap": cap}
++    reference_validation = audit_call(J.validate_references, evidence_refs or [], code="market")
++    row = C.journal("regime", regime=regime, cap=cap, reason=reason, evidence_refs=evidence_refs or [],
++                    regime_event_id="regime-" + uuid.uuid4().hex,
++                    reference_validation=reference_validation, run_attempt_id=os.environ.get("RUN_ATTEMPT_ID"))
++    try:
++        import judgment_context
++        snapshot = judgment_context.record_regime(row)
++    except Exception as exc:
++        # This extra provenance must not undo the original regime publication
++        # or turn a research recording problem into an AI coverage failure.
++        snapshot = {"recording_status": "recording_error", "error": str(exc)}
++        print(f"국면 참조 기록 실패: {exc}", file=sys.stderr)
++    return {"regime": regime, "equity_cap": cap, "reference_validation": reference_validation,
++            "regime_event_id": snapshot.get("regime_event_id"),
++            "regime_recording_status": snapshot.get("recording_status", "recording_error")}
+ 
+ 
+ @mcp.tool()
+ @quiet
+-def plan_order(code: str, side: str, confidence: float, rule_exit: bool = False) -> dict:
++@tracked("plan_order")
++def plan_order(code: str, side: str, confidence: float, rule_exit: bool = False, judgment_id: str | None = None,
++               rule_trigger_id: str | None = None) -> dict:
+     """확신도로 주문 수량을 계산합니다 (주문은 하지 않음). side 는 '매수' | '매도'.
+-    qty 가 0 이면 limited_by 에 이유가 있습니다. place_order 에는 여기서 나온 qty 이하만 쓸 수 있습니다.
++    qty 가 0 이면 limited_by 에 이유가 있습니다. place_order 에는 여기서 나온 qty 이하와 plan_id/order_attempt_id를 전달합니다.
+     매도: 손절·익절·최대 보유일 규칙 매도면 rule_exit=true (전량). 판단 매도는 확신도가 낮으면 일부만(partial=true)."""
+     acc = brk().account()
++    try:
++        import portfolio_capture as PC
++        portfolio_state = PC.capture_state(acc, purpose='order_plan')
++    except Exception as exc:
++        portfolio_state = {'recording_status': 'recording_error', 'error': str(exc)}
++    episodes = PE.observe(acc, source="plan_order")
++    audit_call(JC.observe_targets, account=acc)
++    rule_trigger_id = rule_reference(code, rule_trigger_id)
++    sizing_audit = {}
+     qi = brk().quote_info(code)
+     price = qi["price"]
+     if side == "매수":
+-        adj, note = C.conf_boost(code, side, confidence)
+-        plan = sizing.plan_buy(code, adj, price, acc, today_change=qi["change"])
++        detail = C.conf_boost_details(code, side, confidence)
++        adj, note = detail["adjusted"], detail["note"]
++        audit_boost("plan", detail)
++        plan = sizing.plan_buy(code, adj, price, acc, today_change=qi["change"], audit=sizing_audit)
+         plan.update(confidence_raw=confidence, boost=note)
+     elif side == "매도":
+-        adj, note = C.conf_boost(code, side, confidence)
+-        plan = sizing.plan_sell(code, adj, price, acc, rule_exit=rule_exit or os.environ.get("RUN_MODE") == "exit")
++        detail = C.conf_boost_details(code, side, confidence)
++        adj, note = detail["adjusted"], detail["note"]
++        audit_boost("plan", detail)
++        plan = sizing.plan_sell(code, adj, price, acc, rule_exit=rule_exit or os.environ.get("RUN_MODE") == "exit", audit=sizing_audit)
+         plan.update(confidence_raw=confidence, boost=note)
+     else:
+         return {"error": "side 는 매수 / 매도"}
+     plan["name"] = name_of(code)
+     plan["today_change"] = qi["change"]   # 오늘 등락률. +10% 이상이면 매수는 리스크 규칙에 막힘
++    saved = E.save_plan(plan, {"account": acc, "quote": qi, "sizing": sizing_audit, "confidence": detail,
++                              "portfolio_state": portfolio_state,
++                              "policy": (_AUDIT.get() or {}).get("policy"),
++                              "policy_context": (_AUDIT.get() or {}).get("policy_context"),
++                              "position_episode_id": episodes.get(code)}, judgment_id=judgment_id,
++                        rule_trigger_id=rule_trigger_id, scope=E.account_scope())
++    plan.update(saved)
+     return plan
+ 
+ 
+ @mcp.tool()
+ @quiet
++@tracked("place_order")
+ def place_order(code: str, side: str, qty: int, confidence: float, bull: str, bear: str, decision: str,
+-                rule_exit: bool = False) -> dict:
++                rule_exit: bool = False, judgment_id: str | None = None, plan_id: str | None = None,
++                order_attempt_id: str | None = None, rule_trigger_id: str | None = None) -> dict:
+     """시장가 주문. bull = 매수 측 핵심 근거, bear = 매도 측 핵심 근거, decision = 총괄 판단 이유 (각 1~2문장, 대시보드에 공개).
+-    rule_exit = 손절·익절·최대 보유일 규칙에 따른 매도이면 true. 리스크 규칙 위반이면 주문되지 않습니다."""
++    rule_exit = 손절·익절·최대 보유일 규칙에 따른 매도이면 true. 리스크 규칙 위반이면 주문되지 않습니다.
++    order_attempt_id는 plan_order 또는 Hook에서 발급받은 ID. 응답 유실·재시도에도 같은 ID를 유지하며 새 ID로 재주문하지 않습니다."""
++    rule_trigger_id = rule_reference(code, rule_trigger_id)
++    payload = execution_payload(code, side, qty, confidence, rule_exit, judgment_id, plan_id, rule_trigger_id)
++    scope = E.account_scope()
++    probe = E.probe_attempt(scope, order_attempt_id, payload)
++    if probe.get("status") == "error" or probe.get("ok") is False:
++        return probe
++    if probe.get("status") in ("claimed", "complete"):
++        # A replay never refreshes prices, reevaluates risk or writes another fill.
++        return E.dispatch_once(scope, order_attempt_id, payload, lambda: (_ for _ in ()).throw(AssertionError("replay cannot send")))
++    import policy_registry as PR
++    stale = None if not plan_id and (rule_exit or os.environ.get('RUN_MODE') == 'exit') else PR.check_plan_revision(plan_id)
++    if stale:
++        return {**stale, "order_attempt_id": order_attempt_id}
++    link = plan_link(plan_id, code, side, confidence, judgment_id)
++    audit_call(E.record, "order_entry", order_attempt_id=order_attempt_id, plan_id=plan_id,
++               judgment_id=judgment_id, rule_trigger_id=rule_trigger_id, payload=payload, plan_link=link)
+     acc = C.read_json(C.ACCOUNT) or brk().account()
++    audit_call(JC.observe_targets, account=acc)
++    episodes = PE.observe(acc, source="place_order")
+     qi = brk().quote_info(code)
+     price = qi["price"]
+     order = {"code": code, "side": side, "qty": qty, "confidence": confidence, "rule_exit": rule_exit,
+              "today_change": qi["change"]}
+-    bad = risk.check(order, acc, price)
++    risk_audit = {}
++    risk_definition = E.capture_definition()
++    bad = risk.check(order, acc, price, audit=risk_audit)
++    risk_audit['policy_context'] = (_AUDIT.get() or {}).get('policy_context')
++    risk_audit['policy'] = (_AUDIT.get() or {}).get('policy')
++    audit_boost("risk", risk_audit)
+     name = name_of(code)
+-    adj, note = C.conf_boost(code, side, confidence)   # 기록은 보정 후 확신도 (사이징·리스크 검사와 같은 값)
++    detail = C.conf_boost_details(code, side, confidence)
++    adj, note = detail["adjusted"], detail["note"]
++    audit_boost("order_logging", detail)
++    audit_call(E.record, "risk_evaluation", order_attempt_id=order_attempt_id, plan_id=plan_id,
++               judgment_id=judgment_id, actor="server", inputs=risk_audit, quote=qi,
++               position_episode_id=episodes.get(code), result="blocked" if bad else "passed", violations=bad,
++               definition=risk_definition)
+     if bad:
+         for rule, detail in bad:
+-            C.journal("block", code=code, name=name, side=side, rule=rule, detail=detail, by="server")
+-        return {"ok": False, "blocked": [f"{a}: {b}" for a, b in bad]}
+-
+-    res = brk().order(code, name, side, qty)
++            C.journal("block", code=code, name=name, side=side, rule=rule, detail=detail, by="server",
++                      order_attempt_id=order_attempt_id, plan_id=plan_id, judgment_id=judgment_id)
++        return {"ok": False, "blocked": [f"{a}: {b}" for a, b in bad], "order_attempt_id": order_attempt_id}
++
++    # The same writer lock as human adoption/tuning closes the last risk→send
++    # race. Retries already returned above and never acquire this/send again.
++    with PR.change_lock():
++        current = PR.snapshot(C.read_json(tuning.PARAMS_PATH))
++        used = (_AUDIT.get() or {}).get('policy') or {}
++        if any(current.get(k) != used.get(k) for k in ('revision','policy_revision','status')):
++            return {'ok':False, 'error':'STALE_POLICY_PLAN', 'reason':'주문 검사 중 적용 기준이 변경되어 다시 계획해야 합니다.',
++                    'order_attempt_id':order_attempt_id}
++        if getattr(brk(), "supports_dispatch_guard", False):
++            res = brk().order(code, name, side, qty, order_attempt_id=order_attempt_id, dispatch_payload=payload)
++        else:
++            res = E.dispatch_once(scope, order_attempt_id, payload, lambda: brk().order(code, name, side, qty))
++    if res.get("replayed"):
++        return res
+     if not res.get("ok"):
+         return res
+-    regime = (C.latest_regime() or {}).get("regime")
+-    meta = C.read_json(C.POSITIONS, {}) or {}
+-    held = next((h for h in (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []) if h["code"] == code), None)   # order() 가 방금 갱신한 잔고 (키움 재조회 안 함)
+-    if side == "매수":
+-        d = C.params()["decision"]
+-        m = meta.get(code) or {"name": name, "entry_date": C.today().isoformat()}
+-        sl, tp, md = C.exit_levels(code)   # 고변동 종목은 손절·익절 폭이 넓음
+-        if C.index_dip(code, qi["change"]):   # 급락일 지수 예외로 산 건 익절 폭·보유일이 따로
+-            (tp, md), m["index_dip"] = C.dip_exit(code, None, tp, md), True
+-            sl = C.dip_stop(code, None, sl)
+-        m.update(stop=round(res["price"] * (1 + sl)), take=round(res["price"] * (1 + tp)), max_days=md)
+-        meta[code] = m
+-    elif not held:
+-        meta.pop(code, None)
+-    C.write_json(C.POSITIONS, meta)
+-    C.journal("fill", code=code, name=name, side=side, qty=res["qty"], ordered=qty, price=res["price"],
+-              amount=res["qty"] * res["price"], confidence=adj, confidence_raw=confidence, boost=note, regime=regime,
+-              bull=bull, bear=bear, decision=decision, order_no=res.get("order_no"),
+-              filled=res.get("filled", True), rule_exit=rule_exit)
+-    return {"ok": True, **res, "name": name}
++    try:
++        regime = (C.latest_regime() or {}).get("regime")
++        meta = C.read_json(C.POSITIONS, {}) or {}
++        after_account = C.read_json(C.ACCOUNT, {}) or {}
++        held = next((h for h in after_account.get("holdings", []) if h["code"] == code), None)   # order() 가 방금 갱신한 잔고 (키움 재조회 안 함)
++        after_episodes = PE.observe(after_account, source={"tool": "place_order_result", "order_attempt_id": order_attempt_id})
++        episode_id = episodes.get(code) or after_episodes.get(code)
++        audit_call(E.record, "order_position_context", order_attempt_id=order_attempt_id, plan_id=plan_id,
++                   judgment_id=judgment_id, position_episode_id=episode_id,
++                   before_episode_id=episodes.get(code), after_episode_id=after_episodes.get(code),
++                   episode_status="observed_context" if episode_id else "episode_pending",
++                   attribution="account_observation; not proof of this order's execution")
++        if side == "매수":
++            d = C.params()["decision"]
++            m = meta.get(code) or {"name": name, "entry_date": C.today().isoformat()}
++            sl, tp, md = C.exit_levels(code)   # 고변동 종목은 손절·익절 폭이 넓음
++            if C.index_dip(code, qi["change"]):   # 급락일 지수 예외로 산 건 익절 폭·보유일이 따로
++                (tp, md), m["index_dip"] = C.dip_exit(code, None, tp, md), True
++                sl = C.dip_stop(code, None, sl)
++            m.update(stop=round(res["price"] * (1 + sl)), take=round(res["price"] * (1 + tp)), max_days=md)
++            meta[code] = m
++        elif not held:
++            meta.pop(code, None)
++        C.write_json(C.POSITIONS, meta)
++        C.journal("fill", code=code, name=name, side=side, qty=res["qty"], ordered=qty, price=res["price"],
++                  amount=res["qty"] * res["price"], confidence=adj, confidence_raw=confidence, boost=note, regime=regime,
++                  bull=bull, bear=bear, decision=decision, order_no=res.get("order_no"),
++                  filled=res.get("filled", True), rule_exit=rule_exit, judgment_id=judgment_id, plan_id=plan_id,
++                  order_attempt_id=order_attempt_id, position_episode_id=episode_id,
++                  execution_quality=res.get("execution_quality", "legacy_unverified"))
++        audit_call(E.record, "order_result", order_attempt_id=order_attempt_id, plan_id=plan_id,
++                   judgment_id=judgment_id, position_episode_id=episode_id, result=res, order_logging_boost=detail)
++        return {"ok": True, **res, "name": name}
++    except Exception as exc:
++        audit_call(JC.recording_error, "post_order_bookkeeping", exc)
++        audit_call(E.record, "bookkeeping_error", order_attempt_id=order_attempt_id, error=str(exc))
++        return {**res, "recording_status": "recording_error", "bookkeeping_error": str(exc)}
++
+ 
+ 
+ @mcp.tool()
+ @quiet
+-def record_decision(code: str, action: str, confidence: float, bull: str, bear: str, decision: str) -> dict:
++@tracked("record_decision")
++def record_decision(code: str, action: str, confidence: float, bull: str, bear: str, decision: str,
++                    judgment_id: str | None = None, confidence_for: str | None = None, plan_id: str | None = None) -> dict:
+     """주문하지 않은 판단을 기록합니다. action 은 '보유' | '관망'. 판단 갱신(매매 없는 회차)에서는 '매수 예정' | '매도 예정' 도 씀."""
+     side = "매도" if action in ("보유", "매도 예정") else "매수"
+-    adj, note = C.conf_boost(code, side, confidence)   # 매수였다면 / 매도였다면 코드가 붙였을 보정
++    detail = C.conf_boost_details(code, side, confidence)  # legacy action-based direction preserved
++    adj, note = detail["adjusted"], detail["note"]
++    audit_boost("decision", detail)
+     C.journal("decision", code=code, name=name_of(code), action=action, confidence=confidence,
+-              confidence_adj=adj, boost=note, bull=bull, bear=bear, decision=decision)
++              confidence_adj=adj, boost=note, bull=bull, bear=bear, decision=decision,
++              judgment_id=judgment_id, plan_id=plan_id, position_episode_id=PE.current(code))
++    audit_call(E.record, "decision", code=code, action=action, confidence_for=confidence_for,
++               confidence_raw=confidence, judgment_id=judgment_id, plan_id=plan_id,
++               position_episode_id=PE.current(code), plan_link=plan_link(plan_id, code, confidence_for, confidence, judgment_id))
+     return {"ok": True}
+ 
+ 
++@mcp.tool()
++@quiet
++def record_ai_judgments(items: list[dict]) -> list[dict]:
++    """구조화 사실·가설·전제를 항목별 검증해 저장. 각 항목에 request_key, code, confidence_for, confidence_raw, arguments 필요."""
++    return J.record_ai_judgments(items)
++
++
++@mcp.tool()
++@quiet
++def get_ai_judgments(run_attempt_id: str | None = None, code: str | None = None, delivery_id: str | None = None) -> dict:
++    """판단·전제·근거 채택·단계별 실제 보정 기록 조회."""
++    rows = J.get_ai_judgments(run_attempt_id=run_attempt_id, code=code, delivery_id=delivery_id)
++    attempts = {row["run_attempt_id"] for row in rows}
++    if run_attempt_id:
++        attempts.add(run_attempt_id)
++    return {"judgments": rows, "coverage": [JC.get_coverage(a) for a in sorted(attempts)]}
++
++
++@mcp.tool()
++@quiet
++def record_external_evidence(items: list[dict]) -> list[dict]:
++    """AI가 수집해 제출한 외부 자료를 미검증으로 보관. 원문 조회·보도 사실 검증을 뜻하지 않음."""
++    return J.record_external_evidence(items)
++
++
++@mcp.tool()
++@quiet
++def get_judgment_coverage(run_attempt_id: str | None = None) -> dict:
++    """예상 판단의 미제출·거절·미연결·연결·기록 오류 및 규칙 매도를 별도로 조회."""
++    return JC.get_coverage(run_attempt_id)
++
++
++@mcp.tool()
++@quiet
++def get_policy_validation(validation_id: str) -> dict:
++    """지정된 검증 결과만 조회. 실행·AI 호출·운영 채택 없음."""
++    import policy_validation
++    return policy_validation.get_policy_validation(validation_id)
++
++
++@mcp.tool()
++@quiet
++def get_validation_cases(validation_id: str, offset: int = 0, limit: int = 50) -> dict:
++    """검증의 전체 기회·누락·재현 결과를 페이지별 조회."""
++    import policy_validation
++    return policy_validation.get_validation_cases(validation_id, offset, limit)
++
++
++@mcp.tool()
++@quiet
++def get_execution_trace(plan_id: str | None = None, order_attempt_id: str | None = None,
++                        judgment_id: str | None = None, position_episode_id: str | None = None,
++                        rule_trigger_id: str | None = None) -> dict:
++    """저장된 판단·계획·주문·확인/추정 체결 경로 조회. 외부 호출 없음."""
++    return E.get_execution_trace(plan_id=plan_id, order_attempt_id=order_attempt_id,
++                                 judgment_id=judgment_id, position_episode_id=position_episode_id,
++                                 rule_trigger_id=rule_trigger_id)
++
++
++@mcp.tool()
++@quiet
++def refresh_execution_status(order_attempt_id: str) -> dict:
++    """기록된 주문의 체결 상태만 조회. 주문 재전송 금지."""
++    return ER.refresh_execution_status(order_attempt_id, broker=brk())
++
++
++@mcp.tool()
++@quiet
++def get_close_evaluations(scoring_job_id: str | None = None, market_as_of: str | None = None,
++                          limit: int = 20) -> dict:
++    """보관된 사후 평가 회차 조회. 수집·채점·주문·기준값 변경 없음. 미완료 실행도 표시."""
++    import close_evaluation
++    return close_evaluation.get_close_evaluations(scoring_job_id, market_as_of, limit)
++
++
++@mcp.tool()
++@quiet
++def get_premise_evaluations(application_id: str | None = None, judgment_id: str | None = None,
++                            scoring_job_id: str | None = None, knowledge_as_of: str | None = None,
++                            include_history: bool = False) -> dict:
++    """전제 유지·반증·진행·미확인 조회. 수익 결과와 분리하며 과거 수정 이력을 보존."""
++    import close_evaluation
++    return close_evaluation.get_premise_evaluations(application_id, judgment_id, scoring_job_id,
++                                                   knowledge_as_of, include_history)
++
++
++@mcp.tool()
++@quiet
++def get_case_review(review_id: str) -> dict:
++    """이번 복기의 고정 비교표·통계·예측 검증 상태 조회. 신규 수집·주문 없음."""
++    import case_review
++    return case_review.get_case_review(review_id)
++
++
++@mcp.tool()
++@quiet
++def get_review_cases(review_id: str, offset: int = 0, limit: int = 50) -> dict:
++    """고정된 복기 사례와 당시 근거·전제·사후 평가 연결을 페이지별 조회."""
++    import case_review
++    return case_review.get_review_cases(review_id, offset, limit)
++
++
++@mcp.tool()
++@quiet
++def record_case_review(review_id: str, request_key: str, findings: list[dict], hypotheses: list[dict]) -> dict:
++    """비교 결과의 구조화 사실과 사후 가설 제출. 기존 교훈·튜닝·주간 회고에는 반영하지 않음.
++    findings는 get_case_review의 metric_catalog를 인용:
++    {id, metric_id, op:'value', value, unit} 또는 {id, metric_id, op:'direction', direction:'positive'|'negative'|'zero'}.
++    비교는 {id, metric_id, op:'compare', right_metric_id, operator:'gt'|'gte'|'lt'|'lte'|'eq', result:bool}.
++    hypotheses는 {id, text, finding_ids:[...], case_ids:[...]}이며 사후 가설·미검증으로 보관.
++    사실은 자유 설명문을 받지 않으며 서버가 검증된 요약 문장을 생성. 재시도는 같은 request_key·내용,
++    수정 제출은 새 키를 사용. 하나라도 틀리면 제출 상태는 rejected이며 항목별 결과와 오류 위치를 반환."""
++    import case_review
++    return case_review.record_case_review(review_id, request_key, findings, hypotheses)
++
++
++@mcp.tool()
++@quiet
++def get_proposal_context(proposal_run_id: str) -> dict:
++    """6번 실행의 고정 자료·변경 대상·제출 계약. 반환한 근거의 전달 ID를 함께 보관합니다."""
++    import learning_proposals
++    return learning_proposals.get_proposal_context(proposal_run_id)
++
++
++@mcp.tool()
++@quiet
++def get_proposal_cases(proposal_run_id: str, offset: int = 0, limit: int = 50) -> dict:
++    """고정 사례·원래 판단·실행 경로를 페이지별 전달합니다. 현재 자료를 수집하지 않습니다."""
++    import learning_proposals
++    return learning_proposals.get_proposal_cases(proposal_run_id, offset, limit)
++
++
++@mcp.tool()
++@quiet
++def record_learning_proposals(proposal_run_id: str, request_key: str, items: list[dict]) -> dict:
++    """교훈 후보·설정/조건부 변경안·현행 유지를 항목별 검사해 보관합니다. 매매·교훈 활성화는 하지 않습니다."""
++    import learning_proposals
++    return learning_proposals.record_learning_proposals(proposal_run_id, request_key, items)
++
++
++@mcp.tool()
++@quiet
++def get_learning_proposals(proposal_run_id: str, proposal_id: str | None = None) -> dict:
++    """해당 제안 실행의 불변 버전·검증 거절·7번 준비 상태만 조회합니다."""
++    import learning_proposals
++    return learning_proposals.get_learning_proposals(proposal_run_id, proposal_id)
++
++
+ @mcp.tool()
+ @quiet
+ def submit_review(week: int, period: str, suggestion: str, report_markdown: str) -> dict:
+@@ -295,10 +767,7 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
+     lessons = decision_outcomes 점검에서 얻은 교훈 2~5줄 (예: "외국인 3일 연속 순매수 종목을 관망했다가 +4% 놓침 → 이런 경우 확신도를 낮추지 말 것").
+     다음 판단부터 브리핑에 실려 총괄·bull·bear 가 참고함 (기준값과 따로, 판단 자체를 고치는 용도).
+     서버가 허용 키·범위·변경폭·개수·쿨다운·기준값 일관성을 검사해 통과한 것만 반영하고, 거절 사유를 돌려줍니다."""
+-    if lessons:   # 11-06 S.Lee: 맞은 판단은 유지, 틀린 판단은 다음부터 바꾸도록
+-        C.write_json(tuning.LESSONS, {"time": C.stamp(), "lessons": [str(x)[:200] for x in lessons][:6]})
+-        C.journal("lessons", lessons=[str(x)[:200] for x in lessons][:6])
+-    return tuning.apply(changes, summary)
++    return tuning.apply(changes, summary, lessons=lessons)
+ 
+ 
+ if __name__ == "__main__":
