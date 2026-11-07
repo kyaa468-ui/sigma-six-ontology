@@ -1,0 +1,139 @@
+{
+  "version": "1",
+  "effective_from": "on_first_execution",
+  "criteria": [
+    {
+      "criterion_id": "PRICE_ABOVE_MA20",
+      "criterion_version_id": "PRICE_ABOVE_MA20@v1",
+      "function_id": "PRICE_ABOVE_MA20",
+      "name": "20일선 위",
+      "meaning": "20일선 위",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "MA20_GAP",
+      "criterion_version_id": "MA20_GAP@v1",
+      "function_id": "MA20_GAP",
+      "name": "20일선 이격률",
+      "meaning": "20일선 이격률",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "PRICE_ABOVE_MA5",
+      "criterion_version_id": "PRICE_ABOVE_MA5@v1",
+      "function_id": "PRICE_ABOVE_MA5",
+      "name": "5일선 위",
+      "meaning": "5일선 위",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "MA5_ABOVE_MA20",
+      "criterion_version_id": "MA5_ABOVE_MA20@v1",
+      "function_id": "MA5_ABOVE_MA20",
+      "name": "5일선 > 20일선",
+      "meaning": "5일선 > 20일선",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "FOREIGN_NET_BUY",
+      "criterion_version_id": "FOREIGN_NET_BUY@v1",
+      "function_id": "FOREIGN_NET_BUY",
+      "name": "외국인 순매수",
+      "meaning": "외국인 순매수",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "INSTITUTION_NET_BUY",
+      "criterion_version_id": "INSTITUTION_NET_BUY@v1",
+      "function_id": "INSTITUTION_NET_BUY",
+      "name": "기관 순매수",
+      "meaning": "기관 순매수",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "INSTITUTION_NET_SELL",
+      "criterion_version_id": "INSTITUTION_NET_SELL@v1",
+      "function_id": "INSTITUTION_NET_SELL",
+      "name": "기관 순매도",
+      "meaning": "기관 순매도",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "FLOW_SUM",
+      "criterion_version_id": "FLOW_SUM@v1",
+      "function_id": "FLOW_SUM",
+      "name": "두 주체 수급 합계",
+      "meaning": "두 주체 수급 합계",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "POSITIVE_FLOW_RATIO",
+      "criterion_version_id": "POSITIVE_FLOW_RATIO@v1",
+      "function_id": "POSITIVE_FLOW_RATIO",
+      "name": "양수 부분만 합산한 후보용 수급 비율",
+      "meaning": "양수 부분만 합산한 후보용 수급 비율",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    },
+    {
+      "criterion_id": "CLOSE_CROSS_MA20",
+      "criterion_version_id": "CLOSE_CROSS_MA20@v1",
+      "function_id": "CLOSE_CROSS_MA20",
+      "name": "완료 일봉 기준 상향 돌파",
+      "meaning": "완료 일봉 기준 상향 돌파",
+      "missing_policy": "unknown; engine substitutions are recorded separately"
+    }
+  ],
+  "rules": [
+    {
+      "rule_version_id": "TREND@v1",
+      "use": "candidate_filter",
+      "criteria": [
+        "PRICE_ABOVE_MA20",
+        "PRICE_ABOVE_MA5",
+        "MA5_ABOVE_MA20"
+      ],
+      "definition": "falling_trend.regimes: price > ma20; otherwise price > ma5 > ma20 (short circuit)"
+    },
+    {
+      "rule_version_id": "FLOW@v1",
+      "use": "candidate_filter",
+      "criteria": [
+        "FOREIGN_NET_BUY",
+        "INSTITUTION_NET_BUY"
+      ],
+      "definition": "reject iff both effective amounts <= 0; prep guard login and foreign_net is not None; intraday require_flow"
+    },
+    {
+      "rule_version_id": "RANK@v1",
+      "use": "ranking",
+      "criteria": [
+        "MA20_GAP",
+        "POSITIVE_FLOW_RATIO"
+      ],
+      "definition": "legacy percentile ranks, rounding and quotas; see captured engine source and params"
+    },
+    {
+      "rule_version_id": "ADMISSION@v1",
+      "use": "admission",
+      "criteria": [],
+      "definition": "legacy filter order, quotas, fill_up, dips, ETF, previous-list retention"
+    },
+    {
+      "rule_version_id": "REFERENCE@v1",
+      "use": "briefing_reference",
+      "criteria": [
+        "PRICE_ABOVE_MA20",
+        "MA20_GAP",
+        "PRICE_ABOVE_MA5",
+        "MA5_ABOVE_MA20",
+        "FOREIGN_NET_BUY",
+        "INSTITUTION_NET_BUY",
+        "INSTITUTION_NET_SELL",
+        "FLOW_SUM",
+        "POSITIVE_FLOW_RATIO",
+        "CLOSE_CROSS_MA20"
+      ],
+      "definition": "does not imply AI adoption"
+    }
+  ]
+}

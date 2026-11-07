@@ -1,0 +1,3304 @@
+{
+  "format": "local-ontology-ir",
+  "formatVersion": 1,
+  "ontology": {
+    "title": "Sigma Six 후보 근거 v1",
+    "nodes": [
+      {
+        "id": "instrument",
+        "label": "종목",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "market",
+            "name": "market",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "run",
+        "label": "판단 회차",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "kind",
+            "name": "kind",
+            "type": "string"
+          },
+          {
+            "id": "created_at",
+            "name": "created_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "snapshot",
+            "name": "snapshot",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "observation",
+        "label": "회차별 종목 관측",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "price",
+            "name": "price",
+            "type": "double"
+          },
+          {
+            "id": "ma5",
+            "name": "ma5",
+            "type": "double"
+          },
+          {
+            "id": "ma20",
+            "name": "ma20",
+            "type": "double"
+          },
+          {
+            "id": "ma20_slope5",
+            "name": "ma20_slope5",
+            "type": "double"
+          },
+          {
+            "id": "previous_close",
+            "name": "previous_close",
+            "type": "double"
+          },
+          {
+            "id": "previous_ma20",
+            "name": "previous_ma20",
+            "type": "double"
+          },
+          {
+            "id": "foreign",
+            "name": "foreign",
+            "type": "double"
+          },
+          {
+            "id": "institution",
+            "name": "institution",
+            "type": "double"
+          },
+          {
+            "id": "trading_value_20d",
+            "name": "trading_value_20d",
+            "type": "double"
+          },
+          {
+            "id": "measurements",
+            "name": "measurements",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "criterion",
+        "label": "판단 기준",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "meaning",
+            "name": "meaning",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "criterion_version",
+        "label": "기준 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "id": "definition",
+            "name": "definition",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "criterion_evaluation",
+        "label": "기준 평가",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          },
+          {
+            "id": "result",
+            "name": "result",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "rule_version",
+        "label": "판정 규칙 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "id": "definition",
+            "name": "definition",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "rule_evaluation",
+        "label": "규칙 평가",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "use",
+            "name": "use",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "delivery",
+        "label": "브리핑 전달 기록",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "ai_run_id",
+            "name": "ai_run_id",
+            "type": "string"
+          },
+          {
+            "id": "run_attempt_id",
+            "name": "run_attempt_id",
+            "type": "string"
+          },
+          {
+            "id": "text",
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "id": "sha256",
+            "name": "sha256",
+            "type": "string"
+          },
+          {
+            "id": "evidence_catalog",
+            "name": "evidence_catalog",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "ai_judgment",
+        "label": "AI 판단",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "confidence_for",
+            "name": "confidence_for",
+            "type": "string"
+          },
+          {
+            "id": "confidence_raw",
+            "name": "confidence_raw",
+            "type": "double"
+          },
+          {
+            "id": "recommended_action",
+            "name": "recommended_action",
+            "type": "string"
+          },
+          {
+            "id": "decision_validation",
+            "name": "decision_validation",
+            "type": "string"
+          },
+          {
+            "id": "comparison_snapshot",
+            "name": "comparison_snapshot",
+            "type": "object"
+          },
+          {
+            "id": "decision_regime_snapshot",
+            "name": "decision_regime_snapshot",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "argument",
+        "label": "AI 주장",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "kind",
+            "name": "kind",
+            "type": "string"
+          },
+          {
+            "id": "assertion",
+            "name": "assertion",
+            "type": "object"
+          },
+          {
+            "id": "reference_validation",
+            "name": "reference_validation",
+            "type": "string"
+          },
+          {
+            "id": "fact_validation",
+            "name": "fact_validation",
+            "type": "string"
+          },
+          {
+            "id": "hypothesis_status",
+            "name": "hypothesis_status",
+            "type": "string"
+          },
+          {
+            "id": "adoption",
+            "name": "adoption",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_definition",
+        "label": "전제 정의",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "id": "definition",
+            "name": "definition",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_application",
+        "label": "종목별 전제 적용",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "judgment_date",
+            "name": "judgment_date",
+            "type": "date"
+          },
+          {
+            "id": "direction",
+            "name": "direction",
+            "type": "string"
+          },
+          {
+            "id": "days",
+            "name": "days",
+            "type": "double"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_proposal",
+        "label": "자유 전제 제안",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "proposal",
+            "name": "proposal",
+            "type": "object"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "run_attempt",
+        "label": "AI 실행 시도",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "run_id",
+            "name": "run_id",
+            "type": "string"
+          },
+          {
+            "id": "kind",
+            "name": "kind",
+            "type": "string"
+          },
+          {
+            "id": "initial_targets",
+            "name": "initial_targets",
+            "type": "object"
+          },
+          {
+            "id": "target_set_incomplete",
+            "name": "target_set_incomplete",
+            "type": "boolean"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "submission",
+        "label": "판단 제출 시도",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "request_hash",
+            "name": "request_hash",
+            "type": "string"
+          },
+          {
+            "id": "errors",
+            "name": "errors",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "execution_event",
+        "label": "실행과 판단 연결",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "stage",
+            "name": "stage",
+            "type": "string"
+          },
+          {
+            "id": "link",
+            "name": "link",
+            "type": "object"
+          },
+          {
+            "id": "outcome",
+            "name": "outcome",
+            "type": "object"
+          },
+          {
+            "id": "boost",
+            "name": "boost",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "order_plan",
+        "label": "주문 계획",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          },
+          {
+            "id": "plan",
+            "name": "plan",
+            "type": "object"
+          },
+          {
+            "id": "definition",
+            "name": "definition",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "order_attempt",
+        "label": "주문 전송 시도",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "account_scope",
+            "name": "account_scope",
+            "type": "string"
+          },
+          {
+            "id": "payload_hash",
+            "name": "payload_hash",
+            "type": "string"
+          },
+          {
+            "id": "state",
+            "name": "state",
+            "type": "string"
+          },
+          {
+            "id": "result",
+            "name": "result",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "execution_observation",
+        "label": "주문별 체결 관측",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "confirmation",
+            "name": "confirmation",
+            "type": "string"
+          },
+          {
+            "id": "source",
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "id": "observed_at",
+            "name": "observed_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "available_at",
+            "name": "available_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "qty",
+            "name": "qty",
+            "type": "double"
+          },
+          {
+            "id": "price",
+            "name": "price",
+            "type": "double"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "position_episode",
+        "label": "보유 구간",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "origin",
+            "name": "origin",
+            "type": "string"
+          },
+          {
+            "id": "opened_at",
+            "name": "opened_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "closed_at",
+            "name": "closed_at",
+            "type": "timestamp"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "rule_trigger",
+        "label": "규칙 매도 계기",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "retry_key",
+            "name": "retry_key",
+            "type": "string"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          },
+          {
+            "id": "result",
+            "name": "result",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "scoring_job",
+        "label": "사후 평가 회차",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "market_as_of",
+            "name": "market_as_of",
+            "type": "date"
+          },
+          {
+            "id": "knowledge_as_of",
+            "name": "knowledge_as_of",
+            "type": "timestamp"
+          },
+          {
+            "id": "expected_targets",
+            "name": "expected_targets",
+            "type": "object"
+          },
+          {
+            "id": "run_status",
+            "name": "run_status",
+            "type": "string"
+          },
+          {
+            "id": "recording_status",
+            "name": "recording_status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "calendar_snapshot",
+        "label": "거래일 달력 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "source",
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "id": "sessions",
+            "name": "sessions",
+            "type": "object"
+          },
+          {
+            "id": "hash",
+            "name": "hash",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_window",
+        "label": "전제 거래일 구간",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "start_trading_day",
+            "name": "start_trading_day",
+            "type": "date"
+          },
+          {
+            "id": "end_trading_day",
+            "name": "end_trading_day",
+            "type": "date"
+          },
+          {
+            "id": "sessions",
+            "name": "sessions",
+            "type": "object"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "daily_receipt",
+        "label": "일봉 수신 자료",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "available_at",
+            "name": "available_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "source",
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "id": "price_basis",
+            "name": "price_basis",
+            "type": "string"
+          },
+          {
+            "id": "rows",
+            "name": "rows",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "daily_confirmation",
+        "label": "일봉 정책상 완료 확인",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "date",
+            "name": "date",
+            "type": "date"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "provider_finality",
+            "name": "provider_finality",
+            "type": "string"
+          },
+          {
+            "id": "confirmation_receipt_ids",
+            "name": "confirmation_receipt_ids",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_evaluation",
+        "label": "전제 사후 평가",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "verdict",
+            "name": "verdict",
+            "type": "string"
+          },
+          {
+            "id": "period_status",
+            "name": "period_status",
+            "type": "string"
+          },
+          {
+            "id": "data_status",
+            "name": "data_status",
+            "type": "string"
+          },
+          {
+            "id": "recording_status",
+            "name": "recording_status",
+            "type": "string"
+          },
+          {
+            "id": "market_as_of",
+            "name": "market_as_of",
+            "type": "date"
+          },
+          {
+            "id": "knowledge_as_of",
+            "name": "knowledge_as_of",
+            "type": "timestamp"
+          },
+          {
+            "id": "comparisons",
+            "name": "comparisons",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "legacy_outcome_context",
+        "label": "기존 결과 비교 자료",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "decision_outcomes",
+            "name": "decision_outcomes",
+            "type": "object"
+          },
+          {
+            "id": "legacy_trade_results",
+            "name": "legacy_trade_results",
+            "type": "object"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          },
+          {
+            "id": "audit",
+            "name": "audit",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "regime_event",
+        "label": "서버 등록 AI 국면",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "regime",
+            "name": "regime",
+            "type": "string"
+          },
+          {
+            "id": "source",
+            "name": "source",
+            "type": "string"
+          },
+          {
+            "id": "recorded_at",
+            "name": "recorded_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "classification_status",
+            "name": "classification_status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "case_review",
+        "label": "별도 사례 비교 실행",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "market_as_of",
+            "name": "market_as_of",
+            "type": "date"
+          },
+          {
+            "id": "knowledge_as_of",
+            "name": "knowledge_as_of",
+            "type": "timestamp"
+          },
+          {
+            "id": "analysis_status",
+            "name": "analysis_status",
+            "type": "string"
+          },
+          {
+            "id": "ai_status",
+            "name": "ai_status",
+            "type": "string"
+          },
+          {
+            "id": "definition",
+            "name": "definition",
+            "type": "object"
+          },
+          {
+            "id": "source_manifest",
+            "name": "source_manifest",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "review_case",
+        "label": "전제 적용별 비교 사례",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "origin_judgment_id",
+            "name": "origin_judgment_id",
+            "type": "string"
+          },
+          {
+            "id": "stratum",
+            "name": "stratum",
+            "type": "object"
+          },
+          {
+            "id": "features",
+            "name": "features",
+            "type": "object"
+          },
+          {
+            "id": "outcome_eligible",
+            "name": "outcome_eligible",
+            "type": "boolean"
+          },
+          {
+            "id": "exclusions",
+            "name": "exclusions",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "research_model",
+        "label": "반증 예측 모형",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "training_cutoff",
+            "name": "training_cutoff",
+            "type": "timestamp"
+          },
+          {
+            "id": "transform",
+            "name": "transform",
+            "type": "object"
+          },
+          {
+            "id": "coefficients",
+            "name": "coefficients",
+            "type": "object"
+          },
+          {
+            "id": "uncertainty",
+            "name": "uncertainty",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "model_publication",
+        "label": "주간 모형 공개",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "available_at",
+            "name": "available_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "valid_from",
+            "name": "valid_from",
+            "type": "timestamp"
+          },
+          {
+            "id": "valid_until",
+            "name": "valid_until",
+            "type": "timestamp"
+          },
+          {
+            "id": "commit",
+            "name": "commit",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "premise_prediction",
+        "label": "전제 사전 예측",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "kind",
+            "name": "kind",
+            "type": "string"
+          },
+          {
+            "id": "origin_at",
+            "name": "origin_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "id": "probability",
+            "name": "probability",
+            "type": "double"
+          },
+          {
+            "id": "baseline_probability",
+            "name": "baseline_probability",
+            "type": "double"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "retrospective_hypothesis",
+        "label": "AI 사후 가설",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "text",
+            "name": "text",
+            "type": "string"
+          },
+          {
+            "id": "hypothesis_status",
+            "name": "hypothesis_status",
+            "type": "string"
+          },
+          {
+            "id": "validated_findings",
+            "name": "validated_findings",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "research_usage",
+        "label": "분석 사용 이력",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "purpose",
+            "name": "purpose",
+            "type": "string"
+          },
+          {
+            "id": "used_at",
+            "name": "used_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "application_ids",
+            "name": "application_ids",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "proposal_run",
+        "label": "교훈·변경안 제안 실행",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "review_id",
+            "name": "review_id",
+            "type": "string"
+          },
+          {
+            "id": "context_hash",
+            "name": "context_hash",
+            "type": "string"
+          },
+          {
+            "id": "base_snapshot",
+            "name": "base_snapshot",
+            "type": "object"
+          },
+          {
+            "id": "submission_status",
+            "name": "submission_status",
+            "type": "string"
+          },
+          {
+            "id": "ai_execution_status",
+            "name": "ai_execution_status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "proposal_delivery",
+        "label": "제안 자료 전달",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "body_hash",
+            "name": "body_hash",
+            "type": "string"
+          },
+          {
+            "id": "catalog",
+            "name": "catalog",
+            "type": "object"
+          },
+          {
+            "id": "case_ids",
+            "name": "case_ids",
+            "type": "object"
+          },
+          {
+            "id": "created_at",
+            "name": "created_at",
+            "type": "timestamp"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "learning_proposal",
+        "label": "교훈·변경안 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "kind",
+            "name": "kind",
+            "type": "string"
+          },
+          {
+            "id": "version",
+            "name": "version",
+            "type": "integer"
+          },
+          {
+            "id": "target_ref",
+            "name": "target_ref",
+            "type": "object"
+          },
+          {
+            "id": "condition",
+            "name": "condition",
+            "type": "object"
+          },
+          {
+            "id": "effect",
+            "name": "effect",
+            "type": "object"
+          },
+          {
+            "id": "server_cohort",
+            "name": "server_cohort",
+            "type": "object"
+          },
+          {
+            "id": "reason_status",
+            "name": "reason_status",
+            "type": "string"
+          },
+          {
+            "id": "active",
+            "name": "active",
+            "type": "boolean"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "validation_contract",
+        "label": "후속 검증 입력 계약",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "validation_kind",
+            "name": "validation_kind",
+            "type": "string"
+          },
+          {
+            "id": "readiness",
+            "name": "readiness",
+            "type": "object"
+          },
+          {
+            "id": "base_status",
+            "name": "base_status",
+            "type": "string"
+          },
+          {
+            "id": "bundle_hash",
+            "name": "bundle_hash",
+            "type": "string"
+          },
+          {
+            "id": "stage7_completed",
+            "name": "stage7_completed",
+            "type": "boolean"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "lesson_version",
+        "label": "검증·채택 교훈 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "proposal_id",
+            "name": "proposal_id",
+            "type": "string"
+          },
+          {
+            "id": "validation_id",
+            "name": "validation_id",
+            "type": "string"
+          },
+          {
+            "id": "adoption_id",
+            "name": "adoption_id",
+            "type": "string"
+          },
+          {
+            "id": "effective_from",
+            "name": "effective_from",
+            "type": "timestamp"
+          },
+          {
+            "id": "effective_until",
+            "name": "effective_until",
+            "type": "timestamp"
+          },
+          {
+            "id": "applicability",
+            "name": "applicability",
+            "type": "object"
+          },
+          {
+            "id": "verification_status",
+            "name": "verification_status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "runtime_input",
+        "label": "AI 실행 당시 입력",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "source_hashes",
+            "name": "source_hashes",
+            "type": "object"
+          },
+          {
+            "id": "tool_contracts",
+            "name": "tool_contracts",
+            "type": "object"
+          },
+          {
+            "id": "cmd_prompt",
+            "name": "cmd_prompt",
+            "type": "string"
+          },
+          {
+            "id": "provider_internal_state",
+            "name": "provider_internal_state",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "policy_validation",
+        "label": "변경안 사전 검증",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "spec",
+            "name": "spec",
+            "type": "object"
+          },
+          {
+            "id": "source_bundle_hash",
+            "name": "source_bundle_hash",
+            "type": "string"
+          },
+          {
+            "id": "independence",
+            "name": "independence",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "validation_opportunity",
+        "label": "검증 판단 기회",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "run_attempt_id",
+            "name": "run_attempt_id",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "confidence_for",
+            "name": "confidence_for",
+            "type": "string"
+          },
+          {
+            "id": "gaps",
+            "name": "gaps",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "validation_result",
+        "label": "변경안 검증 결과",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "baseline_status",
+            "name": "baseline_status",
+            "type": "string"
+          },
+          {
+            "id": "performance",
+            "name": "performance",
+            "type": "object"
+          },
+          {
+            "id": "criteria",
+            "name": "criteria",
+            "type": "object"
+          },
+          {
+            "id": "adoption_eligibility",
+            "name": "adoption_eligibility",
+            "type": "boolean"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "validation_holdout",
+        "label": "사전 예약 검증 자료",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "period",
+            "name": "period",
+            "type": "object"
+          },
+          {
+            "id": "reserved_at",
+            "name": "reserved_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "released_at",
+            "name": "released_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "prompt_experiment",
+        "label": "격리 AI 비교 실험",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "model",
+            "name": "model",
+            "type": "string"
+          },
+          {
+            "id": "trials",
+            "name": "trials",
+            "type": "object"
+          },
+          {
+            "id": "budget",
+            "name": "budget",
+            "type": "object"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "simulation_execution",
+        "label": "모의 계좌 실행",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "arm",
+            "name": "arm",
+            "type": "string"
+          },
+          {
+            "id": "inputs",
+            "name": "inputs",
+            "type": "object"
+          },
+          {
+            "id": "fills",
+            "name": "fills",
+            "type": "object"
+          },
+          {
+            "id": "unconfirmed",
+            "name": "unconfirmed",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "policy_adoption",
+        "label": "사람의 변경안 채택",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "operator",
+            "name": "operator",
+            "type": "string"
+          },
+          {
+            "id": "expected_revision",
+            "name": "expected_revision",
+            "type": "string"
+          },
+          {
+            "id": "validation_result_hash",
+            "name": "validation_result_hash",
+            "type": "string"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "policy_package",
+        "label": "운영 정책 버전",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "baseline_snapshot_hash",
+            "name": "baseline_snapshot_hash",
+            "type": "string"
+          },
+          {
+            "id": "candidate_policy_hash",
+            "name": "candidate_policy_hash",
+            "type": "string"
+          },
+          {
+            "id": "deployed_hash",
+            "name": "deployed_hash",
+            "type": "string"
+          },
+          {
+            "id": "effective_until",
+            "name": "effective_until",
+            "type": "timestamp"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "trace_view",
+        "label": "고정된 근거 조회 화면",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "schema_version",
+            "name": "schema_version",
+            "type": "string"
+          },
+          {
+            "id": "market_as_of",
+            "name": "market_as_of",
+            "type": "date"
+          },
+          {
+            "id": "knowledge_as_of",
+            "name": "knowledge_as_of",
+            "type": "timestamp"
+          },
+          {
+            "id": "generated_at",
+            "name": "generated_at",
+            "type": "timestamp"
+          },
+          {
+            "id": "source_manifest",
+            "name": "source_manifest",
+            "type": "object"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "trace_target",
+        "label": "조회 판단 대상",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "run_attempt_id",
+            "name": "run_attempt_id",
+            "type": "string"
+          },
+          {
+            "id": "code",
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "id": "confidence_for",
+            "name": "confidence_for",
+            "type": "string"
+          },
+          {
+            "id": "coverage_status",
+            "name": "coverage_status",
+            "type": "string"
+          },
+          {
+            "id": "connection_status",
+            "name": "connection_status",
+            "type": "string"
+          },
+          {
+            "id": "visibility",
+            "name": "visibility",
+            "type": "string"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "trace_export",
+        "label": "공개 요약 준비 묶음",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "view_id",
+            "name": "view_id",
+            "type": "string"
+          },
+          {
+            "id": "schema_version",
+            "name": "schema_version",
+            "type": "string"
+          },
+          {
+            "id": "source_hash",
+            "name": "source_hash",
+            "type": "string"
+          },
+          {
+            "id": "files",
+            "name": "files",
+            "type": "object"
+          },
+          {
+            "id": "published",
+            "name": "published",
+            "type": "boolean"
+          }
+        ],
+        "interfaces": []
+      }
+    ],
+    "edges": [
+      {
+        "id": "instrument-observation",
+        "source": "instrument",
+        "target": "observation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "run-observation",
+        "source": "run",
+        "target": "observation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "criterion-criterion_version",
+        "source": "criterion",
+        "target": "criterion_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "criterion_version-criterion_evaluation",
+        "source": "criterion_version",
+        "target": "criterion_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "observation-criterion_evaluation",
+        "source": "observation",
+        "target": "criterion_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "rule_version-criterion_version",
+        "source": "rule_version",
+        "target": "criterion_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "observation-rule_evaluation",
+        "source": "observation",
+        "target": "rule_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "rule_version-rule_evaluation",
+        "source": "rule_version",
+        "target": "rule_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "rule_evaluation-criterion_evaluation",
+        "source": "rule_evaluation",
+        "target": "criterion_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "delivery-observation",
+        "source": "delivery",
+        "target": "observation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "delivery-criterion_evaluation",
+        "source": "delivery",
+        "target": "criterion_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "delivery-run",
+        "source": "delivery",
+        "target": "run",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "run_attempt-delivery",
+        "source": "run_attempt",
+        "target": "delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "run_attempt-submission",
+        "source": "run_attempt",
+        "target": "submission",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "run_attempt-execution_event",
+        "source": "run_attempt",
+        "target": "execution_event",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "submission-ai_judgment",
+        "source": "submission",
+        "target": "ai_judgment",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "ai_judgment-argument",
+        "source": "ai_judgment",
+        "target": "argument",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "argument-delivery",
+        "source": "argument",
+        "target": "delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "ai_judgment-premise_application",
+        "source": "ai_judgment",
+        "target": "premise_application",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "premise_definition-premise_application",
+        "source": "premise_definition",
+        "target": "premise_application",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "ai_judgment-premise_proposal",
+        "source": "ai_judgment",
+        "target": "premise_proposal",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "execution_event-ai_judgment",
+        "source": "execution_event",
+        "target": "ai_judgment",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "ai_judgment-order_plan",
+        "source": "ai_judgment",
+        "target": "order_plan",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "order_plan-order_attempt",
+        "source": "order_plan",
+        "target": "order_attempt",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "order_attempt-execution_event",
+        "source": "order_attempt",
+        "target": "execution_event",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "order_attempt-execution_observation",
+        "source": "order_attempt",
+        "target": "execution_observation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "instrument-position_episode",
+        "source": "instrument",
+        "target": "position_episode",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "position_episode-observation",
+        "source": "position_episode",
+        "target": "observation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "position_episode-ai_judgment",
+        "source": "position_episode",
+        "target": "ai_judgment",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "position_episode-order_plan",
+        "source": "position_episode",
+        "target": "order_plan",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "position_episode-rule_trigger",
+        "source": "position_episode",
+        "target": "rule_trigger",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "rule_trigger-order_attempt",
+        "source": "rule_trigger",
+        "target": "order_attempt",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "scoring_job-premise_evaluation",
+        "source": "scoring_job",
+        "target": "premise_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "scoring_job-legacy_outcome_context",
+        "source": "scoring_job",
+        "target": "legacy_outcome_context",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:1"
+      },
+      {
+        "id": "premise_application-premise_window",
+        "source": "premise_application",
+        "target": "premise_window",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "calendar_snapshot-premise_window",
+        "source": "calendar_snapshot",
+        "target": "premise_window",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "premise_application-premise_evaluation",
+        "source": "premise_application",
+        "target": "premise_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "premise_window-premise_evaluation",
+        "source": "premise_window",
+        "target": "premise_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "daily_receipt-daily_confirmation",
+        "source": "daily_receipt",
+        "target": "daily_confirmation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "calendar_snapshot-daily_confirmation",
+        "source": "calendar_snapshot",
+        "target": "daily_confirmation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "daily_confirmation-premise_evaluation",
+        "source": "daily_confirmation",
+        "target": "premise_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "premise_evaluation-order_attempt",
+        "source": "premise_evaluation",
+        "target": "order_attempt",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "ai_judgment-regime_event",
+        "source": "ai_judgment",
+        "target": "regime_event",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "case_review-review_case",
+        "source": "case_review",
+        "target": "review_case",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "review_case-premise_application",
+        "source": "review_case",
+        "target": "premise_application",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "review_case-ai_judgment",
+        "source": "review_case",
+        "target": "ai_judgment",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "review_case-delivery",
+        "source": "review_case",
+        "target": "delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "review_case-premise_evaluation",
+        "source": "review_case",
+        "target": "premise_evaluation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "review_case-order_attempt",
+        "source": "review_case",
+        "target": "order_attempt",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "case_review-research_model",
+        "source": "case_review",
+        "target": "research_model",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "research_model-review_case",
+        "source": "research_model",
+        "target": "review_case",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "research_model-model_publication",
+        "source": "research_model",
+        "target": "model_publication",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "model_publication-premise_prediction",
+        "source": "model_publication",
+        "target": "premise_prediction",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "premise_application-premise_prediction",
+        "source": "premise_application",
+        "target": "premise_prediction",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "case_review-retrospective_hypothesis",
+        "source": "case_review",
+        "target": "retrospective_hypothesis",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "retrospective_hypothesis-review_case",
+        "source": "retrospective_hypothesis",
+        "target": "review_case",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "case_review-research_usage",
+        "source": "case_review",
+        "target": "research_usage",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:1"
+      },
+      {
+        "id": "research_usage-premise_application",
+        "source": "research_usage",
+        "target": "premise_application",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "case_review-proposal_run",
+        "source": "case_review",
+        "target": "proposal_run",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "proposal_run-proposal_delivery",
+        "source": "proposal_run",
+        "target": "proposal_delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "proposal_run-learning_proposal",
+        "source": "proposal_run",
+        "target": "learning_proposal",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "proposal_delivery-review_case",
+        "source": "proposal_delivery",
+        "target": "review_case",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "learning_proposal-proposal_delivery",
+        "source": "learning_proposal",
+        "target": "proposal_delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "learning_proposal-review_case",
+        "source": "learning_proposal",
+        "target": "review_case",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "learning_proposal-validation_contract",
+        "source": "learning_proposal",
+        "target": "validation_contract",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:1"
+      },
+      {
+        "id": "proposal_run-research_usage",
+        "source": "proposal_run",
+        "target": "research_usage",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "learning_proposal-lesson_version",
+        "source": "learning_proposal",
+        "target": "lesson_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "lesson_version-delivery",
+        "source": "lesson_version",
+        "target": "delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "argument-lesson_version",
+        "source": "argument",
+        "target": "lesson_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "run_attempt-runtime_input",
+        "source": "run_attempt",
+        "target": "runtime_input",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:1"
+      },
+      {
+        "id": "learning_proposal-policy_validation",
+        "source": "learning_proposal",
+        "target": "policy_validation",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_validation-validation_opportunity",
+        "source": "policy_validation",
+        "target": "validation_opportunity",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "validation_opportunity-run_attempt",
+        "source": "validation_opportunity",
+        "target": "run_attempt",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "validation_opportunity-delivery",
+        "source": "validation_opportunity",
+        "target": "delivery",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "validation_opportunity-execution_event",
+        "source": "validation_opportunity",
+        "target": "execution_event",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "policy_validation-validation_result",
+        "source": "policy_validation",
+        "target": "validation_result",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_validation-validation_holdout",
+        "source": "policy_validation",
+        "target": "validation_holdout",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "validation_holdout-research_usage",
+        "source": "validation_holdout",
+        "target": "research_usage",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_validation-prompt_experiment",
+        "source": "policy_validation",
+        "target": "prompt_experiment",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_validation-simulation_execution",
+        "source": "policy_validation",
+        "target": "simulation_execution",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "validation_result-policy_adoption",
+        "source": "validation_result",
+        "target": "policy_adoption",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_adoption-policy_package",
+        "source": "policy_adoption",
+        "target": "policy_package",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:1"
+      },
+      {
+        "id": "policy_package-order_plan",
+        "source": "policy_package",
+        "target": "order_plan",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "policy_package-lesson_version",
+        "source": "policy_package",
+        "target": "lesson_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "premise-evaluation-supersedes",
+        "source": "premise_evaluation",
+        "target": "premise_evaluation",
+        "label": "이전 평가를 대체",
+        "inverse": "이후 평가가 대체",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "learning-proposal-supersedes",
+        "source": "learning_proposal",
+        "target": "learning_proposal",
+        "label": "명시적으로 수정",
+        "inverse": "후속 수정",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "trace_view-trace_target",
+        "source": "trace_view",
+        "target": "trace_target",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "trace_target-run_attempt",
+        "source": "trace_target",
+        "target": "run_attempt",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:1"
+      },
+      {
+        "id": "trace_target-ai_judgment",
+        "source": "trace_target",
+        "target": "ai_judgment",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_target-delivery",
+        "source": "trace_target",
+        "target": "delivery",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_target-order_attempt",
+        "source": "trace_target",
+        "target": "order_attempt",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_target-premise_application",
+        "source": "trace_target",
+        "target": "premise_application",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_view-review_case",
+        "source": "trace_view",
+        "target": "review_case",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_view-learning_proposal",
+        "source": "trace_view",
+        "target": "learning_proposal",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_view-validation_result",
+        "source": "trace_view",
+        "target": "validation_result",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_view-policy_package",
+        "source": "trace_view",
+        "target": "policy_package",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "N:N"
+      },
+      {
+        "id": "trace_view-research_usage",
+        "source": "trace_view",
+        "target": "research_usage",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "trace_view-trace_export",
+        "source": "trace_view",
+        "target": "trace_export",
+        "label": "보관된 참조",
+        "inverse": "조회에 포함",
+        "cardinality": "1:N"
+      }
+    ],
+    "functions": [
+      {
+        "id": "PRICE_ABOVE_MA20",
+        "name": "20일선 위",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "gt",
+          "left": {
+            "op": "property",
+            "property": "price"
+          },
+          "right": {
+            "op": "property",
+            "property": "ma20"
+          }
+        }
+      },
+      {
+        "id": "MA20_GAP",
+        "name": "20일선 이격률",
+        "node": "observation",
+        "resultType": "double",
+        "expression": {
+          "op": "sub",
+          "left": {
+            "op": "div",
+            "left": {
+              "op": "property",
+              "property": "price"
+            },
+            "right": {
+              "op": "property",
+              "property": "ma20"
+            }
+          },
+          "right": {
+            "op": "literal",
+            "value": 1
+          }
+        }
+      },
+      {
+        "id": "PRICE_ABOVE_MA5",
+        "name": "5일선 위",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "gt",
+          "left": {
+            "op": "property",
+            "property": "price"
+          },
+          "right": {
+            "op": "property",
+            "property": "ma5"
+          }
+        }
+      },
+      {
+        "id": "MA5_ABOVE_MA20",
+        "name": "5일선 > 20일선",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "gt",
+          "left": {
+            "op": "property",
+            "property": "ma5"
+          },
+          "right": {
+            "op": "property",
+            "property": "ma20"
+          }
+        }
+      },
+      {
+        "id": "FOREIGN_NET_BUY",
+        "name": "외국인 순매수",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "gt",
+          "left": {
+            "op": "property",
+            "property": "foreign"
+          },
+          "right": {
+            "op": "literal",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "INSTITUTION_NET_BUY",
+        "name": "기관 순매수",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "gt",
+          "left": {
+            "op": "property",
+            "property": "institution"
+          },
+          "right": {
+            "op": "literal",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "INSTITUTION_NET_SELL",
+        "name": "기관 순매도",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "lt",
+          "left": {
+            "op": "property",
+            "property": "institution"
+          },
+          "right": {
+            "op": "literal",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "FLOW_SUM",
+        "name": "두 주체 수급 합계",
+        "node": "observation",
+        "resultType": "double",
+        "expression": {
+          "op": "add",
+          "left": {
+            "op": "property",
+            "property": "foreign"
+          },
+          "right": {
+            "op": "property",
+            "property": "institution"
+          }
+        }
+      },
+      {
+        "id": "POSITIVE_FLOW_RATIO",
+        "name": "양수 부분만 합산한 후보용 수급 비율",
+        "node": "observation",
+        "resultType": "double",
+        "expression": {
+          "op": "div",
+          "left": {
+            "op": "add",
+            "left": {
+              "op": "if",
+              "condition": {
+                "op": "gt",
+                "left": {
+                  "op": "property",
+                  "property": "foreign"
+                },
+                "right": {
+                  "op": "literal",
+                  "value": 0
+                }
+              },
+              "then": {
+                "op": "property",
+                "property": "foreign"
+              },
+              "else": {
+                "op": "literal",
+                "value": 0
+              }
+            },
+            "right": {
+              "op": "if",
+              "condition": {
+                "op": "gt",
+                "left": {
+                  "op": "property",
+                  "property": "institution"
+                },
+                "right": {
+                  "op": "literal",
+                  "value": 0
+                }
+              },
+              "then": {
+                "op": "property",
+                "property": "institution"
+              },
+              "else": {
+                "op": "literal",
+                "value": 0
+              }
+            }
+          },
+          "right": {
+            "op": "property",
+            "property": "trading_value_20d"
+          }
+        }
+      },
+      {
+        "id": "CLOSE_CROSS_MA20",
+        "name": "완료 일봉 기준 상향 돌파",
+        "node": "observation",
+        "resultType": "boolean",
+        "expression": {
+          "op": "and",
+          "left": {
+            "op": "lte",
+            "left": {
+              "op": "property",
+              "property": "previous_close"
+            },
+            "right": {
+              "op": "property",
+              "property": "previous_ma20"
+            }
+          },
+          "right": {
+            "op": "gt",
+            "left": {
+              "op": "property",
+              "property": "price"
+            },
+            "right": {
+              "op": "property",
+              "property": "ma20"
+            }
+          }
+        }
+      }
+    ],
+    "actionTypes": [],
+    "vocabulary": {
+      "valueTypes": [],
+      "sharedProperties": [],
+      "interfaces": []
+    }
+  },
+  "metrics": {
+    "objectTypes": 54,
+    "functions": 10,
+    "actions": 0,
+    "guardedActions": 0
+  },
+  "compatibility": "이 IR은 로컬 실행 형식입니다. Palantir OSDK IR과 호환된다고 보장하지 않습니다."
+}

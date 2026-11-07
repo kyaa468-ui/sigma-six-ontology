@@ -1,0 +1,108 @@
+{
+  "version": "PROPOSAL_TARGETS@v1",
+  "policy": "proposal_only; no activation or trading writes",
+  "parameter_source": "config/tuning.json:keys",
+  "engine_sources": ["common.py", "sizing.py", "risk.py", "data_prep.py", "intraday.py", "broker.py", "monitor.py", "mcp_server.py", "tuning.py", "condition_contract.py", "policy_registry.py", "policy_adoption.py", "lesson_registry.py"],
+  "prompt_sources": ["CLAUDE.md", ".claude/agents/bull.md", ".claude/agents/bear.md", ".claude/agents/regime.md"],
+  "parameter_bindings": {
+    "decision.buy_min_confidence": {
+      "unit": "confidence", "call_stage": "buy_threshold_sizing_and_risk",
+      "meaning": "Base adjusted-confidence threshold; existing minimum-trade relaxation and probe band still apply.",
+      "consumers": [{"file": "common.py", "function": "buy_threshold", "stage": "buy_threshold"}, {"file": "common.py", "function": "probe_floor", "stage": "probe_threshold"}, {"file": "sizing.py", "function": "target_weight", "stage": "buy_sizing"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "buy_risk_check"}],
+      "replay_requirements": []
+    },
+    "decision.sell_min_confidence": {
+      "unit": "confidence", "call_stage": "sell_risk_check",
+      "meaning": "Adjusted-confidence threshold enforced for judgment sells; exit mode and rule_exit retain their existing exceptions.",
+      "consumers": [{"file": "risk.py", "function": "check", "stage": "sell_risk_check"}],
+      "replay_requirements": []
+    },
+    "decision.full_size_confidence": {
+      "unit": "confidence", "call_stage": "buy_target_weight",
+      "meaning": "Adjusted confidence reaching the ordinary target-weight ceiling; also scales the index-dip sizing exception.",
+      "consumers": [{"file": "sizing.py", "function": "target_weight", "stage": "buy_sizing"}, {"file": "sizing.py", "function": "plan_buy", "stage": "index_dip_buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "buy_quantity_recheck"}],
+      "replay_requirements": []
+    },
+    "decision.min_weight": {
+      "unit": "ratio", "call_stage": "buy_target_weight",
+      "meaning": "Fraction of account total at the ordinary buy threshold, before existing week factor and other limits.",
+      "consumers": [{"file": "sizing.py", "function": "target_weight", "stage": "buy_sizing"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "buy_quantity_recheck"}],
+      "replay_requirements": []
+    },
+    "decision.max_weight": {
+      "unit": "ratio", "call_stage": "buy_target_weight",
+      "meaning": "Ordinary per-instrument account-weight ceiling, bounded by risk limits; existing ETF overrides remain separate.",
+      "consumers": [{"file": "sizing.py", "function": "target_weight", "stage": "buy_sizing"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "buy_quantity_recheck"}],
+      "replay_requirements": []
+    },
+    "decision.stop_loss_pct": {
+      "unit": "ratio", "call_stage": "position_initialization_and_monitor",
+      "meaning": "Signed price-return stop threshold. Initialized on buy response, then recalculated from current average price and rules; high-volatility, ETF and index-dip overrides remain separate.",
+      "consumers": [{"file": "common.py", "function": "exit_levels", "stage": "exit_level_resolution"}, {"file": "sizing.py", "function": "plan_buy", "stage": "planned_exit_levels"}, {"file": "mcp_server.py", "function": "place_order", "stage": "position_initialization"}, {"file": "common.py", "function": "position_meta", "stage": "position_exit_recalculation"}, {"file": "monitor.py", "function": "evaluate_triggers", "stage": "stop_trigger"}],
+      "replay_requirements": ["original_position_initialization_and_updates_required", "original_monitor_trigger_and_price_sequence_required"]
+    },
+    "decision.take_profit_pct": {
+      "unit": "ratio", "call_stage": "position_initialization_and_monitor",
+      "meaning": "Gross price-return take threshold for ordinary equity; separate ETF net-profit conversion and high-volatility overrides are not this parameter.",
+      "consumers": [{"file": "common.py", "function": "exit_levels", "stage": "exit_level_resolution"}, {"file": "sizing.py", "function": "plan_buy", "stage": "planned_exit_levels"}, {"file": "mcp_server.py", "function": "place_order", "stage": "position_initialization"}, {"file": "common.py", "function": "position_meta", "stage": "position_exit_recalculation"}, {"file": "monitor.py", "function": "evaluate_triggers", "stage": "take_trigger"}],
+      "replay_requirements": ["original_position_initialization_and_updates_required", "original_monitor_trigger_and_price_sequence_required"]
+    },
+    "decision.max_hold_days": {
+      "unit": "weekday_count", "call_stage": "position_initialization_and_monitor",
+      "meaning": "Holding-age threshold using common.business_days: elapsed Monday-Friday count, without exchange-holiday exclusion. This is not confirmed exchange-session count. Existing entry-date and ETF/index-dip overrides remain unchanged.",
+      "consumers": [{"file": "common.py", "function": "exit_levels", "stage": "exit_level_resolution"}, {"file": "sizing.py", "function": "plan_buy", "stage": "planned_exit_levels"}, {"file": "mcp_server.py", "function": "place_order", "stage": "position_initialization"}, {"file": "common.py", "function": "position_meta", "stage": "position_exit_recalculation"}, {"file": "common.py", "function": "business_days", "stage": "holding_age_count"}, {"file": "monitor.py", "function": "evaluate_triggers", "stage": "holding_age_trigger"}],
+      "replay_requirements": ["original_position_initialization_and_updates_required", "original_monitor_trigger_and_price_sequence_required"]
+    },
+    "regime_cap.상승": {
+      "unit": "ratio", "call_stage": "regime_equity_cap_sizing_and_risk",
+      "meaning": "Rising-regime stock-allocation cap before week factor and loss-limit reduction; inverse exposure uses its separate cap.",
+      "consumers": [{"file": "sizing.py", "function": "equity_cap", "stage": "equity_cap"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "portfolio_risk_check"}, {"file": "mcp_server.py", "function": "set_regime", "stage": "registered_regime_cap"}],
+      "replay_requirements": []
+    },
+    "regime_cap.횡보": {
+      "unit": "ratio", "call_stage": "regime_equity_cap_sizing_and_risk",
+      "meaning": "Sideways-regime stock-allocation cap before week factor and loss-limit reduction; inverse exposure uses its separate cap.",
+      "consumers": [{"file": "sizing.py", "function": "equity_cap", "stage": "equity_cap"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "portfolio_risk_check"}, {"file": "mcp_server.py", "function": "set_regime", "stage": "registered_regime_cap"}],
+      "replay_requirements": []
+    },
+    "regime_cap.하락": {
+      "unit": "ratio", "call_stage": "regime_equity_cap_sizing_and_risk",
+      "meaning": "Falling-regime stock-allocation cap before week factor and loss-limit reduction; inverse exposure uses its separate cap.",
+      "consumers": [{"file": "sizing.py", "function": "equity_cap", "stage": "equity_cap"}, {"file": "sizing.py", "function": "plan_buy", "stage": "buy_sizing"}, {"file": "risk.py", "function": "check", "stage": "portfolio_risk_check"}, {"file": "mcp_server.py", "function": "set_regime", "stage": "registered_regime_cap"}],
+      "replay_requirements": []
+    },
+    "screen.max_vol20": {
+      "unit": "ratio", "call_stage": "candidate_screen_and_position_classification",
+      "meaning": "Annualized 20-day return-volatility boundary separating ordinary and high-volatility candidates, sizing/risk caps and exit levels.",
+      "consumers": [{"file": "data_prep.py", "function": "screen", "stage": "candidate_screen"}, {"file": "intraday.py", "function": "screen", "stage": "candidate_screen"}, {"file": "common.py", "function": "high_vol", "stage": "position_classification"}, {"file": "sizing.py", "function": "plan_buy", "stage": "high_volatility_sizing"}, {"file": "risk.py", "function": "check", "stage": "high_volatility_risk_check"}, {"file": "common.py", "function": "exit_levels", "stage": "high_volatility_exit_levels"}, {"file": "monitor.py", "function": "evaluate_triggers", "stage": "position_exit_monitor"}],
+      "replay_requirements": ["original_complete_screening_pool_required", "original_position_initialization_and_updates_required", "original_monitor_trigger_and_price_sequence_required"]
+    },
+    "screen.spike_ret5": {
+      "unit": "ratio", "call_stage": "candidate_ranking",
+      "meaning": "Five-trading-day return threshold that activates the fixed score deduction before candidate-score normalization.",
+      "consumers": [{"file": "data_prep.py", "function": "screen", "stage": "candidate_ranking"}, {"file": "intraday.py", "function": "screen", "stage": "candidate_ranking"}],
+      "replay_requirements": ["original_complete_screening_pool_required"]
+    },
+    "screen.spike_penalty": {
+      "unit": "score_points", "call_stage": "candidate_ranking",
+      "meaning": "Points deducted from the sum of percentile-rank components before final candidate-score normalization; not a money or return ratio.",
+      "consumers": [{"file": "data_prep.py", "function": "screen", "stage": "candidate_ranking"}, {"file": "intraday.py", "function": "screen", "stage": "candidate_ranking"}],
+      "replay_requirements": ["original_complete_screening_pool_required"]
+    }
+  },
+  "targets": [
+    {"target_id": "confidence.conditional", "rule_id": "CONDITIONAL_CONFIDENCE", "version": "new_rule_not_installed", "call_stage": "after_legacy_boost_before_cap", "kinds": ["conditional_rule_change"], "operation": "add_confidence", "unit": "confidence", "validation_kind": "deterministic_rule"},
+    {"target_id": "lesson.guidance", "rule_id": "LESSON_GUIDANCE", "version": "candidate_not_active", "call_stage": "ai_interpretation", "kinds": ["lesson_candidate", "conditional_rule_change"], "operation": "prompt_guidance", "unit": "text", "validation_kind": "prompt_lesson"}
+  ],
+  "condition_fields": {
+    "features.gap": "ratio", "features.slope": "ratio",
+    "features.foreign_ratio": "ratio", "features.institution_ratio": "ratio",
+    "features.regime": "text", "signed_flows.foreign": "KRW", "signed_flows.institution": "KRW",
+    "signed_flows.foreign_direction": "text", "signed_flows.institution_direction": "text",
+    "signed_flows.same_period_confirmed": "bool",
+    "stratum.price_kind": "text", "stratum.flow_method": "text",
+    "stratum.flow_comparability": "text", "stratum.admission_route": "text",
+    "stratum.instrument_kind": "text", "stratum.confidence_for": "text",
+    "adoption.explicitly_uses_above_ma20_and_foreign_buy": "bool"
+  }
+}
