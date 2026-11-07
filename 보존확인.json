@@ -1,0 +1,21 @@
+{
+  "source_files_checked": 215,
+  "source_changed_paths": [],
+  "source_git_status_unchanged": true,
+  "copied_files_verified": 107,
+  "integration_patches_verified": 23,
+  "runtime_instance_files_included": 0,
+  "model_counts": {
+    "object_types": 54,
+    "links": 98,
+    "functions": 10,
+    "action_types": 0
+  },
+  "scope": "Content hashes of tracked and non-ignored untracked source files; ignored runtime directories were not copied or modified.",
+  "final_copy_files_verified": 135,
+  "final_copy_source_unchanged": true,
+  "viewer_behavior_checked": "54 type details, linked type navigation, search, group filters, tabs, raw definitions and 10 formulas verified against the actual script",
+  "review_document": "객체구조_전체목록.md",
+  "final_files": 136,
+  "viewer_file_protocol_navigation": "Native Chrome resolved the saved file and title; page content rendering was not visually verified in this session. Script behavior and model integrity were verified separately."
+}
