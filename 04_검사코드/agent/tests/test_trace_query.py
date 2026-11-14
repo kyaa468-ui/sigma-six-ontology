@@ -1,4 +1,13 @@
 """Pure historical reader and cross-stage lineage; all stores and orders local."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 from datetime import timedelta
@@ -14,6 +23,65 @@ import judgment_coverage as JC
 import trace_query as Q
 import validation_store as VS
 import policy_validation as PV
+
+
+def test_policy_context_scan_matches_legacy_text_and_stops_at_first_match(monkeypatch):
+    for value in ({'policy_id':'p'}, {'text':'정책 policy 근거'},
+                  {'text':'po\\licy'}, {'POLICY':False}, {'x':['before',{'policy':None}]}):
+        assert Q._has_policy_context(value)==('policy' in json.dumps(value))
+    def split_chunks(value):
+        yield b'{"text":"po'
+        yield b'licy"'
+        raise AssertionError('Unneeded large tail was restored')
+    monkeypatch.setattr(Q.objects,'chunks',split_chunks)
+    assert Q._has_policy_context({'large_tail':'unselected'})
+
+
+def test_empty_holdout_scope_does_not_restore_nested_source():
+    class Unopened(dict):
+        def get(self,*args):raise AssertionError('Source unnecessarily restored')
+        def values(self):raise AssertionError('Source unnecessarily restored')
+    assert not Q._blocked(Unopened(), [])
+
+
+def test_application_id_scan_preserves_nested_ids_without_loading_large_text(tmp_path):
+    import storage_objects as O
+    value={'application_id':'a','raw':'x'*1000000,'nested':[{'application_ids':['b','c'],
+        'premise_application_id':'d','support_case_ids':['e'],'counter_case_ids':['f'],
+        'matched_case_ids':['g'],'case_ids':['h'],'deeper':{'application_id':'i'}}]}
+    ref=O.put_object(value,base=tmp_path/'ontology')
+    resolver=O.Resolver(tmp_path/'ontology');stored=O.open_object(ref,resolver=resolver)
+    assert Q._application_ids(stored)==set('abcdefghi')
+    assert resolver.metrics['loaded_bytes']<128*1024
+    assert Q._application_ids(value)==set().union(*(Q._ids(value,key) for key in
+        ('application_id','application_ids','premise_application_id','support_case_ids','counter_case_ids','matched_case_ids','case_ids')))
+
+
+def test_case_lineage_survives_reader_cache_eviction(monkeypatch):
+    from collections import OrderedDict
+    original=Q.Reader
+    class TinyCache(OrderedDict):
+        def __setitem__(self,key,value):
+            super().__setitem__(key,value)
+            while len(self)>1:self.popitem(last=False)
+    class SmallReader(original):
+        def __init__(self,*args,**kwargs):
+            super().__init__(*args,**kwargs);self.cache=TinyCache()
+    monkeypatch.setattr(Q,'Reader',SmallReader)
+    _,_,application,judgment_id,_=accepted(monkeypatch,place=False)
+    projection=Q.build_projection()
+    assert any(row['application_id']==application['application_id'] for row in projection['cases'])
+    assert not any(error.get('reason')=='case_projection_failed' for error in projection['errors'])
+    reader=SmallReader(C.now());relative='judgments/'+judgment_id+'.json'
+    assert reader.read(relative)
+    before=reader.manifest[relative]['sha256']
+    reader.cache.clear()
+    path=J._path('judgments',judgment_id);value=read_stored(path);value['decision']='changed'
+    from storage_fixture_helpers import replace_committed_fixture
+    replace_committed_fixture(path,value)
+    assert reader.read(relative) is None
+    assert reader.manifest[relative]['sha256']==before
+    assert any('SOURCE_CHANGED_AFTER_CACHE_EVICTION' in error.get('error','') for error in reader.errors)
 
 
 def reservation(code='000001'):
@@ -101,10 +169,11 @@ def test_shared_execution_and_receipt_cannot_leak_other_reserved_subject(monkeyp
     judgment = J.load_judgment(jid)
     did = judgment['delivery_ids'][0]
     path = J._path('deliveries', did)
-    receipt = json.loads(path.read_text())
+    receipt = read_stored(path)
     receipt['text'] = 'RESERVED_SENTINEL'
     receipt['evidence_catalog'].append({'subject': '000002', 'value': 'RESERVED_SENTINEL'})
-    path.write_text(json.dumps(receipt))
+    from storage_fixture_helpers import replace_committed_fixture
+    replace_committed_fixture(path,receipt)
     reservation('000002')
     import evaluation_context as EC
     monkeypatch.setattr(EC, 'execution_context', lambda *a, **k: {'orders': [{'payload': {
@@ -170,8 +239,9 @@ def test_changed_source_during_case_read_is_not_published_as_consistent(monkeypa
     def changed(*args):
         data = original(*args)
         path = J._path('premises', app['application_id'])
-        body = json.loads(path.read_text()); body['days'] = 999
-        path.write_text(json.dumps(body))
+        body = read_stored(path); body['days'] = 999
+        from storage_fixture_helpers import replace_committed_fixture
+        replace_committed_fixture(path,body)
         return data
     monkeypatch.setattr(CD, 'build_cases', changed)
     result = Q.build_projection()
@@ -210,9 +280,10 @@ def test_shared_receipt_subjects_have_future_holdout_recheck_scopes(monkeypatch)
     _, _, _, jid, _ = accepted(monkeypatch, place=False)
     did = J.load_judgment(jid)['delivery_ids'][0]
     path = J._path('deliveries', did)
-    data = json.loads(path.read_text())
+    data = read_stored(path)
     data['evidence_catalog'].append({'subject': '000002', 'value': 4})
-    path.write_text(json.dumps(data))
+    from storage_fixture_helpers import replace_committed_fixture
+    replace_committed_fixture(path,data)
     result = Q.build_projection()
     assert any(s['code'] == '000002' for s in result['protection_scopes'])
 
@@ -220,8 +291,9 @@ def test_shared_receipt_subjects_have_future_holdout_recheck_scopes(monkeypatch)
 def test_untimed_dynamic_records_cannot_appear_as_historical_accepted_evidence(monkeypatch):
     _, _, _, jid, _ = accepted(monkeypatch, place=False)
     path = J._path('judgments', jid)
-    body = json.loads(path.read_text()); body.pop('created_at')
-    path.write_text(json.dumps(body))
+    body = read_stored(path); body.pop('created_at')
+    from storage_fixture_helpers import replace_committed_fixture
+    replace_committed_fixture(path,body)
     result = Q.build_projection()
     assert result['status'] == 'partial'
     assert not any(t.get('judgments') for t in result['traces'].values())

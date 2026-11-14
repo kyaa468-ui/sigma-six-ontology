@@ -1,4 +1,13 @@
 """Actual local research delivery -> structured proposal -> stage-7 bundle."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -174,7 +183,7 @@ def test_version_retry_conflict_and_current_base_drift(monkeypatch):
 def test_actual_step1_to_step6_and_no_operational_side_effect(monkeypatch,calendar):
     fake,manifest,app=completed_case(monkeypatch,calendar)
     report=CR.build_review()
-    protected={p:p.read_bytes() for p in Path(C.WORK).rglob('*') if p.is_file() and '/case_review/' not in str(p)}
+    protected={p:p.read_bytes() for p in Path(C.WORK).rglob('*') if p.is_file() and not p.name.startswith('storage_index.sqlite3') and '/case_review/' not in str(p)}
     run=P.build_context(report['review_id'])
     assert run['context_status']=='ready',run
     assert run['submission_status']=='not_submitted'
@@ -402,7 +411,7 @@ def test_new_tuning_key_cannot_receive_an_inferred_default_target(monkeypatch):
 
 
 def test_registered_consumer_must_exist_in_the_frozen_source(monkeypatch,tmp_path):
-    registry=json.loads(P.TARGET_PATH.read_text())
+    registry=read_stored(P.TARGET_PATH)
     registry['parameter_bindings']['decision.stop_loss_pct']['consumers'][0]['function']='deleted_exit_function'
     path=tmp_path/'registry.json';path.write_text(json.dumps(registry))
     monkeypatch.setattr(P,'TARGET_PATH',path)

@@ -1,4 +1,13 @@
 """Step 1–7 production entry points under local broker/temp state only."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 from pathlib import Path
 import pytest
@@ -56,7 +65,7 @@ def test_actual_tool_io_saved_and_failure_does_not_repeat_tool(monkeypatch):
     fake,manifest,_,_=planned(monkeypatch)
     import runtime_inputs as RI
     records=Path(C.WORK)/'ontology/runtime_inputs'/manifest['run_attempt_id']/'tools'
-    rows=[json.loads(p.read_text())['record'] for p in records.glob('*.json')]
+    rows=[read_stored(p)['record'] for p in records.glob('*.json')]
     assert {'get_briefing','record_ai_judgments','plan_order'}<={r['tool'] for r in rows}
     monkeypatch.setattr(RI,'record_tool_call',lambda *a,**k:(_ for _ in ()).throw(OSError('local injected save failure')))
     result=M.record_decision('000001','관망',.7,'bull','bear','local')

@@ -1,4 +1,13 @@
 """Public staging has an explicit schema and cannot publish private trace data."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 from pathlib import Path
@@ -95,7 +104,7 @@ def test_public_summary_hash_failure_is_not_sample_fallback(projection):
     built = V.build_view_snapshot()
     result = X.export_trace_summary(built['view_id'])
     path = Path(result['staging_path']) / 'summary.json'
-    value = json.loads(path.read_text()); value['targets'] = []
+    value = read_stored(path); value['targets'] = []
     path.write_text(json.dumps(value))
     before = bytes_under(C.WORK)
     loaded = X.load_public_export()
@@ -133,7 +142,7 @@ def test_current_visibility_blocks_prepared_public_preview(projection, monkeypat
 def test_removed_public_usage_receipt_blocks_preview(projection):
     built = V.build_view_snapshot()
     result = X.export_trace_summary(built['view_id'])
-    commit = json.loads((Path(result['staging_path']) / 'commit.json').read_text())
+    commit = read_stored(Path(result['staging_path']) / 'commit.json')
     import case_store as CS
     (CS.root() / 'usage_events' / (commit['exposure_reservation_id'] + '.json')).unlink()
     before = bytes_under(C.WORK)

@@ -1,0 +1,50 @@
+diff --git a/agent/.claude/settings.json b/agent/.claude/settings.json
+index c8a2a86..833b5e1 100644
+--- a/agent/.claude/settings.json
++++ b/agent/.claude/settings.json
+@@ -10,9 +10,24 @@
+       "mcp__kiwoom__submit_review",
+       "mcp__kiwoom__get_tuning_context",
+       "mcp__kiwoom__apply_tuning",
++      "mcp__kiwoom__record_ai_judgments",
++      "mcp__kiwoom__get_ai_judgments",
++      "mcp__kiwoom__record_external_evidence",
++      "mcp__kiwoom__get_judgment_coverage",
+       "WebSearch",
+       "Read(./work/**)",
+-      "Read(./config/**)"
++      "Read(./config/**)",
++      "mcp__kiwoom__get_execution_trace",
++      "mcp__kiwoom__refresh_execution_status",
++      "mcp__kiwoom__get_case_review",
++      "mcp__kiwoom__get_review_cases",
++      "mcp__kiwoom__record_case_review",
++      "mcp__kiwoom__get_proposal_context",
++      "mcp__kiwoom__get_proposal_cases",
++      "mcp__kiwoom__record_learning_proposals",
++      "mcp__kiwoom__get_learning_proposals",
++      "mcp__kiwoom__get_judgment_detail",
++      "mcp__kiwoom__get_coverage_detail"
+     ],
+     "deny": [
+       "Bash",
+@@ -21,7 +36,18 @@
+       "Write",
+       "NotebookEdit",
+       "Read(./.env)",
+-      "Read(../live/.env)"
++      "Read(../live/.env)",
++      "Read(./work/ontology/case_review/**)",
++      "Read(./work/ontology/learning_proposals/**)",
++      "Read(./work/ontology/policy_validation/**)",
++      "Read(./work/ontology/policy_registry/**)",
++      "Read(./work/ontology/trace_view/**)",
++      "mcp__kiwoom__get_policy_validation",
++      "mcp__kiwoom__get_validation_cases",
++      "Read(./work/ontology/snapshots/**)",
++      "Read(./work/ontology/runtime_inputs/**)",
++      "Read(./work/ontology/spool/**)",
++      "Read(./work/ontology/storage_index*)"
+     ]
+   },
+   "hooks": {

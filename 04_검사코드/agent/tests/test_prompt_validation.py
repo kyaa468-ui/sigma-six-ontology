@@ -1,4 +1,13 @@
 """Frozen experiments exercise the real fact checker; no provider/network calls."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 from pathlib import Path
 import pytest
@@ -11,7 +20,7 @@ import validation_store as S
 def frozen(monkeypatch):
     _, manifest=setup_run(monkeypatch)
     text=M.get_briefing(); item=submission(text)
-    receipt=json.loads((Path(C.WORK)/'ontology/deliveries'/f"{item['delivery_ids'][0]}.json").read_text())
+    receipt=read_stored(Path(C.WORK)/'ontology/deliveries'/f"{item['delivery_ids'][0]}.json")
     request={'target':{'code':'000001','confidence_for':'매수','run_attempt_id':manifest['run_attempt_id'],'run_id':receipt['ai_run_id']},
              'as_of':C.now().isoformat(),'receipts':[receipt]}
     return request,item
@@ -112,10 +121,10 @@ def test_cli_provider_uses_external_directory_and_only_frozen_tools(monkeypatch)
         folder=Path(kwargs['cwd'])
         assert not folder.is_relative_to(Path(C.AGENT))
         assert kwargs['env']['RUN_MODE']=='prompt_validation'
-        config=json.loads(Path(cmd[cmd.index('--mcp-config')+1]).read_text())
+        config=read_stored(Path(cmd[cmd.index('--mcp-config')+1]))
         assert list(config['mcpServers'])==['frozen']
         assert config['mcpServers']['frozen']['args'][0].endswith('validation_mcp.py')
-        settings=json.loads(Path(cmd[cmd.index('--settings')+1]).read_text())
+        settings=read_stored(Path(cmd[cmd.index('--settings')+1]))
         assert settings['autoMemoryEnabled'] is False and 'Read' in settings['permissions']['deny']
         assert cmd[cmd.index('--setting-sources')+1]==''
         return Process()

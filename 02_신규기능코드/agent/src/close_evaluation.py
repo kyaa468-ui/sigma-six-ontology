@@ -65,6 +65,7 @@ def _counts(items, expected, incomplete):
             'rate_status': 'unknown' if incomplete or failed else 'not_applicable' if not expected else 'available'}
 
 
+@__import__("evaluation_context").scoped
 def run_evaluation(market_as_of=None, knowledge_as_of=None, *, phase='close',
                    calendar=None, provider=None, max_symbols=50):
     """Collect/evaluate committed premises; dependency injection is for local tests.
@@ -233,7 +234,7 @@ beyond that budget remain explicitly unevaluated and can be retried next job.
     return report
 
 
-def get_close_evaluations(scoring_job_id=None, market_as_of=None, limit=20):
+def get_close_evaluations(scoring_job_id=None, market_as_of=None, limit=20, cursor=None, paged=False):
     """Read-only job view, reconstructing unfinished status without repairing it."""
     if not isinstance(limit, int) or not 1 <= limit <= 100:
         raise ValueError('limit must be 1..100')
@@ -255,18 +256,33 @@ def get_close_evaluations(scoring_job_id=None, market_as_of=None, limit=20):
                 result = {**manifest, 'run_status': 'unfinished', 'recording_status': 'incomplete',
                           'items': own, 'errors': failure['records'] + saved['errors'] + failure['errors'],
                           **_counts(own, len(manifest['expected_targets']), True)}
-            output.append({**result, 'legacy_context': S.load('legacy_contexts', job_id)})
+            row=copy.deepcopy(result)
+            row['legacy_context']=S.load('legacy_contexts',job_id)
+            if isinstance(row,S.objects.ObjectDict):row._record_order=getattr(manifest,'_record_order',0)
+            else:row['_record_order']=getattr(manifest,'_record_order',0)
+            output.append(row)
         except Exception as exc:
             errors.append({'scoring_job_id': job_id, 'error': str(exc)})
+    if paged:
+        import record_store
+        page=record_store.versioned_page(output,key=lambda x:x['started_at']+'|'+x['scoring_job_id'],reverse=True,
+            scope=str(('scoring',scoring_job_id,market_as_of)),cursor=cursor,limit=min(limit,20))
+        jobs=page.pop('items')
+        return {**page,'jobs':jobs,'errors':errors,'recording_status':'recording_error' if errors else 'recorded'}
     return {'jobs': sorted(output, key=lambda x: (x['started_at'], x['scoring_job_id']), reverse=True)[:limit],
             'errors': errors, 'recording_status': 'recording_error' if errors else 'recorded'}
 
 
 def get_premise_evaluations(application_id=None, judgment_id=None, scoring_job_id=None,
-                           knowledge_as_of=None, include_history=False):
+                           knowledge_as_of=None, include_history=False, cursor=None,limit=50,paged=False):
     """Only archived evaluations. No collection, writes, or execution side effects."""
     read = S.records('evaluations')
     rows, errors = read['records'], list(read['errors'])
+    if paged:
+        import record_store
+        scope=str(('premises',application_id,judgment_id,scoring_job_id,knowledge_as_of,include_history))
+        cutoff=record_store.cursor_cutoff(cursor,scope)
+        rows=[r for r in rows if getattr(r,'_record_order',0)<=cutoff]
     if judgment_id:
         import ai_judgment as J
         judgment = J.load_judgment(judgment_id)
@@ -299,4 +315,9 @@ def get_premise_evaluations(application_id=None, judgment_id=None, scoring_job_i
         rows = [row for row in rows if row['knowledge_as_of'] == newest[(row['application_id'], row.get('market_as_of'))]]
         superseded = {identifier for row in rows for identifier in row.get('supersedes', [])}
         rows = [row for row in rows if row['evaluation_id'] not in superseded]
+    if paged:
+        import record_store
+        page=record_store.versioned_page(rows,key=lambda x:x.get('knowledge_as_of','')+'|'+x['evaluation_id'],scope=scope,cursor=cursor,limit=limit)
+        values=page.pop('items')
+        return {**page,'evaluations':values,'errors':errors,'recording_status':'recording_error' if errors else 'recorded'}
     return {'evaluations': rows, 'errors': errors, 'recording_status': 'recording_error' if errors else 'recorded'}

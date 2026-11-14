@@ -4,6 +4,8 @@ import copy
 import functools
 import inspect
 import os
+import uuid
+import storage_objects as objects
 from contextlib import contextmanager
 
 _ACTIVE = contextvars.ContextVar('execution_input_capture', default=())
@@ -19,7 +21,8 @@ def observed_read(path, value, status='read'):
                    C.MARKETS, os.path.join(C.WORK, 'day_start.json'))}
         if path not in allowed and not (path.startswith(os.path.abspath(C.CONFIG) + os.sep) and path.endswith('.json')):
             return
-        event = {'path': path, 'value': copy.deepcopy(value), 'status': status,
+        event = {'read_id': 'read-' + uuid.uuid4().hex, 'path': path,
+                 'value': objects.freeze(value, kind='read_value'), 'status': status,
                  'read_at': C.now().isoformat(timespec='microseconds')}
         for sink in _ACTIVE.get():
             sink.append(event)
@@ -34,7 +37,9 @@ def capture():
     rows = []
     token = _ACTIVE.set((*_ACTIVE.get(), rows))
     try:
-        yield rows
+        import log_store
+        with objects.scope(), log_store.scope():
+            yield rows
     finally:
         _ACTIVE.reset(token)
 
@@ -70,3 +75,7 @@ def runtime_context():
             'date':at.date().isoformat(),
             'module_state':{'common._EXCH':copy.deepcopy(C._EXCH)},
             'environment':{k:os.environ.get(k) for k in ('RUN_ID','RUN_MODE','RUN_ATTEMPT_ID')}}
+
+
+def active():
+    return bool(_ACTIVE.get())

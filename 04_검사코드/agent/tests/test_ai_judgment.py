@@ -1,4 +1,13 @@
 """Local immutable-receipt validation; model, network and real state are unused."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -268,7 +277,7 @@ def test_rejected_key_is_not_silently_rewritten():
     assert_rejected(item(), 'IDEMPOTENCY_CONFLICT')
     good = result(item(key='corrected'))
     assert good['status'] == 'accepted'
-    events = [json.loads(p.read_text()) for p in (Path(C.WORK) / 'ontology' / 'submissions').glob('*.json')]
+    events = [read_stored(p) for p in (Path(C.WORK) / 'ontology' / 'submissions').glob('*.json')]
     assert [e['status'] for e in events].count('rejected') == 2
     assert [e['status'] for e in events].count('accepted') == 1
 
@@ -348,7 +357,7 @@ def test_rejected_retry_deduplicates_and_retains_original_assertion():
     assert second['idempotent'] and second['submission_id'] == first['submission_id']
     events = list((Path(C.WORK) / 'ontology' / 'submissions').glob('*.json'))
     assert len(events) == 1
-    stored = json.loads(events[0].read_text())
+    stored = read_stored(events[0])
     assert stored['submitted_payload']['arguments'][0]['assertion']['direction'] == 'buy'
     assert stored['request_hash'] == J._digest(bad)
 

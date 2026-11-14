@@ -4,6 +4,9 @@ These records explain an evaluation. They neither change tuning inputs nor turn
 legacy price returns or balance-inferred fills into verified financial results.
 """
 import copy
+from collections import OrderedDict
+from contextvars import ContextVar
+from contextlib import contextmanager
 import hashlib
 import inspect
 import json
@@ -11,13 +14,19 @@ from datetime import datetime
 from pathlib import Path
 
 import common as C
+import record_store
+import storage_objects as objects
+import log_store
 import execution_reconcile as ER
 import tuning
 import snapshot_store
 
 
 def _hash(value):
-    return hashlib.sha256(value if isinstance(value, bytes) else json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+    if isinstance(value,bytes):return hashlib.sha256(value).hexdigest()
+    digest=hashlib.sha256()
+    for part in objects.chunks(value,separators=(', ',': ')):digest.update(part)
+    return digest.hexdigest()
 
 
 def _instant(value):
@@ -29,14 +38,30 @@ def _instant(value):
 
 def _read(path, default, errors, *, lines=False, missing_ok=False):
     path = Path(path)
+    scope=_READ_SCOPE.get()
+    key=(str(path.absolute()),lines)
+    if scope is not None and key in scope:
+        scope.move_to_end(key)
+        value,source=scope[key]
+        return copy.deepcopy(value),source
     try:
-        raw = path.read_bytes()
         dependencies = {}
-        value = ([json.loads(line) for line in raw.decode().splitlines() if line.strip()] if lines
-                 else snapshot_store.decode(json.loads(raw), dependencies=dependencies))
-        source = {"path": str(path), "sha256": _hash(raw), "bytes": len(raw)}
+        value = (log_store.capture(log_store.view(path)) if lines else
+                 record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else
+                 record_store.load(path, dependencies=dependencies))
+        if not lines and path.name not in ('briefing.json','prep_rows.json'):
+            stored=record_store.manifest(path)
+            if isinstance(stored,dict) and stored.get('format')==record_store.FORMAT:
+                objects.verify_closure(stored['object_ref'],base=record_store.base_for(path),dependencies=dependencies)
+                commit=record_store.commit_path(path)
+                dependencies[str(commit.absolute())]=objects.file_fingerprint(commit)[0]
+        sha, size = objects.file_fingerprint(path)
+        source = {'path':str(path), 'sha256':sha, 'bytes':size}
         if dependencies:
             source['snapshot_dependencies'] = dependencies
+        if scope is not None:
+            scope[key]=(value,source)
+            while len(scope)>128:scope.popitem(last=False)
         return value, source
     except FileNotFoundError:
         if missing_ok:
@@ -113,15 +138,12 @@ An older market target never rewrites `today` or the host timezone quote rule.
     }
 
 
-def _records(directory, cutoff, errors):
+def _records(directory, cutoff, errors, filters=None):
     """No side effects on corrupt files: report errors in this query only."""
     rows = []
-    try:
-        paths = sorted(directory.rglob("*.json")) if directory.exists() else []
-    except OSError as exc:
-        errors.append({"path": str(directory), "reason": "list_error", "error": str(exc)})
-        return rows
-    for path in paths:
+    failures=[]
+    candidates=record_store.iter_records(directory,filters=filters,errors=failures,with_path=True)
+    for path,_ in candidates:
         row, source = _read(path, {}, errors)
         if source.get("status") == "unavailable":
             continue
@@ -142,6 +164,7 @@ def _records(directory, cutoff, errors):
             rows.append({**row, "_source": source})
         except (ValueError, KeyError, TypeError) as exc:
             errors.append({"path": str(path), "reason": "record_time_or_shape_unknown", "error": str(exc)})
+    errors.extend({'path':str(directory/row.get('record','')), 'reason':'record_read_error','error':row.get('error')} for row in failures)
     return sorted(rows, key=lambda r: (r["created_at"], r.get("recorded_at_ns", 0), r.get("event_id", "")))
 
 
@@ -254,10 +277,23 @@ A valid later replay cannot repair the original dispatch's missing judgment ID.
 """
     cutoff, requested = _instant(knowledge_as_of), set(judgment_ids or [])
     errors = []
-    root = Path(C.WORK) / "ontology"
-    events = _records(root / "executions", cutoff, errors)
-    calls = {r["event_id"]: r for r in _records(root / "coverage_events", cutoff, errors)
-             if r.get("event_type") == "call_enter" and r.get("event_id")}
+    root = C.ontology_root()
+    def matching(folder,field,identifiers):
+        found={}
+        for identifier in sorted(identifiers):
+            for row in _records(root/folder,cutoff,errors,filters={field:identifier}):
+                found[row['event_id']]=row
+        return found
+    selected=matching('executions','judgment_id',requested)
+    attempts={row.get('order_attempt_id') for row in selected.values()}-{None}
+    selected.update(matching('executions','order_attempt_id',attempts))
+    triggers={row.get('rule_trigger_id') or (row.get('payload') or {}).get('rule_trigger_id') for row in selected.values()}-{None}
+    selected.update(matching('executions','event_id',triggers))
+    events=sorted(selected.values(),key=lambda row:(row['created_at'],row.get('recorded_at_ns',0),row['event_id']))
+    call_ids={row.get('coverage_event_id') for row in events}-{None}
+    call_rows=matching('coverage_events','judgment_id',requested)
+    call_rows.update(matching('coverage_events','event_id',call_ids))
+    calls={identifier:row for identifier,row in call_rows.items() if row.get('event_type')=='call_enter'}
     order_events = [r for r in events if r.get('kind') in ('dispatch_claimed','dispatch_result','hook_entry')
                     or r.get('stage') == 'place_order']
     attempts = sorted({r.get("order_attempt_id") for r in order_events if _judgment(r) in requested} - {None})
@@ -324,3 +360,22 @@ A valid later replay cannot repair the original dispatch's missing judgment ID.
             "unlinked_references": unlinked, "rule_context": rule_context,
             "recording_status": "recording_error" if errors else "recorded", "errors": errors,
             "scope": "exact_original_calls_and_order_attempts; no_neighbor_graph_aggregation; no_pnl_attribution"}
+
+
+_READ_SCOPE=ContextVar('evaluation_reader_scope',default=None)
+
+@contextmanager
+def reader_scope():
+    existing=_READ_SCOPE.get()
+    token=_READ_SCOPE.set(existing if existing is not None else OrderedDict())
+    try:
+        with objects.scope():yield
+    finally:_READ_SCOPE.reset(token)
+
+
+def scoped(fn):
+    import functools
+    @functools.wraps(fn)
+    def wrapped(*args,**kwargs):
+        with reader_scope():return fn(*args,**kwargs)
+    return wrapped

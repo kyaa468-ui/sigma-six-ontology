@@ -63,10 +63,10 @@ def test_private_view_deduplicates_and_preserves_original_logical_hash(projectio
     assert path.stat().st_size < len(V.canonical(original).encode()) / 5
     assert first['manifest']['projection_hash'] == V.digest(original)
     assert V.load_view_snapshot(first['view_id'])['projection'] == original
-    before = {p.name for p in S.root().glob('*.json')}
+    before = {p.name for p in S.root().glob('*.json') if p.stat().st_size>=S.MIN_BYTES}
     second = V.build_view_snapshot()
     assert second['status'] == 'complete'
-    assert {p.name for p in S.root().glob('*.json')} == before
+    assert {p.name for p in S.root().glob('*.json') if p.stat().st_size>=S.MIN_BYTES} == before
     frozen = bytes_under(C.WORK)
     assert V.load_view_snapshot(second['view_id'])['projection'] == original
     assert bytes_under(C.WORK) == frozen

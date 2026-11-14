@@ -1,4 +1,13 @@
 """Actual local engine replay, immutable result gates, and missing-input checks."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -32,8 +41,8 @@ def setup(tmp_path, monkeypatch):
     (tmp_path/'briefing.json').write_text(json.dumps({'candidates':[{'code':'000001','rsi14':30,'news':[]}]}))
     (tmp_path/'journal.jsonl').write_text('')
     (tmp_path/'positions.json').write_text('{}')
-    p = json.loads((ROOT/'config/params.json').read_text())
-    r = json.loads((ROOT/'config/risk_limits.json').read_text())
+    p = read_stored(ROOT/'config/params.json')
+    r = read_stored(ROOT/'config/risk_limits.json')
     return tmp_path,p,r
 
 

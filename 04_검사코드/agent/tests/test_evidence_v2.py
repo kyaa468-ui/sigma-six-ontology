@@ -1,4 +1,13 @@
 """Local-only contracts for the evidence actually displayed to an AI invocation."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import hashlib
 import json
@@ -13,7 +22,7 @@ from test_ontology import isolated, row, brief, C, D, I, O, B, M, P, R
 
 
 def receipt(tmp_path, delivery_id):
-    return json.loads((tmp_path / 'ontology' / 'deliveries' / f'{delivery_id}.json').read_text())
+    return read_stored(tmp_path / 'ontology' / 'deliveries' / f'{delivery_id}.json')
 
 
 def item(catalog, subject, field, **where):
@@ -40,7 +49,7 @@ def test_display_catalog_is_the_receipt_whitelist(isolated, monkeypatch):
                'kind': 'intraday_current', 'source': 'cached:quote', 'available_at': '2026-11-06T10:28:00+09:00'}]
     output = O.deliver('human briefing', b, quotes, P, R,
                        context={'lessons': ['과거 교훈'], 'prior_judgments': '지난 판단', 'regime': '하락'})
-    stored = json.loads(next((isolated / 'ontology' / 'deliveries').glob('*.json')).read_text())
+    stored = read_stored(next((isolated / 'ontology' / 'deliveries').glob('*.json')))
     assert stored['schema_version'] == 2
     assert stored['run_attempt_id'] == 'attempt-offline-evidence'
     assert stored['ai_run_id'] == 'offline-ai-run'
@@ -148,7 +157,7 @@ def test_live_rsi_records_actual_inputs_without_an_extra_quote(isolated, monkeyp
                 'available_at': '2026-11-06T10:29:30+09:00'}
     monkeypatch.setattr(B, 'get', lambda: SimpleNamespace(name='live', quote_info=quote))
     I.live_rsi()
-    updated = C.read_json(C.BRIEFING)
+    updated = C.load_briefing()
     rs = updated['candidates'][0]['_sources']['rsi14_live']
     assert calls == [candidate['code']]
     assert rs['closes'] == candidate['closes']

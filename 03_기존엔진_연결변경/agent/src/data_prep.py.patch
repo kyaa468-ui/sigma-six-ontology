@@ -1,20 +1,21 @@
 diff --git a/agent/src/data_prep.py b/agent/src/data_prep.py
-index 345a89d..74f57fe 100644
+index 345a89d..2ebce0e 100644
 --- a/agent/src/data_prep.py
 +++ b/agent/src/data_prep.py
-@@ -21,9 +21,11 @@ import urllib.parse
+@@ -21,9 +21,12 @@ import urllib.parse
  import urllib.request
  import warnings
  from datetime import datetime, timedelta, timezone
 +from importlib.metadata import version as package_version
  
  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++import storage_objects
  import common as C  # noqa: E402
 +import ontology as O  # noqa: E402
  
  C.load_env()
  os.environ.setdefault("MPLCONFIGDIR", os.path.join(C.WORK, ".mpl"))
-@@ -59,16 +61,28 @@ def completed(df):
+@@ -59,16 +62,28 @@ def completed(df):
  
  def ohlcv(code, days=150):
      end = C.today()
@@ -45,7 +46,7 @@ index 345a89d..74f57fe 100644
      return completed(df)
  
  
-@@ -82,7 +96,7 @@ def name_of(code):
+@@ -82,7 +97,7 @@ def name_of(code):
  
  
  # ---------------- 지표 (GS Quant) ----------------
@@ -54,7 +55,7 @@ index 345a89d..74f57fe 100644
      """종가 시리즈 → 숫자 요약. 데이터가 60일 미만이면 None."""
      close = close.astype(float)
      if len(close) < 60:
-@@ -94,6 +108,12 @@ def indicators(close):
+@@ -94,6 +109,12 @@ def indicators(close):
      vol = gts.volatility(close, gts.Window(20, 0))          # 연율화 %
      mdd = gts.max_drawdown(close, gts.Window(60, 0))        # 60일 최대 낙폭 (음수)
      c = float(close.iloc[-1])
@@ -67,7 +68,7 @@ index 345a89d..74f57fe 100644
      return {
          "close": round(c),
          "ma5": round(float(ma5.iloc[-1])),
-@@ -121,8 +141,12 @@ def market_summary():
+@@ -121,8 +142,12 @@ def market_summary():
              raise RuntimeError("empty")
      except Exception:  # noqa: BLE001
          df, src = ohlcv(INDEX_PROXY, 200), "KODEX 200 (KOSPI 대용)"
@@ -81,7 +82,7 @@ index 345a89d..74f57fe 100644
              "rule_hint": rule_hint(ind) if ind else "횡보",
              "us": us_overnight(),   # 11-06 밤사이 미국장 (국면 판단 참고)
              "closes": [round(float(v), 2) for v in df["종가"].tail(65)]}   # 장중 실시간 힌트 계산용 (대시보드·판단)
-@@ -156,7 +180,7 @@ def us_overnight():
+@@ -156,7 +181,7 @@ def us_overnight():
              with urllib.request.urlopen(req, timeout=10) as res:
                  v = us_parse(json.load(res))
              if v:
@@ -90,7 +91,7 @@ index 345a89d..74f57fe 100644
          except Exception as e:  # noqa: BLE001
              print(f"  ! 미국 지수 {name} 조회 실패: {e}")
          time.sleep(0.5)
-@@ -183,7 +207,13 @@ def live_market(b):
+@@ -183,7 +208,13 @@ def live_market(b):
      ma = lambda n, off=0: sum(s[len(s) - off - n:len(s) - off]) / n   # noqa: E731
      ind = {"close": round(float(px), 2), "ma5": round(ma(5)), "ma20": round(ma(20)), "ma60": round(ma(60)),
             "ma20_slope5": round(ma(20) / ma(20, 5) - 1, 4)}
@@ -105,7 +106,7 @@ index 345a89d..74f57fe 100644
  
  
  # ---------------- 종목 ----------------
-@@ -210,14 +240,25 @@ def universe_krx(p, asof):
+@@ -210,14 +241,25 @@ def universe_krx(p, asof):
      return out
  
  
@@ -133,7 +134,7 @@ index 345a89d..74f57fe 100644
          return None, None
  
  
-@@ -236,6 +277,7 @@ def news(rows):
+@@ -236,6 +278,7 @@ def news(rows):
          try:
              with urllib.request.urlopen(req, timeout=10) as res:
                  items = json.loads(res.read().decode("utf-8")).get("items", [])
@@ -141,7 +142,7 @@ index 345a89d..74f57fe 100644
          except Exception:  # noqa: BLE001
              continue
          finally:
-@@ -247,7 +289,9 @@ def news(rows):
+@@ -247,7 +290,9 @@ def news(rows):
              if pd.isna(d) or d.date() < since or r["name"] not in title or title in seen:
                  continue
              seen.add(title)
@@ -152,7 +153,7 @@ index 345a89d..74f57fe 100644
          hits.sort(key=lambda h: not h["risk"])  # 악재 단어가 있는 제목을 먼저
          if hits:
              out[r["code"]] = hits[:3]
-@@ -258,35 +302,54 @@ def analyze(code, name, p, asof, login):
+@@ -258,35 +303,58 @@ def analyze(code, name, p, asof, login):
      df = ohlcv(code)
      if df is None or len(df) < 60:
          return None
@@ -177,10 +178,15 @@ index 345a89d..74f57fe 100644
 +        flow = {}
 +        f, i = flows(code, asof, s["flow_days"], details=flow)
          row["foreign_net"], row["inst_net"] = f, i
+-    return row
 +    else:
 +        flow = {actor: O.measurement(None, "KRW", "pykrx:trading_value", reason="not_requested") for actor in ("foreign", "institution")}
 +    row["_sources"] = {"daily": daily, "flow": flow}
-     return row
++    try:
++        return O.objects.freeze(O.clean(row), kind="analysis_row")
++    except (OSError, ValueError):
++        # Recording failure must not remove an otherwise eligible candidate.
++        return row
  
  
 -def screen(rows, p, login, regime=None):
@@ -211,7 +217,7 @@ index 345a89d..74f57fe 100644
          if login and r.get("foreign_net") is not None:
              if r["foreign_net"] <= 0 and r["inst_net"] <= 0:
                  continue
-@@ -294,18 +357,32 @@ def screen(rows, p, login, regime=None):
+@@ -294,18 +362,32 @@ def screen(rows, p, login, regime=None):
          ok.append(r)
      if not ok:
          return []
@@ -248,7 +254,15 @@ index 345a89d..74f57fe 100644
  
  
  def inverse_rows(p, asof, login, held, kinds=("inverse", "index")):
-@@ -346,7 +423,7 @@ def build():
+@@ -330,6 +412,7 @@ def inverse_rows(p, asof, login, held, kinds=("inverse", "index")):
+     return out
+ 
+ 
++@storage_objects.scoped
+ def build():
+     p = C.params()
+     login = krx_login()
+@@ -346,7 +429,7 @@ def build():
      if not login:
          uni = [(c, name_of(c)) for c in p["screen"]["fallback_universe"]]
  
@@ -257,7 +271,7 @@ index 345a89d..74f57fe 100644
      for code, nm in uni + [(c, n) for c, n in held.items()]:
          if code in done:
              continue
-@@ -355,12 +432,24 @@ def build():
+@@ -355,12 +438,24 @@ def build():
              r = analyze(code, nm, p, asof, login)
          except Exception as e:  # noqa: BLE001
              print(f"  ! {code} 건너뜀: {e}")
@@ -285,15 +299,19 @@ index 345a89d..74f57fe 100644
      holdings = [r for r in rows if r["code"] in held]
      found = news(cands + holdings)
      for r in cands + holdings:
-@@ -372,6 +461,7 @@ def build():
+@@ -372,8 +467,9 @@ def build():
          "market": market, "candidates": cands, "holdings": holdings,
          "universe_size": len(rows),
      }
+-    C.write_json(C.BRIEFING, out)
+-    C.write_json(os.path.join(C.WORK, "prep_rows.json"), [{k: v for k, v in r.items() if k != "news"} for r in rows])   # 장중 후보 갱신(intraday.py)이 재사용
 +    trace.finish(out)
-     C.write_json(C.BRIEFING, out)
-     C.write_json(os.path.join(C.WORK, "prep_rows.json"), [{k: v for k, v in r.items() if k != "news"} for r in rows])   # 장중 후보 갱신(intraday.py)이 재사용
++    C.write_briefing(out)
++    C.write_prep_rows([{k: v for k, v in r.items() if k != "news"} for r in rows])   # 장중 후보 갱신(intraday.py)이 재사용
      return out
-@@ -383,7 +473,21 @@ def pct(x):
+ 
+ 
+@@ -383,7 +479,21 @@ def pct(x):
  
  
  def eok(x):
@@ -316,7 +334,7 @@ index 345a89d..74f57fe 100644
  
  
  def to_text(b):
-@@ -404,7 +508,7 @@ def to_text(b):
+@@ -404,7 +514,7 @@ def to_text(b):
      if lv:
          lines[-1:-1] = [f"장중 실시간 ({lv['time']}, 지금 KOSPI를 오늘 종가로 가정): {lv['close']:,} · 5일선 {lv['ma5']:,} · 20일선 {lv['ma20']:,} · "
                          f"60일선 {lv['ma60']:,} · 20일선 5일 기울기 {pct(lv['ma20_slope5'])} · 실시간 힌트: {lv['rule_hint']}"]
@@ -325,7 +343,7 @@ index 345a89d..74f57fe 100644
      sep = "|" + "---|" * 14
  
      def row(r):
-@@ -414,12 +518,12 @@ def to_text(b):
+@@ -414,12 +524,12 @@ def to_text(b):
          tag += " 📉급락" if r.get("dip") else ""
          return (f"| {r['code']} | {r['name']}{tag} | {r['close']:,} | {ma5} | {r['ma20']:,} | {r['ma60']:,} | {pct(r['ret5'])} | "
                  f"{pct(r['ret20'])} | {r['rsi14']} | {r['vol20'] * 100:.0f}% | {pct(r['mdd60'])} | "
@@ -341,7 +359,7 @@ index 345a89d..74f57fe 100644
                    "활발도 = 오늘 거래대금 ÷ 평소 같은 시각까지 거래대금 (1.0 = 평소 수준)", "",
                    "| 코드 | 종목 | 현재가 | 오늘 등락 | 오늘 거래대금 | 활발도 | 외국인 오늘 | 기관 오늘 |", "|" + "---|" * 8]
          for r in b["candidates"]:
-@@ -427,12 +531,13 @@ def to_text(b):
+@@ -427,12 +537,13 @@ def to_text(b):
                  lines.append(f"| {r['code']} | {r['name']} | - | - | - | - | - | - |   ({'인버스' if r.get('inverse') else '지수추종' if r.get('index') else '08:30 후보로 채움'})")
                  continue
              act = r.get("activity")
@@ -358,7 +376,7 @@ index 345a89d..74f57fe 100644
      for title, rs in (("후보 종목", b["candidates"]), ("보유 종목", b["holdings"])):
          lines.append(f"## {title} ({len(rs)})")
          if rs:
-@@ -443,7 +548,7 @@ def to_text(b):
+@@ -443,7 +554,7 @@ def to_text(b):
          if notes:
              lines += ["", f"최근 뉴스 ({NEWS_DAYS}일, ⚠ = 악재 단어 포함):"] + notes
          lines.append("")
@@ -367,3 +385,9 @@ index 345a89d..74f57fe 100644
  
  
  if __name__ == "__main__":
+@@ -451,4 +562,4 @@ if __name__ == "__main__":
+         t = time.time()
+         b = build()
+         print(f"완료 · {b['source']} 모드 · {b['universe_size']}종목 분석 · 후보 {len(b['candidates'])}개 · {time.time() - t:.0f}초\n")
+-    print(to_text(C.read_json(C.BRIEFING)))
++    print(to_text(C.load_briefing()))

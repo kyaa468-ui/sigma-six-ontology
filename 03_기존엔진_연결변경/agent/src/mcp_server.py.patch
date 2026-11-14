@@ -1,8 +1,8 @@
 diff --git a/agent/src/mcp_server.py b/agent/src/mcp_server.py
-index 4d7480b..bec4548 100644
+index 4d7480b..14bac4a 100644
 --- a/agent/src/mcp_server.py
 +++ b/agent/src/mcp_server.py
-@@ -13,10 +13,14 @@
+@@ -13,10 +13,17 @@
  
  stdout 은 MCP 통신용이라, pykrx 등이 찍는 메시지는 전부 stderr 로 돌립니다.
  """
@@ -13,11 +13,14 @@ index 4d7480b..bec4548 100644
  import os
  import sys
 +import uuid
++import storage_objects
++import log_store
++import record_store
 +from datetime import datetime
  
  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
  
-@@ -25,6 +29,12 @@ with contextlib.redirect_stdout(sys.stderr):
+@@ -25,6 +32,12 @@ with contextlib.redirect_stdout(sys.stderr):
      C.load_env()
      import broker as B
      import data_prep
@@ -30,7 +33,7 @@ index 4d7480b..bec4548 100644
      import risk
      import sizing
      import tuning
-@@ -33,6 +43,50 @@ with contextlib.redirect_stdout(sys.stderr):
+@@ -33,6 +46,50 @@ with contextlib.redirect_stdout(sys.stderr):
  mcp = FastMCP("kiwoom")
  _broker = None
  
@@ -81,9 +84,12 @@ index 4d7480b..bec4548 100644
  
  def brk():
      global _broker
-@@ -47,12 +101,126 @@ def quiet(fn):
+@@ -45,16 +102,130 @@ def brk():
+ def quiet(fn):
+     @functools.wraps(fn)
      def wrap(*a, **k):
-         with contextlib.redirect_stdout(sys.stderr):
+-        with contextlib.redirect_stdout(sys.stderr):
++        with contextlib.redirect_stdout(sys.stderr), storage_objects.scope(), log_store.scope():
              try:
 -                return fn(*a, **k)
 +                denied = tool_access_error(fn, a, k)
@@ -208,9 +214,12 @@ index 4d7480b..bec4548 100644
 +
 +
  def name_of(code):
-     b = C.read_json(C.BRIEFING, {}) or {}
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    b = C.load_briefing(default={}) or {}
      acc = C.read_json(C.ACCOUNT, {}) or {}
-@@ -63,11 +231,12 @@ def name_of(code):
+     for r in b.get("candidates", []) + b.get("holdings", []) + acc.get("holdings", []):
+         if r["code"] == code:
+@@ -63,11 +234,12 @@ def name_of(code):
  
  
  def positions_view(acc):
@@ -224,8 +233,12 @@ index 4d7480b..bec4548 100644
                      "stop": m.get("stop"), "take": m.get("take"),
                      "held_days": C.business_days(m["entry_date"], C.today()) if m.get("entry_date") else None,
                      "max_days": m.get("max_days")})
-@@ -81,6 +250,11 @@ def get_briefing() -> str:
-     b = C.read_json(C.BRIEFING)
+@@ -78,9 +250,14 @@ def positions_view(acc):
+ @quiet
+ def get_briefing() -> str:
+     """오늘 브리핑: 시장 지표, 후보 종목, 보유 종목 지표(숫자 요약)와 오늘 적용되는 기준값. 판단은 반드시 이 숫자에 근거할 것."""
+-    b = C.read_json(C.BRIEFING)
++    b = C.load_briefing()
      if not b:
          return "브리핑이 없습니다. 데이터 준비가 실행되지 않았습니다. 오늘은 관망하세요."
 +    # This context is delivered now; never rewrite old observations or receipts.
@@ -236,7 +249,7 @@ index 4d7480b..bec4548 100644
      p, r = C.params(), C.risk_limits()
      ctx = [
          "", "## 오늘 기준값 (코드가 강제함)",
-@@ -136,13 +310,46 @@ def get_briefing() -> str:
+@@ -136,13 +313,46 @@ def get_briefing() -> str:
          ctx.append(f"- 시장 하락 보정 (코드가 적용): set_regime 으로 기록한 국면이 {'·'.join(mb['regimes'])} 이면 "
                     f"신규 매수 확신도 +{mb['add']:.2f} (악재 뉴스 ⚠ 제외). 국면을 이유로 스스로 확신도를 올리거나 내리지 않음")
      b["market"]["live"] = data_prep.live_market(b)   # 장중이면 지금 KOSPI 반영 힌트도 같이
@@ -288,7 +301,7 @@ index 4d7480b..bec4548 100644
      """후보·보유 종목의 지금 가격과 오늘 등락률. 지표는 전일 종가 기준이라 오늘 급등·급락을 여기서 봄."""
      rows, seen = [], set()
      for x in b.get("candidates", []) + (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
-@@ -151,16 +358,24 @@ def intraday(b, r):
+@@ -151,16 +361,24 @@ def intraday(b, r):
          seen.add(x["code"])
          try:
              q = brk().quote_info(x["code"])
@@ -318,7 +331,7 @@ index 4d7480b..bec4548 100644
  
  
  
-@@ -170,102 +385,359 @@ def get_account() -> dict:
+@@ -170,102 +388,439 @@ def get_account() -> dict:
      """계좌 총자산·현금·보유 종목(평단, 현재가, 수익률, 비중, 손절가, 익절가, 보유일)과 오늘 손익, 지금 주식 비중 상한."""
      acc = brk().account()
      cap, regime = sizing.equity_cap(C.params(), C.risk_limits(), acc)
@@ -577,13 +590,18 @@ index 4d7480b..bec4548 100644
 +
 +@mcp.tool()
 +@quiet
-+def get_ai_judgments(run_attempt_id: str | None = None, code: str | None = None, delivery_id: str | None = None) -> dict:
++def get_ai_judgments(run_attempt_id: str | None = None, code: str | None = None, delivery_id: str | None = None, cursor: str | None = None, limit: int = 50) -> dict:
 +    """판단·전제·근거 채택·단계별 실제 보정 기록 조회."""
-+    rows = J.get_ai_judgments(run_attempt_id=run_attempt_id, code=code, delivery_id=delivery_id)
-+    attempts = {row["run_attempt_id"] for row in rows}
-+    if run_attempt_id:
-+        attempts.add(run_attempt_id)
-+    return {"judgments": rows, "coverage": [JC.get_coverage(a) for a in sorted(attempts)]}
++    fields=('judgment_id','run_attempt_id','code','confidence_for','recommended_action','confidence_raw','created_at','status','decision')
++    rows=({**{k:row.get(k) for k in fields},'detail_ref':{'judgment_id':row['judgment_id']},'_record_order':getattr(row,'_record_order',0)}
++          for row in J.iter_ai_judgments(run_attempt_id,code,delivery_id))
++    page=record_store.page(rows,cursor=cursor,limit=limit,scope=str((run_attempt_id,code,delivery_id)),key=lambda r:r['judgment_id'])
++    page['judgments']=page.pop('items')
++    attempts={row['run_attempt_id'] for row in page['judgments'] if row.get('run_attempt_id')}
++    if run_attempt_id:attempts.add(run_attempt_id)
++    page['coverage']=[{k:v for k,v in JC.get_coverage(a,summary=True).items() if k not in ('targets','recording_errors')} for a in sorted(attempts)]
++    return page
++
 +
 +
 +@mcp.tool()
@@ -597,7 +615,7 @@ index 4d7480b..bec4548 100644
 +@quiet
 +def get_judgment_coverage(run_attempt_id: str | None = None) -> dict:
 +    """예상 판단의 미제출·거절·미연결·연결·기록 오류 및 규칙 매도를 별도로 조회."""
-+    return JC.get_coverage(run_attempt_id)
++    return JC.get_coverage(run_attempt_id, summary=True)
 +
 +
 +@mcp.tool()
@@ -610,21 +628,64 @@ index 4d7480b..bec4548 100644
 +
 +@mcp.tool()
 +@quiet
-+def get_validation_cases(validation_id: str, offset: int = 0, limit: int = 50) -> dict:
++def get_validation_cases(validation_id: str, offset: int = 0, limit: int = 50, cursor: str | None = None, detail_index: int | None = None, field: str | None = None, byte_offset: int = 0) -> dict:
 +    """검증의 전체 기회·누락·재현 결과를 페이지별 조회."""
++    if detail_index is not None:
++        import research_pages
++        return research_pages.detail('validation',validation_id,detail_index,field,byte_offset)
 +    import policy_validation
-+    return policy_validation.get_validation_cases(validation_id, offset, limit)
++    return policy_validation.get_validation_cases(validation_id, offset, limit, cursor=cursor) if cursor else policy_validation.get_validation_cases(validation_id, offset, limit)
 +
 +
 +@mcp.tool()
 +@quiet
 +def get_execution_trace(plan_id: str | None = None, order_attempt_id: str | None = None,
 +                        judgment_id: str | None = None, position_episode_id: str | None = None,
-+                        rule_trigger_id: str | None = None) -> dict:
++                        rule_trigger_id: str | None = None, section: str = "events", cursor: str | None = None, limit: int = 50, detail_id: str | None = None, field: str | None = None, offset: int = 0) -> dict:
 +    """저장된 판단·계획·주문·확인/추정 체결 경로 조회. 외부 호출 없음."""
-+    return E.get_execution_trace(plan_id=plan_id, order_attempt_id=order_attempt_id,
++    if not any((plan_id,order_attempt_id,judgment_id,position_episode_id,rule_trigger_id)) and section in ('events','plans'):
++        from pathlib import Path
++        errors=[];filters={'run_attempt_id':os.environ.get('RUN_ATTEMPT_ID')}
++        if section=='plans':filters['kind']='order_plan'
++        if detail_id is not None:filters['event_id']=detail_id
++        records=record_store.iter_records(C.ontology_root()/'executions',filters=filters,errors=errors)
++        records=(row for row in records if row.get('kind')!='engine_definition')
++        if detail_id is not None:
++            import trace_pages
++            row=next(records,None)
++            if row is None:return {'schema_version':2,'status':'not_found','recording_errors':errors}
++            loaded={'view_id':str(filters),'projection':{'traces':{detail_id:row}}}
++            return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++        fields=('event_id','plan_id','judgment_id','order_attempt_id','code','kind','created_at','status','run_attempt_id')
++        rows=({'id':row['event_id'],**{k:row[k] for k in fields if k in row},
++               '_record_order':getattr(row,'_record_order',0),'detail_ref':{'section':section,'detail_id':row['event_id']}}
++              for row in records if row.get('event_id'))
++        page=record_store.page(rows,cursor=cursor,limit=limit,scope=str((C.ontology_root(),filters,section)))
++        return {**page,'section':section,'counts':{section:page['total']},
++                'recording_status':'recording_error' if errors else 'recorded','recording_errors':errors[:50],
++                'complete':page['complete'] and not errors,'index_status':'available' if (C.ontology_root()/'storage_index.sqlite3').exists() else 'fallback'}
++    result = E.get_execution_trace(plan_id=plan_id, order_attempt_id=order_attempt_id,
 +                                 judgment_id=judgment_id, position_episode_id=position_episode_id,
 +                                 rule_trigger_id=rule_trigger_id)
++    allowed=('events','plans','dispatch','judgments','deliveries','selections','definitions','rule_triggers','position_episodes')
++    if section not in allowed:return {'schema_version':2,'status':'invalid_section'}
++    def identifier(row,index):
++        return str(row.get('event_id') or row.get('plan_id') or row.get('judgment_id') or row.get('order_attempt_id') or index)
++    scope=str((plan_id,order_attempt_id,judgment_id,position_episode_id,rule_trigger_id,section))
++    if detail_id is not None:
++        import trace_pages
++        row=next((row for index,row in enumerate(result.get(section,[])) if identifier(row,index)==detail_id),None)
++        if row is None:return {'schema_version':2,'status':'not_found'}
++        loaded={'view_id':scope,'projection':{'traces':{detail_id:row}}}
++        return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++    summary_fields=('event_id','plan_id','judgment_id','order_attempt_id','code','kind','created_at','status','run_attempt_id')
++    rows=({'id':identifier(row,i),**{k:row[k] for k in summary_fields if k in row},
++           'detail_ref':{'section':section,'detail_id':identifier(row,i)},'_record_order':getattr(row,'_record_order',0)} for i,row in enumerate(result.get(section,[])))
++    page=record_store.page(rows,cursor=cursor,limit=limit,scope=scope)
++    return {**page,'section':section,'recording_status':result.get('recording_status'),
++        'counts':{key:len(result.get(key,[])) for key in allowed},'missing_links':result.get('missing_links',[])[:50],
++        'recording_errors':result.get('recording_errors',[])[:50]}
++
 +
 +
 +@mcp.tool()
@@ -637,21 +698,28 @@ index 4d7480b..bec4548 100644
 +@mcp.tool()
 +@quiet
 +def get_close_evaluations(scoring_job_id: str | None = None, market_as_of: str | None = None,
-+                          limit: int = 20) -> dict:
++                          limit: int = 20, cursor: str | None = None, detail: bool = False, field: str | None = None, offset: int = 0) -> dict:
 +    """보관된 사후 평가 회차 조회. 수집·채점·주문·기준값 변경 없음. 미완료 실행도 표시."""
 +    import close_evaluation
-+    return close_evaluation.get_close_evaluations(scoring_job_id, market_as_of, limit)
++    if detail:
++        if not scoring_job_id:raise ValueError('SCORING_JOB_ID_REQUIRED')
++        import trace_pages
++        result=close_evaluation.get_close_evaluations(scoring_job_id,market_as_of,1)
++        if not result.get('jobs'):return {'schema_version':2,'status':'not_found'}
++        loaded={'view_id':scoring_job_id,'projection':{'traces':{scoring_job_id:result['jobs'][0]}}}
++        return trace_pages.chunk(loaded,'trace',scoring_job_id,field,offset) if field else trace_pages.detail(loaded,'trace',scoring_job_id)
++    return close_evaluation.get_close_evaluations(scoring_job_id, market_as_of, limit, cursor=cursor, paged=True)
 +
 +
 +@mcp.tool()
 +@quiet
 +def get_premise_evaluations(application_id: str | None = None, judgment_id: str | None = None,
 +                            scoring_job_id: str | None = None, knowledge_as_of: str | None = None,
-+                            include_history: bool = False) -> dict:
++                            include_history: bool = False, cursor: str | None = None, limit: int = 50) -> dict:
 +    """전제 유지·반증·진행·미확인 조회. 수익 결과와 분리하며 과거 수정 이력을 보존."""
 +    import close_evaluation
 +    return close_evaluation.get_premise_evaluations(application_id, judgment_id, scoring_job_id,
-+                                                   knowledge_as_of, include_history)
++                                                   knowledge_as_of, include_history, cursor=cursor,limit=limit,paged=True)
 +
 +
 +@mcp.tool()
@@ -664,10 +732,13 @@ index 4d7480b..bec4548 100644
 +
 +@mcp.tool()
 +@quiet
-+def get_review_cases(review_id: str, offset: int = 0, limit: int = 50) -> dict:
++def get_review_cases(review_id: str, offset: int = 0, limit: int = 50, cursor: str | None = None, detail_index: int | None = None, field: str | None = None, byte_offset: int = 0) -> dict:
 +    """고정된 복기 사례와 당시 근거·전제·사후 평가 연결을 페이지별 조회."""
++    if detail_index is not None:
++        import research_pages
++        return research_pages.detail('review',review_id,detail_index,field,byte_offset)
 +    import case_review
-+    return case_review.get_review_cases(review_id, offset, limit)
++    return case_review.get_review_cases(review_id, offset, limit, cursor=cursor) if cursor else case_review.get_review_cases(review_id, offset, limit)
 +
 +
 +@mcp.tool()
@@ -694,10 +765,13 @@ index 4d7480b..bec4548 100644
 +
 +@mcp.tool()
 +@quiet
-+def get_proposal_cases(proposal_run_id: str, offset: int = 0, limit: int = 50) -> dict:
++def get_proposal_cases(proposal_run_id: str, offset: int = 0, limit: int = 50, cursor: str | None = None, detail_index: int | None = None, field: str | None = None, byte_offset: int = 0) -> dict:
 +    """고정 사례·원래 판단·실행 경로를 페이지별 전달합니다. 현재 자료를 수집하지 않습니다."""
++    if detail_index is not None:
++        import research_pages
++        return research_pages.detail('proposal',proposal_run_id,detail_index,field,byte_offset)
 +    import learning_proposals
-+    return learning_proposals.get_proposal_cases(proposal_run_id, offset, limit)
++    return learning_proposals.get_proposal_cases(proposal_run_id, offset, limit, cursor=cursor) if cursor else learning_proposals.get_proposal_cases(proposal_run_id, offset, limit)
 +
 +
 +@mcp.tool()
@@ -710,16 +784,35 @@ index 4d7480b..bec4548 100644
 +
 +@mcp.tool()
 +@quiet
-+def get_learning_proposals(proposal_run_id: str, proposal_id: str | None = None) -> dict:
++def get_learning_proposals(proposal_run_id: str, proposal_id: str | None = None, cursor: str | None = None, limit: int = 50,
++                           section: str = 'proposals', detail_id: str | None = None, field: str | None = None, offset: int = 0) -> dict:
 +    """해당 제안 실행의 불변 버전·검증 거절·7번 준비 상태만 조회합니다."""
 +    import learning_proposals
-+    return learning_proposals.get_learning_proposals(proposal_run_id, proposal_id)
++    result=learning_proposals.get_learning_proposals(proposal_run_id, proposal_id)
++    if 'proposals' not in result:return result
++    relations=('proposals','submission_history','ai_attempts','ai_results')
++    if section not in relations:raise ValueError('UNKNOWN_PROPOSAL_RELATION')
++    def key(row):
++        return str(row.get('proposal_id') or row.get('submission_id') or row.get('ai_attempt_id') or row.get('run_attempt_id') or row.get('attempt_id') or row.get('created_at'))
++    rows=result.get(section,[]);scope='proposals:'+proposal_run_id+':'+section
++    if detail_id is not None:
++        import trace_pages
++        selected=next((row for row in rows if key(row)==detail_id),None)
++        if selected is None:return {'schema_version':2,'status':'not_found'}
++        loaded={'view_id':scope,'projection':{'traces':{detail_id:selected}}}
++        return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++    page=record_store.versioned_page(rows,key=key,scope=scope,cursor=cursor,limit=limit)
++    counts={name:len(result.get(name,[])) for name in relations}
++    metadata={k:v for k,v in result.items() if k not in relations and k not in ('errors','deployability_errors')}
++    return {**metadata,**{k:v for k,v in page.items() if k!='items'},section:page['items'],
++            'section':section,'counts':counts,'errors':result.get('errors',[])[:20],
++            'deployability_errors':result.get('deployability_errors',[])[:20]}
 +
 +
  @mcp.tool()
  @quiet
  def submit_review(week: int, period: str, suggestion: str, report_markdown: str) -> dict:
-@@ -295,10 +767,7 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
+@@ -295,10 +850,38 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
      lessons = decision_outcomes 점검에서 얻은 교훈 2~5줄 (예: "외국인 3일 연속 순매수 종목을 관망했다가 +4% 놓침 → 이런 경우 확신도를 낮추지 말 것").
      다음 판단부터 브리핑에 실려 총괄·bull·bear 가 참고함 (기준값과 따로, 판단 자체를 고치는 용도).
      서버가 허용 키·범위·변경폭·개수·쿨다운·기준값 일관성을 검사해 통과한 것만 반영하고, 거절 사유를 돌려줍니다."""
@@ -728,6 +821,37 @@ index 4d7480b..bec4548 100644
 -        C.journal("lessons", lessons=[str(x)[:200] for x in lessons][:6])
 -    return tuning.apply(changes, summary)
 +    return tuning.apply(changes, summary, lessons=lessons)
++
++
++
++
++@mcp.tool()
++@quiet
++def get_judgment_detail(judgment_id: str, field: str | None = None, offset: int = 0) -> dict:
++    """수락된 판단 하나의 상세. 큰 필드는 256KiB 원문 조각으로 조회합니다."""
++    import trace_pages
++    row=J.load_judgment(judgment_id)
++    if row is None:return {'schema_version':2,'status':'not_found'}
++    loaded={'view_id':judgment_id,'projection':{'traces':{judgment_id:row}}}
++    return trace_pages.chunk(loaded,'trace',judgment_id,field,offset) if field else trace_pages.detail(loaded,'trace',judgment_id)
++
++
++@mcp.tool()
++@quiet
++def get_coverage_detail(run_attempt_id: str, code: str | None = None, confidence_for: str | None = None, cursor: str | None = None, limit: int = 50, field: str | None = None, offset: int = 0) -> dict:
++    """한 실행의 선택한 대상·규칙 매도 연결을 페이지로 조회합니다."""
++    detail=JC.get_coverage(run_attempt_id)
++    rows=(row for row in detail.get('targets',[]) if (code is None or row.get('code')==code) and
++          (confidence_for is None or row.get('confidence_for')==confidence_for))
++    if field is not None:
++        import trace_pages
++        selected=next(rows,None)
++        if selected is None:return {'schema_version':2,'status':'not_found'}
++        loaded={'view_id':run_attempt_id,'projection':{'traces':{run_attempt_id:selected}}}
++        return trace_pages.chunk(loaded,'trace',run_attempt_id,field,offset)
++    page=record_store.page(rows,cursor=cursor,limit=limit,scope=str((run_attempt_id,code,confidence_for)),
++                          key=lambda r:str((r.get('code'),r.get('confidence_for'))))
++    return {**page,'run_attempt_id':run_attempt_id,'recording_status':detail.get('recording_status')}
  
  
  if __name__ == "__main__":

@@ -38,8 +38,8 @@ SPEC = {
 
 
 def digest(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
-                                    separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    import storage_objects
+    return storage_objects.fingerprint(value)[0]
 
 
 def instant(value):
@@ -106,7 +106,9 @@ def eligible_cases(cases, knowledge_as_of):
             if case.get('evaluation_record_available_at') and instant(case['evaluation_record_available_at']) > cutoff:
                 raise ValueError('future_evaluation_record')
             numerical_features(case)
-            accepted.append(copy.deepcopy(case))
+            fields=('application_id','code','judgment_date','origin_at','features','stratum','label','label_available_at',
+                    'evaluation_id','evaluation_record_available_at','window_snapshot','model_eligible','outcome_eligible')
+            accepted.append({k:copy.deepcopy(case[k]) for k in fields if k in case})
         except (ValueError, TypeError, KeyError) as exc:
             exclusions.append({'application_id': identifier, 'reason': str(exc)})
     return accepted, exclusions, errors

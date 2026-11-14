@@ -16,6 +16,7 @@ import tempfile
 
 import common as C
 import trace_snapshot as V
+import storage_objects
 
 VERSION = 'TRACE_PUBLIC@v1'
 STATES = frozenset('unknown complete partial recorded recording_error unavailable missing corrupt uncommitted '
@@ -180,7 +181,7 @@ def export_trace_summary(view_id):
         V.check_visibility(loaded['projection'])
         folder = V.root() / 'public' / export_id
         V._write_immutable(folder / 'summary.json', summary)
-        body_hash = hashlib.sha256((folder / 'summary.json').read_bytes()).hexdigest()
+        body_hash = storage_objects.file_fingerprint(folder / 'summary.json')[0]
         manifest = {'schema_version': VERSION, 'export_id': export_id, 'view_id': view_id,
                     'created_at': loaded['manifest']['created_at'],
                     'market_as_of': loaded['manifest']['market_as_of'],
@@ -225,7 +226,7 @@ def load_public_export(export_id=None):
                 or sorted(reservation.get('application_ids', [])) != sorted(loaded['projection'].get('application_ids', []))):
             raise ValueError('PUBLIC_EXPOSURE_RESERVATION_MISSING_OR_CHANGED')
         summary = V._read(folder / 'summary.json')
-        if (hashlib.sha256((folder / 'summary.json').read_bytes()).hexdigest() != manifest['files']['summary.json']
+        if (storage_objects.file_fingerprint(folder / 'summary.json')[0] != manifest['files']['summary.json']
                 or summary != public_projection(loaded, export_id)):
             raise ValueError('PUBLIC_SUMMARY_INTEGRITY_MISMATCH')
         return {'status': 'complete', 'manifest': manifest, 'summary': summary}

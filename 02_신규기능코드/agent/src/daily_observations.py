@@ -183,9 +183,9 @@ def collect_daily_observations(code, dates, calendar, provider=None, knowledge_a
     now = MC.instant(C.now())
     cutoff = MC.instant(knowledge_as_of or now)
     dates = sorted({MC.day(d) for d in dates})
-    saved = S.records('daily_receipts')
-    errors = list(saved['errors'])
-    receipts = saved['records']
+    saved_errors=[]
+    receipts=list(S.iter_records('daily_receipts',filters={'code':code},errors=saved_errors))
+    errors=list(saved_errors)
     eligible = [d for d in dates if MC.session_close(calendar, d) and MC.instant(MC.session_close(calendar, d)) <= now]
     result = {'observations': [], 'errors': errors, 'recording_status': 'recorded'}
     if instrument_kind not in PRICE_BASIS:
@@ -228,7 +228,7 @@ def collect_daily_observations(code, dates, calendar, provider=None, knowledge_a
             result['recording_status'] = 'recording_error'
     result['rows'] = confirm_daily_observations(code, dates, calendar, receipts, cutoff, instrument_kind=instrument_kind)
     result['effective_knowledge_as_of'] = cutoff.isoformat()
-    if saved['errors'] or result['recording_status'] == 'recording_error':
+    if saved_errors or result['recording_status'] == 'recording_error':
         result['recording_status'] = 'recording_error'
         for row in result['rows'].values():
             row.update(status='unknown', reason='recording_error')

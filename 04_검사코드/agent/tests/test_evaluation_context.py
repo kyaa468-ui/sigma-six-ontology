@@ -1,4 +1,13 @@
 """Step 4 context cannot change legacy tuning or infer a judgment/order link."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -14,7 +23,7 @@ import tuning
 
 
 def legacy_outcomes():
-    baseline = json.loads((ROOT / 'tests/fixtures/ontology/step4/baseline.json').read_text())
+    baseline = read_stored(ROOT / 'tests/fixtures/ontology/step4/baseline.json')
     scope = {}
     exec(baseline['legacy_tuning_source'], scope)
     return scope['outcomes']

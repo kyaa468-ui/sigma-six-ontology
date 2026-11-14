@@ -18,7 +18,7 @@ def _scope():
 
 
 def _db():
-    path = Path(C.WORK) / 'ontology' / 'position_episodes.sqlite3'
+    path = (Path(C.WORK) / 'ontology') / 'position_episodes.sqlite3'
     path.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(path, timeout=5)
     db.row_factory = sqlite3.Row
@@ -139,7 +139,7 @@ def read_episode(position_episode_id):
 
     Historical projections must use position_opened/position_closed events.
     """
-    path = Path(C.WORK) / 'ontology' / 'position_episodes.sqlite3'
+    path = (Path(C.WORK) / 'ontology') / 'position_episodes.sqlite3'
     if not path.exists():
         return {'status': 'not_found', 'episode': None}
     try:

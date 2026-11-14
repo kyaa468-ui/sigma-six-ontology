@@ -312,7 +312,7 @@ def get_case_review(review_id):
                 'errors': [{'error': str(exc)}]}
 
 
-def get_review_cases(review_id, offset=0, limit=50):
+def get_review_cases(review_id, offset=0, limit=50, cursor=None):
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise ValueError('offset must be a nonnegative integer')
     if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
@@ -321,9 +321,12 @@ def get_review_cases(review_id, offset=0, limit=50):
         dataset = S.load('datasets', review_id)
         if dataset is None:
             return {'review_id': review_id, 'cases': [], 'status': 'not_found'}
-        return {'review_id': review_id, 'offset': offset, 'total': len(dataset['cases']),
-                'cases': dataset['cases'][offset:offset+limit], 'target_set_incomplete': dataset.get('target_set_incomplete', False),
-                'recording_status': 'recorded'}
+        import record_store
+        page=record_store.sequence_page(dataset['cases'],scope='review:'+review_id,cursor=cursor,limit=limit,offset=offset)
+        items=page.pop('items')
+        return {**page,'review_id':review_id,'offset':offset,'cases':items,
+                'target_set_incomplete':dataset.get('target_set_incomplete',False),'recording_status':'recorded'}
+
     except Exception as exc:
         return {'review_id': review_id, 'cases': [], 'recording_status': 'recording_error', 'errors': [str(exc)]}
 

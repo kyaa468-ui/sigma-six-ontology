@@ -15,7 +15,7 @@ import position_episodes as PE
 
 def planned(monkeypatch, *, held=False):
     fake, manifest = setup_run(monkeypatch, held=held)
-    briefing = C.read_json(C.BRIEFING)
+    briefing = C.load_briefing()
     selection = O.SelectionTrace('prep', C.params(), '상승', 'local_fixture')
     candidates = D.screen(clone(briefing['candidates']), C.params(), True, '상승', trace=selection)
     selection.attach(candidates)
@@ -65,7 +65,7 @@ def test_evidence_judgment_plan_hook_order_confirmation_graph(monkeypatch, capsy
          'io_tp_nm':'매수','cntr_qty':'40','cnfm_qty':'100','cntr_uv':'20400','cntr_tm':'10:31:01'}]}
     status = M.refresh_execution_status(args['order_attempt_id'])
     assert (status['confirmed_qty'],status['unconfirmed_qty'],status['confirmation_status'])==(40,60,'confirmed_partial')
-    trace = M.get_execution_trace(order_attempt_id=args['order_attempt_id'])
+    trace = E.get_execution_trace(order_attempt_id=args['order_attempt_id'])
     assert trace['judgments'][0]['judgment_id']==args['judgment_id']
     assert trace['deliveries'] and trace['definitions'] and trace['selections']
     assert trace['plans'][0]['inputs']['quote']['price']==20400
@@ -166,12 +166,12 @@ def test_server_risk_failure_does_not_consume_dispatch(monkeypatch):
 
 def test_actual_stage_inputs_are_frozen_when_quote_and_rsi_change(monkeypatch):
     fake,_,plan,args=planned(monkeypatch)
-    b=C.read_json(C.BRIEFING)
+    b=C.load_briefing()
     b['candidates'][0]['rsi14_live']=20
     C.write_json(C.BRIEFING,b)
     monkeypatch.setattr(fake,'quote_info',lambda _: {'price':21000,'change':.03,'source':'second-fixture'})
     assert M.place_order(**args)['ok']
-    trace=M.get_execution_trace(order_attempt_id=args['order_attempt_id'])
+    trace=E.get_execution_trace(order_attempt_id=args['order_attempt_id'])
     saved=trace['plans'][0]
     risk=next(e for e in trace['events'] if e['kind']=='risk_evaluation' and e['actor']=='server')
     assert saved['inputs']['quote']['price']==20400 and risk['quote']['price']==21000
@@ -184,18 +184,18 @@ def test_actual_stage_inputs_are_frozen_when_quote_and_rsi_change(monkeypatch):
 def test_delivered_episode_context_persists_without_historical_backfill(monkeypatch):
     fake,_,plan,args=planned(monkeypatch,held=True)
     old_id=PE.current('000001')
-    judgment=M.get_ai_judgments(code='000001')['judgments'][0]
+    judgment=M.get_judgment_detail(M.get_ai_judgments(code='000001')['judgments'][0]['judgment_id'])['item']
     assert judgment['position_episode_ids']==[old_id]
     PE.observe({'holdings':[]})
     fake.account_value['holdings'][0]['qty']+=10
     new_id=PE.observe(fake.account_value)['000001']
     assert new_id!=old_id
-    assert M.get_ai_judgments(code='000001')['judgments'][0]['position_episode_ids']==[old_id]
+    assert M.get_judgment_detail(M.get_ai_judgments(code='000001')['judgments'][0]['judgment_id'])['item']['position_episode_ids']==[old_id]
 
 
 def test_delivery_failure_marks_only_own_coverage(monkeypatch):
     _,first=setup_run(monkeypatch)
-    second=JC.start_attempt('other-run','decide',C.read_json(C.BRIEFING),C.read_json(C.ACCOUNT))
+    second=JC.start_attempt('other-run','decide',C.load_briefing(),C.read_json(C.ACCOUNT))
     # Keep the caller's environment pointing at the first run.
     monkeypatch.setenv('RUN_ATTEMPT_ID',first['run_attempt_id'])
     monkeypatch.setattr(O,'archive',lambda *a,**k: (_ for _ in ()).throw(OSError('delivery disk failure')))
@@ -218,11 +218,11 @@ def test_runner_refresh_is_read_only_and_catches_record_error(monkeypatch):
 def test_delayed_holding_never_backfills_a_previous_order_episode(monkeypatch):
     fake,_,_,args=planned(monkeypatch)
     assert M.place_order(**args)['ok']
-    trace=M.get_execution_trace(order_attempt_id=args['order_attempt_id'])
+    trace=E.get_execution_trace(order_attempt_id=args['order_attempt_id'])
     context=next(e for e in trace['events'] if e['kind']=='order_position_context')
     assert context['episode_status']=='episode_pending' and context['position_episode_id'] is None
     PE.observe({'holdings':[{'code':'000001','qty':1}]},source='later_account')
-    later=M.get_execution_trace(order_attempt_id=args['order_attempt_id'])
+    later=E.get_execution_trace(order_attempt_id=args['order_attempt_id'])
     assert next(e for e in later['events'] if e['kind']=='order_position_context')==context
 
 
@@ -236,7 +236,7 @@ def test_invalid_optional_link_is_audit_failure_not_order_policy(monkeypatch):
 
 def test_rule_exit_links_monitor_trigger_without_fabricating_ai_judgment(monkeypatch,capsys):
     fake,_=setup_run(monkeypatch,held=True)
-    manifest=JC.start_attempt('offline-exit','exit',C.read_json(C.BRIEFING),fake.account_value)
+    manifest=JC.start_attempt('offline-exit','exit',C.load_briefing(),fake.account_value)
     monkeypatch.setenv('RUN_ATTEMPT_ID',manifest['run_attempt_id'])
     monkeypatch.setenv('RUN_MODE','exit')
     M.get_account()
@@ -253,7 +253,7 @@ def test_rule_exit_links_monitor_trigger_without_fabricating_ai_judgment(monkeyp
     forwarded=hook_call(monkeypatch,capsys,args)['updatedInput']
     assert forwarded['rule_trigger_id']==tid
     assert M.place_order(**forwarded)['ok'] and len(fake.orders)==1
-    trace=M.get_execution_trace(order_attempt_id=plan['order_attempt_id'])
+    trace=E.get_execution_trace(order_attempt_id=plan['order_attempt_id'])
     assert any(t['event_id']==tid and t['matched_rule']=='STOP_LOSS@v1' for t in trace['rule_triggers'])
     assert not trace['judgments'] and trace['position_episodes']
     assert JC.get_coverage()['expected_count']==0

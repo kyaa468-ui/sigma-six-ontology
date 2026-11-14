@@ -101,6 +101,12 @@
       ]
     },
     {
+      "module": "log_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
       "module": "market_calendar.py",
       "existing_engine_imports": [
         "common"
@@ -151,6 +157,12 @@
       ]
     },
     {
+      "module": "process_spool.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
       "module": "prompt_validation.py",
       "existing_engine_imports": [
         "common"
@@ -158,6 +170,12 @@
     },
     {
       "module": "proposal_store.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
+      "module": "record_store.py",
       "existing_engine_imports": [
         "common"
       ]
@@ -178,7 +196,8 @@
     {
       "module": "runtime_inputs.py",
       "existing_engine_imports": [
-        "common"
+        "common",
+        "logger"
       ]
     },
     {
@@ -230,6 +249,12 @@
       ]
     },
     {
+      "module": "validation_mcp.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
       "module": "validation_spec.py",
       "existing_engine_imports": [
         "common"
@@ -239,6 +264,32 @@
       "module": "validation_store.py",
       "existing_engine_imports": [
         "common"
+      ]
+    }
+  ],
+  "file_config_dependencies": [
+    {
+      "consumer": "ontology_adapter.py / learning_proposals.py",
+      "requires": [
+        "agent/config/ontology/*.json"
+      ]
+    },
+    {
+      "consumer": "replay_context.py / execution_trace.py",
+      "requires": [
+        "agent/src/common.py",
+        "agent/src/sizing.py",
+        "agent/src/risk.py"
+      ]
+    },
+    {
+      "consumer": "runtime_inputs.py",
+      "requires": [
+        "agent/CLAUDE.md",
+        "agent/.claude/settings.json",
+        "agent/.claude/agents/*.md",
+        "agent/src/mcp_server.py",
+        "agent/run.py"
       ]
     }
   ]

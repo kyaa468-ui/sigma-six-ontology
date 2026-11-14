@@ -14,6 +14,9 @@ from pathlib import Path
 
 import common as C
 import snapshot_store
+import record_store
+import storage_objects as objects
+from collections import OrderedDict
 
 VERSION = 'TRACE_VIEW@v1'
 TIME_FIELDS = ('created_at', 'available_at', 'committed_at', 'recorded_at', 'finished_at',
@@ -36,8 +39,19 @@ IDENTIFIERS = {'attempts': 'run_attempt_id', 'coverage_events': 'event_id', 'cov
 
 
 def digest(value):
-    return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
-        separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+    return objects.fingerprint(value)[0]
+
+
+def _has_policy_context(value):
+    # Preserve the historical ASCII substring test without constructing a full
+    # JSON string. Keep the seam because canonical chunks can split a word.
+    tail = b''
+    for chunk in objects.chunks(value):
+        text = tail + chunk
+        if b'policy' in text:
+            return True
+        tail = text[-5:]
+    return False
 
 
 def instant(value):
@@ -50,11 +64,12 @@ def instant(value):
 class Reader:
     """Freeze reads as bytes and retain errors, including deleted accepted IDs."""
     def __init__(self, cutoff):
-        self.root = Path(C.WORK) / 'ontology'
+        self.root = C.ontology_root()
         self.cutoff = instant(cutoff)
         self.manifest = {}
         self.errors = []
-        self.cache = {}
+        self.cache = OrderedDict()
+        self.resolver = objects.resolver_for(self.root)
 
     def visible(self, value):
         stamps = [instant(value[k]) for k in TIME_FIELDS if value.get(k)]
@@ -71,9 +86,13 @@ class Reader:
             path = self.root / relative
             if path.is_symlink() or not path.resolve().is_relative_to(self.root.resolve()):
                 raise ValueError('SOURCE_PATH_OUTSIDE_ONTOLOGY')
-            payload = path.read_bytes()
             dependencies = {}
-            value = snapshot_store.decode(json.loads(payload), base=self.root, dependencies=dependencies)
+            value = record_store.load(path, base=self.root, dependencies=dependencies,resolver=self.resolver)
+            stored = record_store.manifest(path, base=self.root)
+            if stored.get('format') == record_store.FORMAT:
+                commit=record_store.commit_path(path)
+                dependencies[str(commit.absolute())]=objects.file_fingerprint(commit)[0]
+                objects.verify_closure(stored['object_ref'], base=self.root, dependencies=dependencies,resolver=self.resolver)
             if not isinstance(value, dict):
                 raise ValueError('SOURCE_OBJECT_REQUIRED')
             store = relative.split('/')[0]
@@ -82,7 +101,7 @@ class Reader:
                 if value.get('format') != STORE_FORMATS[store] or not isinstance(value.get('record'), dict):
                     raise ValueError('SOURCE_INTEGRITY_ENVELOPE_REQUIRED')
                 body = value['record']
-                if digest(body) != value.get('content_sha256'):
+                if not isinstance(value,objects.ObjectDict) and digest(body) != value.get('content_sha256'):
                     raise ValueError('SOURCE_HASH_MISMATCH')
                 value, grade = body, 'envelope_verified'
             folder = str(Path(relative).parent)
@@ -94,7 +113,12 @@ class Reader:
                 raise ValueError('SOURCE_AVAILABILITY_UNRECORDED')
             if not self.visible(value):
                 self.cache[relative] = None
+                if len(self.cache)>128:self.cache.popitem(last=False)
                 return None
+            source_fingerprint=objects.file_fingerprint(path)[0]
+            previous=self.manifest.get(relative)
+            if previous is not None and previous['sha256']!=source_fingerprint:
+                raise ValueError('SOURCE_CHANGED_AFTER_CACHE_EVICTION')
             for dependency, fingerprint in dependencies.items():
                 blob = Path(dependency)
                 if not blob.resolve().is_relative_to(self.root.resolve()):
@@ -104,9 +128,10 @@ class Reader:
                     'sha256': fingerprint, 'integrity': 'content_addressed_blob_verified',
                     'temporal_provenance': 'content_only_parent_record_controls_availability'}
             self.manifest[relative] = {'path': relative, 'kind': str(Path(relative).parent),
-                'id': Path(relative).stem, 'sha256': hashlib.sha256(payload).hexdigest(), 'integrity': grade,
+                'id': Path(relative).stem, 'sha256': source_fingerprint, 'integrity': grade,
                 'temporal_provenance': 'recorded' if any(value.get(k) for k in TIME_FIELDS) else 'unrecorded'}
             self.cache[relative] = value
+            if len(self.cache) > 128: self.cache.popitem(last=False)
             return copy.deepcopy(value)
         except FileNotFoundError:
             if required:
@@ -114,6 +139,7 @@ class Reader:
         except (OSError, ValueError, TypeError) as exc:
             self.errors.append({'path': relative, 'reason': 'source_corrupt_or_unreadable', 'error': str(exc)})
         self.cache[relative] = None
+        if len(self.cache)>128:self.cache.popitem(last=False)
         return None
 
     def scan(self, relative):
@@ -143,12 +169,36 @@ def _ids(value, field):
 
 
 def _application_ids(value):
-    return set().union(*(_ids(value, f) for f in ('application_id', 'application_ids', 'premise_application_id',
-        'support_case_ids', 'counter_case_ids', 'matched_case_ids', 'case_ids')))
+    fields=('application_id','application_ids','premise_application_id',
+            'support_case_ids','counter_case_ids','matched_case_ids','case_ids')
+    found=set()
+    def visit(node):
+        if isinstance(node,list):
+            for child in node:
+                if isinstance(child,(dict,list)):visit(child)
+        elif isinstance(node,dict):
+            for field in fields:
+                own=node.get(field)
+                if isinstance(own,str):found.add(own)
+                elif isinstance(own,list):found.update(item for item in own if isinstance(item,str))
+            for child in _container_children(node):visit(child)
+    visit(value)
+    return found
+
+
+def _container_children(value):
+    for key in value:
+        # Inspect the small node header before decoding a large scalar source.
+        if isinstance(value,objects.ObjectDict):
+            if objects.field_kind(value,key) not in ('dict','list'):continue
+        child=value[key]
+        if isinstance(child,(dict,list)):yield child
 
 
 def _blocked(value, reservations, at=None):
     """Shared receipts are withheld whole: their free text can mention any row."""
+    if not reservations:
+        return False
     import validation_holdout as VH
     if isinstance(value, list): return any(_blocked(v, reservations, at) for v in value)
     if not isinstance(value, dict): return False
@@ -156,7 +206,7 @@ def _blocked(value, reservations, at=None):
     code = value.get('code', value.get('subject', value.get('instrument_id')))
     if isinstance(code, str) and any(VH._matches(r, code.removeprefix('KRX:'), origin) for r in reservations):
         return True
-    return any(_blocked(child, reservations, origin) for child in value.values() if isinstance(child, (dict, list)))
+    return any(_blocked(child, reservations, origin) for child in _container_children(value))
 
 
 def _exposure_scopes(value, at=None):
@@ -200,6 +250,17 @@ def _accepted(reader, judgments, submissions):
 
 def _research(reader, reservations):
     """Join committed research versions; latest is selected only within cutoff."""
+    # These captured records are immutable throughout this join. Reuse a
+    # checked logical hash; the snapshot publisher still rechecks every source
+    # file before commit. Bound retained root handles independently of blobs.
+    hashes=OrderedDict()
+    def checked_digest(value):
+        key=id(value)
+        if key not in hashes:
+            hashes[key]=(value,digest(value))
+            if len(hashes)>128:hashes.popitem(last=False)
+        hashes.move_to_end(key)
+        return hashes[key][1]
     reviews, proposals, validations = [], [], []
     jobs = reader.scan('case_review/jobs')
     review_results = {r['review_id']: r for r in reader.scan('case_review/results')}
@@ -225,7 +286,7 @@ def _research(reader, reservations):
         proof = bool(result and data and commit and not job.get('origin_missing')
                      and result.get('input_hash') == data.get('input_hash')
                      and all(publications.get(p, {}).get('review_id') == rid for p in commit.get('publication_ids', []))
-                     and (not commit.get('result_hash') or commit['result_hash'] == digest(result)))
+                     and (not commit.get('result_hash') or commit['result_hash'] == checked_digest(result)))
         own_errors = [e for e in review_errors if e.get('review_id') == rid]
         review_status = ('recording_error' if own_errors or job.get('origin_missing') else
                          'complete' if proof and result.get('analysis_status') == 'complete' else
@@ -235,7 +296,7 @@ def _research(reader, reservations):
             'completion_proof': {'status': 'verified' if proof else 'unavailable',
                 'result_hash_bound_by_commit': bool(commit and commit.get('result_hash')),
                 'meaning': 'stored_envelopes_and_input_binding; legacy_publication_marker_has_no_result_hash'},
-            'result_hash': digest(result) if result else None,
+            'result_hash': checked_digest(result) if result else None,
             'application_ids': sorted(_application_ids(data or {})), 'ai_submissions': own,
             'visibility': 'available', 'recording_status': 'recorded' if proof else 'incomplete'})
     contexts = {r['proposal_run_id']: r for r in reader.scan('learning_proposals/contexts')}
@@ -254,7 +315,7 @@ def _research(reader, reservations):
                              proposal_id=pid, status='recording_error')); continue
         if _blocked(context or proposal, reservations):
             proposals.append(_placeholder(pid, 'prospective_validation_reserved', proposal_id=pid)); continue
-        valid = pid in accepted and context and commit and commit.get('context_hash') == digest(context)
+        valid = pid in accepted and context and commit and commit.get('context_hash') == checked_digest(context)
         proposals.append({**proposal, 'status': 'accepted' if valid else 'recording_error',
             'visibility': 'available', 'validation_ids': [], 'current_activation': 'not_joined',
             'source_review_id': (context or {}).get('review_id')})
@@ -297,15 +358,15 @@ def _research(reader, reservations):
                 validations.append(_placeholder(rid, 'research_scope_unavailable_during_holdout',
                                    validation_id=vid, result_id=rid, status='recording_error')); continue
             scommit = spec_commits.get(vid)
-            spec_valid = bool(spec and scommit and scommit.get('spec_hash') == digest(spec))
-            valid = bool(commit and commit.get('result_hash') == digest(result))
-            input_valid = bool(source_input and icommit and icommit.get('input_hash') == digest(source_input)
-                               and result.get('input_hash') == digest(source_input))
+            spec_valid = bool(spec and scommit and scommit.get('spec_hash') == checked_digest(spec))
+            valid = bool(commit and commit.get('result_hash') == checked_digest(result))
+            input_valid = bool(source_input and icommit and icommit.get('input_hash') == checked_digest(source_input)
+                               and result.get('input_hash') == checked_digest(source_input))
             if _blocked(result, reservations) or _blocked(source_input or {}, reservations):
                 validations.append(_placeholder(rid, 'prospective_validation_reserved', validation_id=vid, result_id=rid)); continue
             pid = (result.get('proposal') or {}).get('proposal_id') or (spec or {}).get('proposal_id')
             validations.append({'validation_id': vid, 'proposal_id': pid, 'result_id': rid,
-                'result_hash': digest(result), 'input_id': result.get('input_id'), 'input_hash': result.get('input_hash'),
+                'result_hash': checked_digest(result), 'input_id': result.get('input_id'), 'input_hash': result.get('input_hash'),
                 'status': 'recording_error' if valid and (not input_valid or not spec_valid) else result.get('status') if valid else 'unfinished',
                 'historical_result_status': result.get('status'), 'result_committed': valid,
                 'spec_integrity': 'verified' if spec_valid else 'unavailable_or_mismatch',
@@ -318,6 +379,7 @@ def _research(reader, reservations):
     return reviews, proposals, validations
 
 
+@objects.scoped
 def build_projection(market_as_of=None, knowledge_as_of=None):
     """Build a bounded projection; caller must reserve research use before display."""
     now = C.now(); cutoff = instant(knowledge_as_of or now)
@@ -366,8 +428,8 @@ def build_projection(market_as_of=None, knowledge_as_of=None):
                           and ref['id'] == reference.get('id')]
             # Some scorer references identify an item by application rather than
             # its file ID; those are still covered by the complete byte inventory.
-            if candidates and not any(reference.get('sha256') in
-                    (ref['sha256'], digest(reader.cache[ref['path']])) for ref in candidates):
+            if candidates and not any(reference.get('sha256') == ref['sha256'] or
+                    reference.get('sha256') == digest(reader.read(ref['path'],required=True)) for ref in candidates):
                 raise ValueError('CASE_SOURCE_CHANGED_DURING_PROJECTION')
         base['cases'] = [c for c in dataset['cases'] if not _blocked(c, reservations)]
         base['errors'].extend(dataset.get('errors', []))
@@ -472,14 +534,17 @@ def build_projection(market_as_of=None, knowledge_as_of=None):
                 e.get('coverage_event_id', e.get('call_event_id')) in call_ids or
                 (e.get('payload') or {}).get('judgment_id') in jid]
             exact_attempt_ids = {e.get('order_attempt_id') for e in own_exec} - {None}
-            own_exec = [e for e in executions if e in own_exec or e.get('order_attempt_id') in exact_attempt_ids]
+            # These are the same objects selected from executions above. Deep
+            # equality would repeatedly restore unrelated event payloads.
+            selected_objects = {id(e) for e in own_exec}
+            own_exec = [e for e in executions if id(e) in selected_objects or e.get('order_attempt_id') in exact_attempt_ids]
             own_exec = [e for e in own_exec if not _blocked(e, reservations)]
             base['traces'][tid] = {'trace_id': tid, 'target': row, 'visibility': 'available',
                 'observations': observations, 'deliveries': receipt_rows, 'judgments': own_j,
                 'premises': [c.get('application_snapshot', {'application_id': c['application_id']}) for c in own_cases],
                 'execution_context': execution, 'execution_events': own_exec, 'calls': calls, 'call_results': call_results,
                 'evaluations': own_cases, 'reviews': own_reviews, 'proposals': own_proposals, 'validations': own_validations,
-                'policy_contexts': [e for e in own_exec if 'policy' in json.dumps(e)],
+                'policy_contexts': [e for e in own_exec if _has_policy_context(e)],
                 'unavailable_judgments': [r for r in lost if r.get('code') == code and r.get('confidence_for') == side],
                 'source_refs': source_refs, 'errors': detail_errors,
                 'performance_contract': 'reference_price_returns_only; no_code_time_or_episode_pnl_attribution'}
@@ -528,7 +593,7 @@ def build_projection(market_as_of=None, knowledge_as_of=None):
     changed = []
     for ref in reader.manifest.values():
         try:
-            if hashlib.sha256((reader.root / ref['path']).read_bytes()).hexdigest() != ref['sha256']:
+            if objects.file_fingerprint(reader.root / ref['path'])[0] != ref['sha256']:
                 changed.append(ref['path'])
         except OSError:
             changed.append(ref['path'])

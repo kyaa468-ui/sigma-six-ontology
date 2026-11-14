@@ -1,0 +1,142 @@
+diff --git a/agent/.claude/hooks/risk_check.py b/agent/.claude/hooks/risk_check.py
+index d2c47c2..b48ec66 100644
+--- a/agent/.claude/hooks/risk_check.py
++++ b/agent/.claude/hooks/risk_check.py
+@@ -4,6 +4,7 @@
+ 에이전트가 무엇을 판단했든, 이 검사를 통과하지 못한 주문은 나가지 않습니다.
+ 검사 중 오류가 나도 주문을 막습니다 (fail closed).
+ """
++import hashlib
+ import json
+ import os
+ import sys
+@@ -21,30 +22,116 @@ def deny(reason):
+     sys.exit(0)
+ 
+ 
++def safe_audit(fn, *args, **kwargs):
++    try:
++        return fn(*args, **kwargs)
++    except Exception as exc:
++        try:
++            import judgment_coverage as JC
++            JC.recording_error(getattr(fn, "__name__", "hook_audit"), exc)
++        except Exception:
++            print(f"judgment hook audit recording_error: {exc}", file=sys.stderr)
++        return None
++
++
+ def main():
+     event = json.loads(sys.stdin.buffer.read().decode("utf-8"))
+     if not event.get("tool_name", "").endswith("place_order"):
+         return
++    # Research has no trading targets. Reject before opening the old coverage,
++    # execution reservation, or account/quote paths (including retry shortcuts).
++    if os.environ.get("RUN_MODE") in ("case_review", "proposal_review", "validation_review", "prompt_validation", "review", "tune"):
++        deny("회고·튜닝 실행에서는 주문하지 않습니다.")
+     import broker
+     import common as C
+     import risk
++    import execution_trace as E
++    import judgment_coverage as JC
+     C.load_env()
+ 
+     o = event.get("tool_input") or {}
+     order = {"code": str(o.get("code", "")), "side": o.get("side"), "qty": o.get("qty"),
+-             "confidence": o.get("confidence"), "rule_exit": o.get("rule_exit", False),
+-             "today_change": broker.cached_change(str(o.get("code", "")))}
+-    acc = C.read_json(C.ACCOUNT)
+-    price = broker.cached_quote(order["code"])
+-    if not acc or not price:
+-        deny("리스크 검증 불가: 먼저 get_account 와 plan_order 로 계좌와 현재가를 확인하세요.")
+-
+-    bad = risk.check(order, acc, price)
+-    if bad:
+-        name = order["code"]
+-        for rule, detail in bad:
+-            C.journal("block", code=order["code"], name=name, side=order["side"], rule=rule, detail=detail, by="hook")
+-        deny("리스크 규칙 위반으로 주문 차단: " + " / ".join(f"{a}({b})" for a, b in bad))
++             "confidence": o.get("confidence"), "rule_exit": o.get("rule_exit", False)}
++    event_id = safe_audit(JC.enter, "hook", order["code"], order["side"], order["confidence"],
++                          judgment_id=o.get("judgment_id"), rule_exit=order["rule_exit"])
++    audit, outcome = {}, {"status": "error"}
++    definition = E.capture_definition()
++    attempt_id = o.get("order_attempt_id")
++    try:
++        payload = {k: o.get(k) for k in ("code", "side", "qty", "confidence", "judgment_id", "plan_id", "rule_trigger_id")}
++        payload["code"] = str(o.get("code", ""))
++        payload["rule_exit"] = o.get("rule_exit", False)
++        if not payload.get("rule_trigger_id"):
++            try:
++                payload["rule_trigger_id"] = json.loads(os.environ.get("RULE_TRIGGER_IDS", "{}")).get(payload["code"])
++            except (ValueError, AttributeError):
++                pass
++        if not attempt_id:
++            # Transport call IDs change on recovery. A known plan already issued
++            # its stable token; legacy calls bind one intent within this run.
++            saved = E.load_plan(o['plan_id']) if o.get('plan_id') else None
++            identifier = (saved or {}).get('order_attempt_id')
++            if not identifier:
++                intent = [E.account_scope(), os.environ.get("RUN_ATTEMPT_ID"), event.get("session_id"), E.intent_fingerprint(payload)]
++                identifier = "order-" + hashlib.sha256(json.dumps(intent,sort_keys=True).encode()).hexdigest()[:40]
++            reserved = E.reserve_attempt(E.account_scope(), plan_id=o.get("plan_id"), attempt_id=identifier)
++            attempt_id = reserved.get("order_attempt_id")
++            if reserved.get("ok") is False or not attempt_id:
++                outcome = {"status": "blocked", "reason": "dispatch_guard_error", "guard": reserved}
++                deny("주문 전송 가드 저장 실패: 전송하지 않습니다.")
++        o = {**o, "order_attempt_id": attempt_id, "rule_trigger_id": payload.get("rule_trigger_id")}
++        probe = E.probe_attempt(E.account_scope(), attempt_id, payload)
++        if probe.get("status") == "error" or probe.get("ok") is False:
++            outcome = {"status": "blocked", "reason": "dispatch_guard_error", "guard": probe}
++            deny("주문 전송 가드 확인 실패: " + str(probe.get("error_code", "unknown")))
++        safe_audit(E.record, "hook_entry", order_attempt_id=attempt_id, plan_id=o.get("plan_id"),
++                   judgment_id=o.get("judgment_id"), tool_use_id=event.get("tool_use_id"), coverage_event_id=event_id,
++                   payload=payload)
++        if probe.get("status") in ("claimed", "complete"):
++            outcome = {"status": "replay_only", "dispatch_state": probe["status"]}
++            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
++                                                       "updatedInput": o}}, ensure_ascii=False))
++            return
++        import policy_registry as PR
++        stale = None if not o.get('plan_id') and (order['rule_exit'] or os.environ.get('RUN_MODE')=='exit') else PR.check_plan_revision(o.get("plan_id"))
++        if stale:
++            outcome = {"status": "blocked", **stale}
++            deny("적용 기준이 바뀌었습니다. 새 주문 계획을 먼저 만드세요.")
++        order["today_change"] = broker.cached_change(order["code"])
++        acc = C.read_json(C.ACCOUNT)
++        safe_audit(JC.observe_targets, account=acc)
++        price = broker.cached_quote(order["code"])
++        if not acc or not price:
++            outcome = {"status": "blocked", "reason": "missing_account_or_price"}
++            deny("리스크 검증 불가: 먼저 get_account 와 plan_order 로 계좌와 현재가를 확인하세요.")
++        policy_context = PR.build_context(order["code"], order["side"], judgment_id=o.get("judgment_id"))
++        with PR.use_context(policy_context):
++            stale = None if not o.get('plan_id') and (order['rule_exit'] or os.environ.get('RUN_MODE')=='exit') else PR.check_plan_revision(o.get('plan_id'))
++        if stale:
++            outcome = {'status':'blocked', **stale}
++            deny('정책이 변경되어 새 주문 계획이 필요합니다.')
++        with PR.use_context(policy_context):
++            bad = risk.check(order, acc, price, audit=audit)
++        audit['policy'] = policy_context.get('policy')
++        audit['policy_context'] = policy_context
++        outcome = {"status": "blocked" if bad else "allowed", "blocked": bad}
++        if bad:
++            name = order["code"]
++            for rule, detail in bad:
++                C.journal("block", code=order["code"], name=name, side=order["side"], rule=rule, detail=detail, by="hook",
++                          order_attempt_id=attempt_id, plan_id=o.get("plan_id"), judgment_id=o.get("judgment_id"))
++            deny("리스크 규칙 위반으로 주문 차단: " + " / ".join(f"{a}({b})" for a, b in bad))
++        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
++                                                   "updatedInput": o}}, ensure_ascii=False))
++    except Exception as exc:
++        outcome = {"status": "error", "error": str(exc)}
++        raise
++    finally:
++        safe_audit(JC.finish_event, event_id, outcome=outcome, boost=audit)
++        safe_audit(E.record, "risk_evaluation", order_attempt_id=attempt_id, plan_id=o.get("plan_id"),
++                   judgment_id=o.get("judgment_id"), actor="hook", coverage_event_id=event_id,
++                   result=outcome, inputs=audit, definition=definition)
++
+ 
+ 
+ if __name__ == "__main__":

@@ -38,7 +38,7 @@ def root(base=None):
     """base, when supplied, is the ontology directory rather than WORK."""
     if base is None:
         import common as C
-        base = Path(C.WORK) / 'ontology'
+        base = C.ontology_root()
     return Path(base) / 'snapshots' / 'blobs'
 
 
@@ -262,5 +262,21 @@ def decode(document, *, base=None, dependencies=None):
 
 
 def load(path, *, base=None, dependencies=None):
-    """Read and hydrate only. Missing records keep FileNotFoundError semantics."""
-    return decode(json.loads(Path(path).read_text(encoding='utf-8')), base=base, dependencies=dependencies)
+    """Trusted archive reader. v1 decode's independent-copy contract is unchanged."""
+    import record_store
+    return record_store.load(path, base=base, dependencies=dependencies)
+
+
+def put_object(value, *, kind='content', base=None):
+    from storage_objects import put_object as put
+    return put(value, kind=kind, base=base)
+
+
+def open_object(ref, *, base=None, resolver=None, fields=None):
+    from storage_objects import open_object as load_object
+    return load_object(ref, base=base, resolver=resolver, fields=fields)
+
+
+def canonical_chunks(value):
+    from storage_objects import chunks
+    return chunks(value)

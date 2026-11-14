@@ -1,8 +1,8 @@
 diff --git a/agent/src/logger.py b/agent/src/logger.py
-index 3353fd9..e4b5725 100644
+index 3353fd9..0f539c2 100644
 --- a/agent/src/logger.py
 +++ b/agent/src/logger.py
-@@ -8,14 +8,137 @@
+@@ -8,20 +8,145 @@
  """
  import os
  import sys
@@ -15,7 +15,10 @@ index 3353fd9..e4b5725 100644
  from datetime import datetime, timedelta
  
  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
- import common as C  # noqa: E402
+-import common as C  # noqa: E402
++import common as C
++import log_store
++import storage_objects as objects  # noqa: E402
 +import execution_trace as E  # noqa: E402
 +
 +
@@ -141,7 +144,14 @@ index 3353fd9..e4b5725 100644
  
  
  def names():
-@@ -34,7 +157,7 @@ def trades(rows):
+     """코드 → 종목명 (Hook 차단 기록에는 이름이 없어서 여기서 채움)."""
+     m = {}
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    b = C.load_briefing(default={}) or {}
+     for r in b.get("candidates", []) + b.get("holdings", []) + (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
+         m[r["code"]] = r["name"]
+     for r in C.read_jsonl(C.JOURNAL):
+@@ -34,7 +159,7 @@ def trades(rows):
      out_ = [{"id": i + 1, "time": r["time"], "code": r["code"], "name": r["name"], "side": r["side"],
               "qty": r["qty"], "price": r["price"], "amount": r["amount"], "confidence": r["confidence"],
               "regime": r.get("regime"), "bull": r["bull"], "bear": r["bear"], "decision": r["decision"],
@@ -150,7 +160,7 @@ index 3353fd9..e4b5725 100644
              for i, r in enumerate(x for x in rows if x["kind"] == "fill")]
      return reconcile(out_)
  
-@@ -48,6 +171,7 @@ def reconcile(ts):
+@@ -48,6 +173,7 @@ def reconcile(ts):
      acc = C.read_json(C.ACCOUNT, {}) or {}
      if not acc.get("holdings") and not ts:
          return ts
@@ -158,7 +168,7 @@ index 3353fd9..e4b5725 100644
      held = {h["code"]: h["qty"] for h in acc.get("holdings", [])}
      for code in {t["code"] for t in ts}:
          mine = [t for t in ts if t["code"] == code]
-@@ -66,11 +190,38 @@ def reconcile(ts):
+@@ -66,11 +192,38 @@ def reconcile(ts):
          q = last["qty"] + (diff if last["side"] == "매수" else -diff)
          if diff and q > 0:
              last["qty"], last["amount"] = q, q * last["price"]
@@ -197,7 +207,34 @@ index 3353fd9..e4b5725 100644
  def risks(rows, nm):
      seen, res = set(), []
      for r in rows:
-@@ -184,10 +335,10 @@ def run_items(run, nm):
+@@ -103,7 +256,7 @@ def holdings():
+ 
+ def system():
+     by = {}
+-    for r in C.read_jsonl(C.RUNS):
++    for r in log_store.iter_rows(C.RUNS, fields=('time','ok','tokens')):
+         d = by.setdefault(r["time"][:10], {"date": r["time"][:10], "runs": 0, "failures": 0, "tokens_k": 0.0})
+         d["runs"] += 1
+         d["failures"] += 0 if r.get("ok") else 1
+@@ -152,7 +305,7 @@ def next_run(now=None):
+ 
+ 
+ def status(note=""):
+-    runs = C.read_jsonl(C.RUNS)
++    runs = log_store.view(C.RUNS, fields=('time','ok','note'))
+     t = C.today().isoformat()
+     todays = [r for r in runs if r["time"].startswith(t)]
+     last = runs[-1] if runs else None
+@@ -164,7 +317,7 @@ def status(note=""):
+ 
+ def briefing():
+     """08:30 데이터 준비 결과 요약 (시장 지표 + 후보 종목). 판단 전에 '현재 판단' 카드에 보여줌."""
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    b = C.load_briefing(default={}) or {}
+     if not b:
+         return {}
+     m = b.get("market", {})
+@@ -184,10 +337,10 @@ def run_items(run, nm):
      for r in run:
          if r["kind"] == "decision":
              items[r["code"]] = {"code": r["code"], "name": nm.get(r["code"], r.get("name")), "action": r["action"],
@@ -210,3 +247,64 @@ index 3353fd9..e4b5725 100644
      for r in run:
          if r["kind"] == "block" and r["code"] in items and "blocked" not in items[r["code"]]:
              items[r["code"]]["blocked"] = f'{r["rule"]}: {r["detail"]}'
+@@ -201,7 +354,7 @@ def decision(rows, nm):
+     if not reg:
+         return {}
+     items = run_items([r for r in rows if r.get("run") == reg["run"]], nm)
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    b = C.load_briefing(default={}) or {}
+     mk = C.read_json(C.MARKETS, {}) or {}
+     for it in items:   # 20일 변동성 (연율화) · 시장. 대시보드가 종목명 옆·아래에 표시
+         row = C.briefing_row(it["code"], b) or {}
+@@ -254,7 +407,7 @@ def equity_close():
+         return
+     path = os.path.join(C.DOCS_DATA, "equity.json")
+     rows = [r for r in (C.read_json(path, []) or []) if r["date"] != C.today().isoformat()]
+-    b = C.read_json(C.BRIEFING, {}) or {}
++    b = C.load_briefing(default={}) or {}
+     m = b.get("market", {})
+     reg = C.latest_regime() or {}
+     rows.append({"date": C.today().isoformat(), "total": acc["total"],
+@@ -263,7 +416,7 @@ def equity_close():
+     out("equity", sorted(rows, key=lambda r: r["date"]))
+ 
+ 
+-def write_all(note=""):
++def _write_all(note=""):
+     rows = C.read_jsonl(C.JOURNAL)
+     nm = names()
+     out("trades", trades(rows))
+@@ -278,6 +431,33 @@ def write_all(note=""):
+     out("status", status(note))
+ 
+ 
++def write_all(note=""):
++    with log_store.scope():
++        _write_all(note)
++    publish_runtime_summaries()
++
++
++def publish_runtime_summaries():
++    try:
++        runtime,daily=log_store.runtime_summaries(C.RUNS)
++        import record_store
++        latest={};errors=[];inventory=0;count=0
++        for row in record_store.iter_records(C.ontology_root()/'runtime_operations',errors=errors):
++            count+=1;inventory^=int(objects.fingerprint(row)[0],16)
++            key=row['kind'];order=(row['started_at'],bool(row.get('finished_at')))
++            if key not in latest or order>(latest[key]['started_at'],bool(latest[key].get('finished_at'))):latest[key]=row
++        runtime['operations']=latest
++        runtime['operation_watermark']={'records':count,'sha256':f'{inventory:064x}','complete':not errors}
++        if errors:runtime.update(complete=False,operation_errors=errors[:20])
++        objects.publish_json(Path(C.WORK)/'runtime_summary.json',runtime,replace=True)
++        objects.publish_json(Path(C.WORK)/'daily_summary.json',daily,replace=True)
++    except Exception as exc:
++        # An unavailable summary is explicit; never claim an empty complete day.
++        for name in ('runtime_summary.json','daily_summary.json'):
++            objects.publish_json(Path(C.WORK)/name,
++                {'schema_version':2,'complete':False,'status':'recording_error','error':str(exc)},replace=True)
++
++
+ if __name__ == "__main__":
+     if "--close" in sys.argv:
+         equity_close()

@@ -1,4 +1,13 @@
 """Local-only coverage tests: missing submissions are part of the denominator."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 import socket
 import sys
@@ -188,7 +197,7 @@ def test_atomic_archive_never_replaces_existing_record(isolated):
     with pytest.raises(FileExistsError):
         V._write("coverage_events", "fixed-id", {"value": 2})
     path = isolated["path"] / "ontology/coverage_events/fixed-id.json"
-    assert json.loads(path.read_text())["value"] == 1
+    assert read_stored(path)["value"] == 1
     assert not list(path.parent.glob("*.tmp"))
 
 

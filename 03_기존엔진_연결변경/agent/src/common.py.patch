@@ -1,5 +1,5 @@
 diff --git a/agent/src/common.py b/agent/src/common.py
-index 8b145fa..6a306cf 100644
+index 8b145fa..fdf663b 100644
 --- a/agent/src/common.py
 +++ b/agent/src/common.py
 @@ -1,8 +1,10 @@
@@ -26,14 +26,95 @@ index 8b145fa..6a306cf 100644
          return default
  
  
-@@ -88,12 +93,15 @@ def read_jsonl(path):
-                     rows.append(json.loads(line))
-     except OSError:
-         pass
+@@ -80,20 +85,88 @@ def append_jsonl(path, row):
+ 
+ 
+ def read_jsonl(path):
+-    rows = []
+-    try:
+-        with open(path, encoding="utf-8") as f:
+-            for line in f:
+-                if line.strip():
+-                    rows.append(json.loads(line))
+-    except OSError:
+-        pass
++    import log_store
++    from audit_inputs import active
++    rows = log_store.view(path)
++    if active():
++        try: rows = log_store.capture(rows)
++        except FileNotFoundError: rows = []
++        except Exception:
++            # Audit failure cannot change engine inputs or trading policy.
++            observed_read(path, None, 'recording_error')
 +    observed_read(path, rows)
++    if os.path.abspath(path)==os.path.abspath(JOURNAL):
++        summary=log_store.aggregate(rows,today().isoformat())
++        try:rows._journal_summary=(today().isoformat(),summary)
++        except AttributeError:pass
      return rows
  
  
++def load_briefing(view='engine', default=None):
++    if view not in ('engine','evidence'): raise ValueError('Unknown briefing view')
++    import record_store
++    try:
++        value = record_store.load_input(storage_input_path(BRIEFING))
++    except FileNotFoundError:
++        if os.path.exists(storage_input_path(BRIEFING)): raise
++        observed_read(BRIEFING, default, 'default_missing_or_invalid')
++        return default
++    observed_read(BRIEFING, value)
++    return value
++
++
++def write_briefing(value):
++    import record_store
++    return record_store.write_input(storage_input_path(BRIEFING, writing=True), value, kind='briefing')
++
++
++def iter_prep_rows():
++    import record_store
++    path = storage_input_path(os.path.join(WORK, 'prep_rows.json'))
++    try: yield from record_store.load_input(path)
++    except FileNotFoundError:
++        if os.path.exists(path): raise
++
++
++def write_prep_rows(rows):
++    import record_store
++    return record_store.write_input(storage_input_path(os.path.join(WORK,'prep_rows.json'), writing=True), rows, kind='analysis_rows')
++
++
++def ontology_root():
++    """The explicit generation pointer never relocates mutable trading ledgers."""
++    from pathlib import Path
++    pointer=Path(WORK)/'storage_generation.json'
++    if not pointer.exists():return Path(WORK)/'ontology'
++    with pointer.open(encoding='utf-8') as stream:state=json.load(stream)
++    if state.get('version')==1:return Path(WORK)/'ontology'
++    if state.get('version')!=2:raise ValueError('UNSUPPORTED_STORAGE_VERSION')
++    generation=Path(state['path'])
++    if not generation.is_absolute() or generation.is_symlink():raise ValueError('INVALID_STORAGE_GENERATION')
++    return generation/'ontology'
++
++
++def storage_input_path(path, writing=False):
++    from pathlib import Path
++    generation=ontology_root().parent
++    selected=generation/Path(path).name
++    return str(selected if writing or selected.exists() else path)
++
++
++def load_analysis_row(code, ref=None):
++    if ref is not None:
++        import snapshot_store
++        row = snapshot_store.open_object(ref)
++        if row.get('code') != code: raise ValueError('ANALYSIS_CODE_MISMATCH')
++        return row
++    return next((row for row in iter_prep_rows() if row.get('code') == code), None)
++
++
  def journal(kind, **fields):
      """kind: regime | decision | fill | block | review"""
      row = {"kind": kind, "time": stamp(), "run": os.environ.get("RUN_ID", ""), "mode": os.environ.get("RUN_MODE", ""), **fields}
@@ -42,7 +123,7 @@ index 8b145fa..6a306cf 100644
      append_jsonl(JOURNAL, row)
      return row
  
-@@ -103,6 +111,15 @@ def risk_limits():
+@@ -103,6 +176,15 @@ def risk_limits():
  
  
  def params():
@@ -58,7 +139,51 @@ index 8b145fa..6a306cf 100644
      return read_json(os.path.join(CONFIG, "params.json"))
  
  
-@@ -320,15 +337,19 @@ def exit_levels(code, p=None, briefing=None):
+@@ -133,7 +215,8 @@ def week_factor(p=None, d=None):
+ 
+ 
+ def fill_count():
+-    return sum(1 for r in read_jsonl(JOURNAL) if r["kind"] == "fill")
++    rows=read_jsonl(JOURNAL);summary=_journal_totals(rows,today().isoformat())
++    return sum(1 for row in rows if row['kind']=='fill') if summary['invalid'] else summary['fills']
+ 
+ 
+ def probe_floor(p=None):
+@@ -154,7 +237,7 @@ def buy_threshold(p=None):
+ 
+ 
+ def briefing_row(code, briefing=None):
+-    b = briefing if briefing is not None else (read_json(BRIEFING, {}) or {})
++    b = briefing if briefing is not None else (load_briefing(default={}) or {})
+     return next((r for r in b.get("candidates", []) + b.get("holdings", []) if r.get("code") == code), None)
+ 
+ 
+@@ -272,16 +355,18 @@ def stock_value(holdings, p=None):
+ 
+ def sold_today(code):
+     """오늘 이 종목을 판 적이 있는지 (체결 기록 기준). 판 종목은 그날 다시 사지 않음 (decision.no_rebuy_same_day)."""
+-    t = today().isoformat()
+-    return any(r["kind"] == "fill" and r.get("side") == "매도" and r.get("code") == code and r["time"].startswith(t)
+-               for r in read_jsonl(JOURNAL))
++    rows=read_jsonl(JOURNAL);date=today().isoformat();summary=_journal_totals(rows,date)
++    if summary['invalid']:
++        return any(r['kind']=='fill' and r.get('side')=='매도' and r.get('code')==code and r['time'].startswith(date) for r in rows)
++    return code in summary['sold']
+ 
+ 
+ def buys_today(code):
+     """오늘 이 종목을 산 횟수 (체결 기록 기준)."""
+-    t = today().isoformat()
+-    return sum(1 for r in read_jsonl(JOURNAL)
+-               if r["kind"] == "fill" and r.get("side") == "매수" and r.get("code") == code and r["time"].startswith(t))
++    rows=read_jsonl(JOURNAL);date=today().isoformat();summary=_journal_totals(rows,date)
++    if summary['invalid']:
++        return sum(1 for r in rows if r['kind']=='fill' and r.get('side')=='매수' and r.get('code')==code and r['time'].startswith(date))
++    return summary['buys'].get(code,0)
+ 
+ 
+ def gross_take(net, p=None, tax=None):
+@@ -320,16 +405,20 @@ def exit_levels(code, p=None, briefing=None):
      return d["stop_loss_pct"], d["take_profit_pct"], d["max_hold_days"]
  
  
@@ -76,11 +201,13 @@ index 8b145fa..6a306cf 100644
 +               "adjustments": [], "cap": 1.0, "round_digits": 3}
      if side not in ("매수", "매도"):
 -        return conf, None
+-    b = briefing if briefing is not None else (read_json(BRIEFING, {}) or {})
 +        return {**details, "adjusted": conf, "note": None, "reason": "invalid_side"}
-     b = briefing if briefing is not None else (read_json(BRIEFING, {}) or {})
++    b = briefing if briefing is not None else (load_briefing(default={}) or {})
      row = next((r for r in b.get("candidates", []) + b.get("holdings", []) if r.get("code") == code), None) or {}
      bad_news = any(n.get("risk") for n in row.get("news", []))
-@@ -347,6 +368,14 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
+     add, notes = 0.0, []
+@@ -347,6 +436,14 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
          elif side == "매도" and rsi >= cfg["sell_at"]:
              add += cfg["add"]
              notes.append(f"{tag} {rsi} ≥ {cfg['sell_at']} 과열 매도 +{cfg['add']:.2f}")
@@ -95,7 +222,7 @@ index 8b145fa..6a306cf 100644
      mb = p.get("market_boost")
      if mb and side == "매수":
          regime = regime if regime is not None else (latest_regime() or {}).get("regime")
-@@ -356,7 +385,44 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
+@@ -356,7 +453,44 @@ def conf_boost(code, side, conf, p=None, briefing=None, regime=None):
              else:
                  add += mb["add"]
                  notes.append(f"{regime} 국면 매수 +{mb['add']:.2f}")
@@ -141,7 +268,22 @@ index 8b145fa..6a306cf 100644
  
  
  def _slot(t=None):
-@@ -458,10 +524,22 @@ def market_of(code, p=None, markets=None):
+@@ -401,9 +535,11 @@ def next_trade_time(t=None, p=None):
+ 
+ def latest_regime():
+     """오늘 기록된 마지막 시장 국면 (없으면 None)."""
+-    t = today().isoformat()
+-    rows = [r for r in read_jsonl(JOURNAL) if r["kind"] == "regime" and r["time"].startswith(t)]
+-    return rows[-1] if rows else None
++    rows=read_jsonl(JOURNAL);date=today().isoformat();summary=_journal_totals(rows,date)
++    if summary['invalid']:
++        matched=[r for r in rows if r['kind']=='regime' and r['time'].startswith(date)]
++        return matched[-1] if matched else None
++    return copy.deepcopy(summary['latest_regime'])
+ 
+ 
+ def prior_judgments(n=2, rows=None, run=None):
+@@ -458,10 +594,41 @@ def market_of(code, p=None, markets=None):
  _EXCH = None
  
  
@@ -168,3 +310,22 @@ index 8b145fa..6a306cf 100644
 +def trend_ok(px, row, regime=None, p=None):
 +    """기존 호출 계약: 추세 조건의 통과 여부만 반환."""
 +    return trend_evaluation(px, row, regime, p)["passed"]
++
++
++def _journal_totals(rows,date):
++    """Pure source-bundled reducer, also executable by the frozen engine."""
++    cached=getattr(rows,'_journal_summary',None)
++    if cached is not None and cached[0]==date:return cached[1]
++    result={'fills':0,'sold':set(),'buys':{},'latest_regime':None,'invalid':False}
++    for row in rows:
++        if not isinstance(row,dict) or 'kind' not in row:
++            result['invalid']=True;continue
++        kind=row['kind'];when=row.get('time')
++        if kind in ('fill','regime') and not isinstance(when,str):result['invalid']=True
++        if kind=='fill':
++            result['fills']+=1
++            if isinstance(when,str) and when.startswith(date):
++                if row.get('side')=='매도':result['sold'].add(row.get('code'))
++                elif row.get('side')=='매수':result['buys'][row.get('code')]=result['buys'].get(row.get('code'),0)+1
++        elif kind=='regime' and isinstance(when,str) and when.startswith(date):result['latest_regime']=row
++    return result

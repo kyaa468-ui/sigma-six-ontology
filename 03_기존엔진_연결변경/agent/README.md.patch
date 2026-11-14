@@ -1,5 +1,5 @@
 diff --git a/agent/README.md b/agent/README.md
-index 70f2635..66cf1e6 100644
+index 70f2635..6f801c3 100644
 --- a/agent/README.md
 +++ b/agent/README.md
 @@ -2,6 +2,142 @@
@@ -155,7 +155,7 @@ index 70f2635..66cf1e6 100644
  | always (from logon) | `sync` — every minute, pulls pushed code, checks it, restarts `monitor` / the balance loop if their code changed | no |
  
  Register them with `setup_tasks.ps1` (Windows Task Scheduler). The agent runs on an always-on PC and is edited from a laptop; see [MOVE_PC.md](MOVE_PC.md) (Korean) for moving it between machines.
-@@ -62,3 +199,250 @@ copy .env.example .env      :: fill KRX_ID / KRX_PW / NAVER_CLIENT_ID / NAVER_CL
+@@ -62,3 +199,258 @@ copy .env.example .env      :: fill KRX_ID / KRX_PW / NAVER_CLIENT_ID / NAVER_CL
  - Without `KRX_ID` / `KRX_PW`, data prep falls back to a fixed large-cap list without investor flow data.
  
  > Kiwoom App Key / Secret and any `.env` file are never committed (excluded via `.gitignore`).
@@ -406,3 +406,11 @@ index 70f2635..66cf1e6 100644
 +`--baseline-report`를 지정하면 이전 모의 실행의 후보 목록·부분 체결 수량·판단 적용률·중복 전송 횟수·손절 호출 시점과 비교합니다. 공용 원본을 포함한 전체 저장 용량과 온톨로지 기록 용량도 따로 비교하므로, 작은 참조 문서만 보고 절감률을 계산하지 않습니다. `--serve`는 해당 실행의 고정된 Sigma Six 화면을 로컬에서 열기만 합니다.
 +
 +오류를 일부러 주입한 사례는 거절·미확인·기록 오류가 정상 기대 결과입니다. 100주 요청 중 40주만 체결 확인하면 나머지 60주는 미확인으로 유지합니다. 복기 표본 부족, 연속 시세·감시 기록 없는 포트폴리오 평가, 실제 AI 품질과 키움 인증은 모의 실행 성공과 구별해서 읽어야 합니다. 이 실행은 운영 채택이나 매매 수익성 검증을 수행하지 않습니다.
++
++### 저장 v2 개발·복구 계약
++
++새 불변 기록은 `record_store`와 chunk 기반 `storage_objects`로 발행합니다. `common.read_json`은 일반 JSON만 읽습니다. 엔진 입력은 `load_briefing(view='engine'|'evidence')`, `iter_prep_rows()`, `load_analysis_row(code)`를 명시적으로 사용합니다. v1 기록은 호환 reader가 읽고, v2는 선택한 가지를 복원합니다.
++
++목록은 cursor로 이어 읽으며 기본 50행·최대 100행(기존 20행 상한 유지), 일반 페이지 1MiB, 원문 chunk 256KiB 제한을 적용합니다. 로컬 화면은 목록과 선택 상세를 별도로 요청합니다. `runtime_summary.json`·`daily_summary.json`은 원본 로그 watermark와 완전성을 포함합니다.
++
++형식·API·Sigma 적용 경계·사본 변환·복구 절차는 `../docs/STORAGE_V2.md`, 검증 결과와 D01~D31 추적표는 `../docs/STORAGE_V2_VALIDATION.md`를 참조합니다. 기존 자료를 자동 변환하거나 삭제하지 않습니다. 운영 전환·배포는 이번 로컬 구현과 별개입니다.

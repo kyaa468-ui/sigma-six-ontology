@@ -11,6 +11,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 import common as C
 import snapshot_store as S
+import record_store as R
+import storage_objects as O
 import scoring_store as SC
 import case_store as CS
 import proposal_store as PS
@@ -59,7 +61,8 @@ def test_cross_stage_records_reuse_large_input_and_preserve_logical_hashes(isola
         assert module.load('fixtures', 'same') == body
         path = module._path('fixtures', 'same')
         physical = json.loads(path.read_text())
-        envelope = S.decode(physical)
+        assert physical['format']==R.FORMAT
+        envelope = R.load(path)
         assert envelope['content_sha256'] == module.digest(body)
         original_bytes += len(module.canonical(envelope).encode())
     physical_bytes = sum(len(raw) for raw in inventory(isolated).values())
@@ -71,7 +74,8 @@ def test_old_inline_envelopes_and_idempotent_archive_remain_valid(store):
     body = {'record_id': 'old', 'large': large_value()}
     store.archive('fixtures', 'old', body)
     path = store._path('fixtures', 'old')
-    inline = S.decode(json.loads(path.read_text()))
+    inline = R.load(path)
+    R.commit_path(path).unlink()
     path.write_text(json.dumps(inline, ensure_ascii=False))
     before = path.read_bytes()
     assert store.load('fixtures', 'old') == body
@@ -118,14 +122,14 @@ def test_logical_hash_and_declared_size_cannot_be_changed():
 
 
 def test_atomic_publish_failure_does_not_publish_record(monkeypatch):
-    original = S._publish
+    original = O._publish_node
     calls = []
-    def fail_second(payload, base=None):
+    def fail_second(payload, kind, base=None):
         calls.append(payload)
         if len(calls) == 2:
             raise OSError('injected disk failure')
-        return original(payload, base)
-    monkeypatch.setattr(S, '_publish', fail_second)
+        return original(payload, kind, base)
+    monkeypatch.setattr(O, '_publish_node', fail_second)
     with pytest.raises(OSError, match='injected disk failure'):
         SC.archive('fixtures', 'failed', {'one': 'a' * 5000, 'two': 'b' * 5000})
     assert not SC._path('fixtures', 'failed').exists()
@@ -143,7 +147,7 @@ def test_blob_recording_failure_does_not_change_dispatch_or_retry_rights(monkeyp
         return {'ok': True, 'order_no': 'synthetic-order'}
     def failed_encoding(*args, **kwargs):
         raise OSError('injected snapshot storage outage')
-    monkeypatch.setattr(S, 'encode', failed_encoding)
+    monkeypatch.setattr(O, 'put_object', failed_encoding)
     first = E.dispatch_once(scope, attempt, payload, sender)
     retried = E.dispatch_once(scope, attempt, payload, sender)
     assert first['ok'] is True and first['recording_status'] == 'recording_error'

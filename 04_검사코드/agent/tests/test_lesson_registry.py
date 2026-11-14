@@ -1,4 +1,13 @@
 """Future adoption consumer seam; no step-7 adoption is performed by these tests."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 from datetime import timedelta
@@ -48,7 +57,7 @@ class Backend:
 
 def briefing(monkeypatch):
     setup_run(monkeypatch)
-    b=C.read_json(C.BRIEFING)
+    b=C.load_briefing()
     trace=O.SelectionTrace('prep',P,'상승','fixture')
     for row in b['candidates']:
         trace.begin(row,row['close'])
@@ -68,7 +77,7 @@ def install(monkeypatch, backend=None):
 
 def delivered(text):
     did=text.split('브리핑 전달 ID: ')[-1].splitlines()[0]
-    receipt=json.loads(J._path('deliveries',did).read_text())
+    receipt=read_stored(J._path('deliveries',did))
     return did,receipt,[e for e in receipt['evidence_catalog'] if e['kind']=='adopted_lesson']
 
 
@@ -205,7 +214,7 @@ def test_revocation_does_not_rewrite_original_receipt_or_adoption(monkeypatch):
     backend.proof_changes['revoked_at']=NOW.isoformat()
     assert not delivered(M.get_briefing())[2]
     assert J.load_judgment(accepted['judgment_id'])==stored
-    assert json.loads(J._path('deliveries',did).read_text())==receipt
+    assert read_stored(J._path('deliveries',did))==receipt
     # Validity at delivery remains usable; today's revocation cannot change a
     # historical reference into a mismatch on a later audit/submission.
     another=M.record_ai_judgments([judgment(did,items[0],key='old-receipt-after-revocation')])[0]
@@ -219,7 +228,7 @@ def test_current_backend_failure_preserves_briefing_and_candidate_order(monkeypa
     selected=L.select_for_briefing(b)
     assert selected['recording_status']=='recording_error' and not selected['lessons']
     text=M.get_briefing(); assert '브리핑 전달 ID' in text and not delivered(text)[2]
-    assert C.read_json(C.BRIEFING)['candidates']==b['candidates']
+    assert C.load_briefing()['candidates']==b['candidates']
 
 
 def test_literal_units_and_unregistered_or_future_fields_are_not_guessed(monkeypatch):
@@ -297,7 +306,8 @@ def test_frozen_subject_metadata_and_applicability_are_checked_again(monkeypatch
     did,receipt,items=delivered(M.get_briefing())
     lesson_item=next(e for e in receipt['evidence_catalog'] if e['kind']=='adopted_lesson')
     lesson_item['lesson_context']['applicability']['inputs']['values']['features.regime']='하락'
-    J._path('deliveries',did).write_text(json.dumps(receipt,ensure_ascii=False))
+    from storage_fixture_helpers import replace_committed_fixture
+    replace_committed_fixture(J._path('deliveries',did),receipt)
     result=M.record_ai_judgments([judgment(did,items[0])])[0]
     assert result['status']=='rejected' and result['errors'][0]['code']=='LESSON_APPLICABILITY_MISMATCH'
 
@@ -311,4 +321,4 @@ def test_malformed_backend_or_renderer_cannot_break_existing_briefing(monkeypatc
     _,receipt,items=delivered(text)
     assert not items and receipt['context']['lesson_selection_status']=='recording_error'
     assert receipt['context']['lesson_selection_state']=='unavailable'
-    assert C.read_json(C.BRIEFING)['candidates']==b['candidates']
+    assert C.load_briefing()['candidates']==b['candidates']

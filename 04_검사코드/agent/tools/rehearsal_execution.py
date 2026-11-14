@@ -196,7 +196,7 @@ def _install_sources(mp):
 def _submission(text, *, key, direction="sell"):
     import common as C
     delivery = text.split("브리핑 전달 ID: ")[-1].splitlines()[0]
-    receipt = C.read_json(str(Path(C.WORK) / "ontology/deliveries" / (delivery + ".json")))
+    receipt = __import__("record_store").load(Path(C.WORK) / "ontology/deliveries" / (delivery + ".json"))
     evidence = next(e for e in receipt["evidence_catalog"] if e["subject"] == MAIN and e["field"] == "inst_net")
     return {"request_key": key, "code": MAIN, "recommended_action": "매수", "confidence_for": "매수",
             "confidence_raw": .7, "decision": "고정 모의 판단: 상반된 수급을 인정하고 추세 유지 가설을 제출함",
@@ -264,7 +264,7 @@ def run_execution(mp, clock):
     _monitor_tick(transport)
     I.run()
     I.live_rsi()
-    briefing = C.read_json(C.BRIEFING)
+    briefing = C.load_briefing()
     assert not briefing["intraday"].get("kept_prep"), briefing["intraday"]
     main = next(r for r in briefing["candidates"] if r["code"] == MAIN)
     assert main["price"] == 20400 and main["ma20"] == 20000

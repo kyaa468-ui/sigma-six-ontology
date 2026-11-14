@@ -169,6 +169,8 @@ class Engine:
         common_ns.update(now=lambda: self.at, today=lambda: self.at.date(),
                          _EXCH=copy.deepcopy(module_state['common._EXCH']),
                          read_json=self.reads.read, read_jsonl=lambda path: self.reads.read(path, []),
+                         load_briefing=lambda view='engine', default=None: self.reads.read(C.BRIEFING, default),
+                         iter_prep_rows=lambda: iter(self.reads.read(os.path.join(C.WORK,'prep_rows.json'), [])),
                          write_json=_blocked, append_jsonl=_blocked, journal=_blocked, load_env=_blocked)
         def observed_read(path,value,status='read'):
             # C.params may return the pinned value without calling read_json.

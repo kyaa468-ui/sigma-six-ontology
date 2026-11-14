@@ -17,6 +17,10 @@ import uuid
 from pathlib import Path
 import common as C
 import validation_store as S
+import record_store
+import storage_objects
+import log_store
+from process_spool import Spool, raw_text
 
 TOOLS = ('get_briefing', 'get_account', 'record_ai_judgments')
 
@@ -100,7 +104,7 @@ class FrozenTools:
                         if key:self.requests[key]=(fingerprint,copy.deepcopy(row))
                         self.submissions.append(row)
                     result.append(row)
-        event = {'sequence': len(self.calls), 'tool': name, 'arguments': copy.deepcopy(arguments), 'result': copy.deepcopy(result)}
+        event = storage_objects.freeze({'sequence': len(self.calls), 'tool': name, 'arguments': arguments, 'result': result},kind='frozen_tool_call')
         self.calls.append(event)
         if self.sink: self.sink(event)
         return result
@@ -110,7 +114,7 @@ def _cli_stage(request, frozen):
     folder = S.root()/'ai_runtime'/request['trial_id']
     folder.mkdir(parents=True, exist_ok=False)
     manifest = folder/'input.json'
-    manifest.write_text(S.canonical(request), encoding='utf-8')
+    record_store.publish(manifest,request,kind='frozen_trial_input')
     config = folder/'mcp.json'
     config.write_text(S.canonical({'mcpServers': {'frozen': {'command': sys.executable,
         'args': [str(Path(__file__).with_name('validation_mcp.py')), str(manifest)],
@@ -129,30 +133,34 @@ def _cli_stage(request, frozen):
            '--max-budget-usd', str(request['budget_usd'])]
     env = {**os.environ, 'RUN_MODE': 'prompt_validation', 'RUN_ATTEMPT_ID': '', 'RUN_ID': request['trial_id']}
     temporary=tempfile.TemporaryDirectory(prefix='sigma-frozen-ai-')
+    spool=Spool(request['trial_id']);timed_out=False;parsed=None;returncode=None
     try:
-        process = subprocess.Popen(cmd, cwd=temporary.name, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                   stderr=subprocess.PIPE, encoding='utf-8', errors='replace', start_new_session=os.name!='nt')
+        process = subprocess.Popen(cmd, cwd=temporary.name, env=env, stdin=subprocess.DEVNULL, stdout=spool.stdout,
+                                   stderr=spool.stderr, start_new_session=os.name!='nt')
         try:
             out, err = process.communicate(timeout=request.get('timeout_seconds', 1500))
         except subprocess.TimeoutExpired:
             if os.name == 'nt': subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],capture_output=True)
             else: os.killpg(process.pid, signal.SIGKILL)
-            out, err = process.communicate()
-            (folder/'partial-output.json').write_text(S.canonical({'stdout':out,'stderr':err}),encoding='utf-8')
-            raise TimeoutError('AI trial timed out; retry is a separate experiment attempt')
+            out, err = process.communicate();timed_out=True
+        spool.accept(out,err);returncode=process.returncode
+        try:parsed=spool.result()
+        except (ValueError,TypeError):parsed=None
     finally:
-        temporary.cleanup()
+        raw=spool.capture();temporary.cleanup()
         path = folder/'calls.jsonl'
         if path.exists():
-            frozen.calls = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines()]
-            rows=[row for c in frozen.calls if c['tool']=='record_ai_judgments' and isinstance(c['result'],list) for row in c['result']]
+            frozen.calls=log_store.capture(log_store.view(path))
+            rows=(row for c in frozen.calls if c['tool']=='record_ai_judgments' and isinstance(c['result'],list) for row in c['result'])
             frozen.submissions=list({S.digest(row):row for row in rows}.values())
-    (folder/'provider-output.json').write_text(S.canonical({'stdout':out,'stderr':err,'returncode':process.returncode}),encoding='utf-8')
-    try: parsed=json.loads(out)
-    except (ValueError,TypeError):parsed=None
-    return {'returncode': process.returncode, 'stdout': out, 'stderr': err,
-            'provider_result': parsed, 'provider_result_status':'parsed' if isinstance(parsed,dict) else 'invalid_output',
-            'capture_scope': 'stdout_and_frozen_tool_io; no hidden reasoning or unavailable subagent output inferred'}
+    result={'returncode':returncode,'raw_output':raw,
+            'stdout':raw_text(raw['stdout']) if raw['stdout']['bytes']<=256*1024 else {'detail_ref':'raw_output.stdout'},
+            'stderr':raw_text(raw['stderr']) if raw['stderr']['bytes']<=256*1024 else {'detail_ref':'raw_output.stderr'},
+            'provider_result':parsed,'provider_result_status':'parsed' if isinstance(parsed,dict) else 'invalid_output',
+            'capture_scope':'stdout_and_frozen_tool_io; no hidden reasoning or unavailable subagent output inferred'}
+    record_store.publish(folder/('partial-output.json' if timed_out else 'provider-output.json'),result,kind='frozen_trial_output')
+    if timed_out:raise TimeoutError('AI trial timed out; retry is a separate experiment attempt')
+    return storage_objects.freeze(result,kind='frozen_trial_output')
 
 
 def _cli_provider(request, frozen):
@@ -161,7 +169,15 @@ def _cli_provider(request, frozen):
         return _cli_stage(request,frozen)
     outputs=[]
     for name,fraction in [('bull',.25),('bear',.25),('coordinator',.5)]:
-        prior='\nFROZEN SUBAGENT OUTPUTS\n'+S.canonical(outputs)
+        prompt_outputs=[]
+        for output in outputs:
+            result=dict(output['result'])
+            for field in ('stdout','stderr'):
+                if isinstance(result.get(field),dict) and result.get('raw_output'):
+                    result[field]=raw_text(result['raw_output'][field])
+            result.pop('raw_output',None)
+            prompt_outputs.append({**output,'result':result})
+        prior='\nFROZEN SUBAGENT OUTPUTS\n'+S.canonical(prompt_outputs)
         prompt=(agents[name] if name!='coordinator' else request['prompt'])+prior
         prompt+='\nUse frozen get_briefing/get_account only for target '+S.canonical(request['target'])+'. Missing original web results stay unavailable.'
         if name!='coordinator':prompt+=' Return your argument report to the coordinator; do not submit a final judgment.'

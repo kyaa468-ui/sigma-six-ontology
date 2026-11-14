@@ -1,4 +1,13 @@
 """Execution input capture and legacy monitor timing, entirely local."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -19,8 +28,8 @@ import risk
 import sizing
 
 FIX = ROOT / 'tests/fixtures/ontology'
-P = json.loads((FIX / 'params.json').read_text())
-R = json.loads((FIX / 'risk_limits.json').read_text())
+P = read_stored(FIX / 'params.json')
+R = read_stored(FIX / 'risk_limits.json')
 NOW = datetime.fromisoformat('2026-11-06T10:00:00+09:00')
 
 
@@ -151,7 +160,7 @@ def test_monitor_does_not_link_an_unsaved_trigger(monkeypatch):
 
 
 def legacy_namespace(module):
-    fixture=json.loads((FIX/'execution_baseline_source.json').read_text())
+    fixture=read_stored(FIX/'execution_baseline_source.json')
     assert fixture['baseline_commit']=='25f7da455f025720564ccd56ced36df4ea3ece1b'
     namespace=dict(vars(module))
     exec(compile(fixture['functions'][module.__name__], '<frozen-before-step3>', 'exec'), namespace)

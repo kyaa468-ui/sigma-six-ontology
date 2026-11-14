@@ -10,9 +10,10 @@ import json
 import gzip
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs, unquote
 
 import trace_snapshot
+import trace_pages
 
 ASSETS = Path(__file__).resolve().parents[1] / 'review'
 _ROUTES = {'/': ('index.html', 'text/html'), '/trace.js': ('trace.js', 'text/javascript'),
@@ -45,7 +46,7 @@ def create_server(view_id, port=8765):
             pass  # A GET does not create an access ledger or disclose URL contents.
 
         def send_payload(self, status, data, content_type='application/json'):
-            body = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False, allow_nan=False).encode()
+            body = data if isinstance(data, bytes) else json.dumps(data, ensure_ascii=False, allow_nan=False,separators=(',',':')).encode()
             # The stored logical view is unchanged. Compress only transport to
             # browsers that explicitly accept it; no extra copy is saved.
             compressed = content_type == 'application/json' and len(body) > 1024 and _accepts_gzip(self.headers.get('Accept-Encoding', ''))
@@ -78,23 +79,42 @@ def create_server(view_id, port=8765):
             if not self.safe_request():
                 return self.send_payload(403, {'status': 'forbidden'})
             parsed = urlsplit(self.path)
-            if parsed.query or parsed.fragment:
+            if parsed.fragment:
                 return self.send_payload(404, {'status': 'not_found'})
             if parsed.path in _ROUTES:
+                if parsed.query:return self.send_payload(404,{'status':'not_found'})
                 filename, content_type = _ROUTES[parsed.path]
                 try:
                     return self.send_payload(200, (ASSETS / filename).read_bytes(), content_type)
                 except OSError:
                     return self.send_payload(503, {'status': 'asset_unavailable'})
-            if parsed.path == '/api/view':
+            if parsed.path.startswith('/api/'):
                 try:
-                    value = trace_snapshot.load_view_snapshot(view_id)
-                    status = 200 if isinstance(value.get('projection'), dict) else 409
-                    return self.send_payload(status, value)
-                except Exception:
-                    # Paths and raw errors belong to local preparation diagnostics,
-                    # not an accidental stack trace in a browser response.
-                    return self.send_payload(503, {'status': 'recording_error', 'view_id': view_id})
+                    query=parse_qs(parsed.query,strict_parsing=True)
+                    allowed={'cursor','limit','search','field','offset'}
+                    if set(query)-allowed or any(len(v)!=1 for v in query.values()):
+                        return self.send_payload(404, {'status':'invalid_query'})
+                    args={k:v[0] for k,v in query.items()}
+                    value=trace_snapshot.load_view_snapshot(view_id)
+                    if not isinstance(value.get('projection'),dict):return self.send_payload(409,value)
+                    route=parsed.path[len('/api/'):].split('/')
+                    if route==['view']:
+                        if query:return self.send_payload(400,{'status':'invalid_query'})
+                        result=trace_pages.summary(value)
+                    elif len(route)==1 and route[0] in trace_pages.LISTS:
+                        result=trace_pages.list_page(value,route[0],cursor=args.get('cursor'),
+                            limit=int(args.get('limit',50)),search=args.get('search',''))
+                    elif len(route)==2 and route[0] in ('trace','case','proposal','validation','policy'):
+                        result=trace_pages.detail(value,route[0],unquote(route[1]),field=args.get('field'),
+                            cursor=args.get('cursor'),limit=int(args.get('limit',50)))
+                    elif len(route)==3 and route[0]=='chunk':
+                        result=trace_pages.chunk(value,route[1],unquote(route[2]),args.get('field'),int(args.get('offset',0)))
+                    elif len(route)==4 and route[0]=='relations':
+                        result=trace_pages.relations(value,route[1],unquote(route[2]),route[3],cursor=args.get('cursor'),limit=int(args.get('limit',50)))
+                    else:return self.send_payload(404,{'status':'not_found'})
+                    return self.send_payload(404 if result.get('status')=='not_found' else 200,result)
+                except (ValueError,TypeError):return self.send_payload(400,{'status':'invalid_request'})
+                except Exception:return self.send_payload(503,{'status':'recording_error','view_id':view_id})
             return self.send_payload(404, {'status': 'not_found'})
 
         def do_POST(self):

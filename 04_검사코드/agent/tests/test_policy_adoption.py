@@ -1,4 +1,13 @@
 """All approval/activation tests use temporary params and local proof records."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 from datetime import timedelta
@@ -18,12 +27,12 @@ import tuning as T
 def authority(monkeypatch,isolated):
     config=isolated/'config'; config.mkdir()
     params=config/'params.json'; params.write_text(json.dumps(P))
-    rules=json.loads(Path(T.RULES_PATH).read_text())
+    rules=read_stored(Path(T.RULES_PATH))
     (config/'tuning.json').write_text(json.dumps(rules))
     monkeypatch.setattr(C,'CONFIG',str(config))
     monkeypatch.setattr(T,'PARAMS_PATH',str(params))
     monkeypatch.setattr(T,'RULES_PATH',str(config/'tuning.json'))
-    monkeypatch.setattr(C,'params',lambda:json.loads(params.read_text()))
+    monkeypatch.setattr(C,'params',lambda:read_stored(params))
     monkeypatch.setenv('RUN_MODE','operator')
     def base():
         value={'definition_hash':'source-v1','params':S.semantic_params(C.params()),'risk':C.risk_limits(),'tuning':rules}

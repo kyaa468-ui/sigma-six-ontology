@@ -137,7 +137,8 @@ def test_loaded_identity_is_bound_to_original_definition_id(monkeypatch):
         import snapshot_store
         body=snapshot_store.load(path)
         body['source_identity']['status']='forged_runtime_identity'
-        path.write_text(json.dumps(body))
+        from storage_fixture_helpers import replace_committed_fixture
+        replace_committed_fixture(path,body)
     result=EC.execution_context([args['judgment_id']],C.now().isoformat())
     assert result['recording_status']=='recording_error'
     assert not result['engine_definitions']

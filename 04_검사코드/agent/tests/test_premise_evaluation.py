@@ -1,4 +1,13 @@
 """Step-4 premise scoring with fixed local observations and immutable records."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -319,10 +328,10 @@ def test_historical_backfill_does_not_replay_or_supersede_future_cutoff():
 def test_store_detects_valid_json_content_corruption():
     S.archive('fixtures', 'one', {'value': 1})
     path = S.root() / 'fixtures' / 'one.json'
-    payload = json.loads(path.read_text())
+    payload = read_stored(path)
     payload['record']['value'] = 2
     path.write_text(json.dumps(payload))
-    with pytest.raises(S.StoreError, match='hash mismatch'):
+    with pytest.raises(S.StoreError, match='hash mismatch|RECORD_FORMAT_CHANGED_AFTER_COMMIT'):
         S.load('fixtures', 'one')
     assert S.records('fixtures')['errors']
 

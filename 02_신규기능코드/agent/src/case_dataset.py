@@ -11,6 +11,8 @@ from pathlib import Path
 
 import ai_judgment as J
 import common as C
+import record_store
+import storage_objects as objects
 import evaluation_context as EC
 import judgment_context as CX
 import scoring_store as SS
@@ -32,11 +34,11 @@ def _number(value):
 
 def _read_original(kind, identifier):
     path = J._path(kind, identifier)
-    data = path.read_bytes()
-    row = json.loads(data)
+    row = record_store.load(path)
+    source_sha, _ = objects.file_fingerprint(path)
     if not isinstance(row, dict):
         raise ValueError('Source record must be an object')
-    return row, {'kind': kind, 'id': identifier, 'sha256': hashlib.sha256(data).hexdigest()}
+    return row, {'kind': kind, 'id': identifier, 'sha256': source_sha}
 
 
 def _unique_field(catalog, names):
@@ -344,6 +346,7 @@ def _reference_returns(contexts, execution, judgment_ids, cutoff, market_as_of):
     return list(output.values())
 
 
+@__import__("evaluation_context").scoped
 def build_cases(market_as_of, knowledge_as_of):
     cutoff = _time(knowledge_as_of)
     if cutoff > C.now() or date.fromisoformat(market_as_of) > cutoff.astimezone(C.KST).date():

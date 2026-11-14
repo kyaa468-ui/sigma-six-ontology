@@ -10,6 +10,8 @@ from pathlib import Path
 from functools import wraps
 
 import common as C
+import record_store
+import storage_objects as objects
 from ontology_adapter import load_definition_bundle, evaluate, digest
 
 
@@ -19,6 +21,7 @@ def stamp():
 
 def clean(value):
     """Strict JSON snapshots; pandas missing values must never become facts."""
+    if isinstance(value, (objects.ObjectDict, objects.ObjectList)): return value
     if isinstance(value, dict): return {k: clean(v) for k,v in value.items()}
     if isinstance(value, (list, tuple)): return [clean(v) for v in value]
     if isinstance(value, float) and not math.isfinite(value): return None
@@ -95,7 +98,7 @@ class SelectionTrace:
     @guarded
     def begin(self, row, px, daily_only=False):
         code=row['code']; oid=f'{self.id}:{code}'
-        sources=copy.deepcopy(row.get('_sources') or {})
+        sources=objects.freeze(clean(row.get('_sources') or {}), kind='source_observation')
         daily=sources.get('daily') or {}
         daily_source=daily.get('source') or 'pykrx:ohlcv'
         daily_meta={k:daily[k] for k in ('price_basis','provider_version','provider_finality','request_parameters') if k in daily}
@@ -128,7 +131,7 @@ class SelectionTrace:
                                  'substituted':fm.get('value') is None and row.get(key) is not None}
         rec={'observation_id':oid,'instrument_id':code,'instrument':{'code':code,'name':row.get('name'),'market':C.market_of(code)},
              'run_id':self.id,'created_at':stamp(),'measurements':measures,'source_snapshot':sources,
-             'engine_input':{k:copy.deepcopy(v) for k,v in row.items() if k not in ('_ontology','_sources')},
+             'engine_input':objects.freeze(clean({k:v for k,v in row.items() if k not in ('_ontology','_sources')}), kind='analysis_row'),
              'criteria':[],'rules':[],'comparison_id':f'{oid}:price-ma20','price_comparison':price_comparison(px,row.get('ma20'))}
         self.records[code]=rec
         values={k:v['value'] for k,v in measures.items()}
@@ -243,14 +246,14 @@ class SelectionTrace:
             rec=self.records.get(row['code'])
             if rec is None: continue
             path=route or ('high_vol' if row.get('high_vol') else 'general')
-            row['_ontology']={'observation':copy.deepcopy(rec),'admission':{'run_id':self.id,'route':path,'position':position},
+            row['_ontology']={'observation':objects.freeze(clean(rec), kind='observation'),'admission':{'run_id':self.id,'route':path,'position':position},
                               'definitions_hash':self.bundle['hash'] if self.bundle else None}
 
     @guarded
     def finish(self, b, **context):
         # Retained candidates carry the original observations, never fabricated new filter passes.
         self.snapshot.update(context)
-        self.snapshot['observations']=list(self.records.values())
+        self.snapshot['observations']=[objects.freeze(clean(r), kind='observation') for r in self.records.values()]
         self.snapshot['candidates']=[{'code':r['code'],'score':r.get('score'),'final_position':i,'evidence':r.get('_ontology')} for i,r in enumerate(b['candidates'],1)]
         self.snapshot['errors']=self.errors
         if self.snapshot.get('input_manifest'):
@@ -276,29 +279,15 @@ class SelectionTrace:
 
 
 def archive(kind, identifier, value):
-    folder=Path(C.WORK)/'ontology'/kind
-    folder.mkdir(parents=True,exist_ok=True)
-    # Exclusive create: an existing immutable record is never replaced.
-    path=folder/(identifier+'.json')
-    body=json.dumps(clean(value),ensure_ascii=False,indent=2,allow_nan=False)
-    # Publish the fully written file once; concurrent readers never see partial JSON.
-    fd, temporary = tempfile.mkstemp(prefix='.pending-', dir=folder)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
-            f.write(body)
-            f.flush()
-            os.fsync(f.fileno())
-        os.link(temporary, path)  # exclusive: FileExistsError preserves the prior receipt
-    finally:
-        os.unlink(temporary)
-    return path
+    path = C.ontology_root() / kind / (identifier + '.json')
+    return record_store.publish(path, clean(value), kind=kind)
 
 
 def mark_route(row, route, run_id=None):
     if not row.get('_ontology'): return
     row['_ontology']=copy.deepcopy(row['_ontology'])
     old=row['_ontology']['admission']
-    row['_ontology']['admission']={**old,'origin':copy.deepcopy(old),'route':route,'run_id':run_id or old['run_id']}
+    row['_ontology']['admission']={**old,'origin':copy.deepcopy(old.get('origin') or old),'route':route,'run_id':run_id or old['run_id']}
 
 
 def _render(b):

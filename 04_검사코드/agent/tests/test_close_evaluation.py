@@ -49,7 +49,7 @@ def price_provider(calendar, changes=None):
 
 def accepted(monkeypatch, *, version='v2', days=3, place=True):
     fake, manifest = setup_run(monkeypatch)
-    briefing = C.read_json(C.BRIEFING)
+    briefing = C.load_briefing()
     selection = O.SelectionTrace('prep', C.params(), '상승', 'local_fixture')
     candidates = D.screen(clone(briefing['candidates']), C.params(), True, '상승', trace=selection)
     selection.attach(candidates)
@@ -80,7 +80,7 @@ def test_real_tools_to_confirmed_refutation_without_trading_side_effects(monkeyp
     fake, manifest, app, jid, plan = accepted(monkeypatch)
     baseline = JC.get_coverage(manifest['run_attempt_id'])
     protected = {p: p.read_bytes() for p in Path(C.WORK).rglob('*')
-                 if p.is_file() and '/scoring/' not in str(p)}
+                 if p.is_file() and not p.name.startswith('storage_index.sqlite3') and '/scoring/' not in str(p)}
     provider = price_provider(calendar)
     at(monkeypatch, '2026-11-09T16:00:00+09:00')
     first = E.run_evaluation(calendar=calendar, provider=provider)
@@ -102,7 +102,9 @@ def test_real_tools_to_confirmed_refutation_without_trading_side_effects(monkeyp
     assert all(c['provider_finality'] == 'not_provided'
                for c in result['comparisons'] if c.get('source_snapshot'))
     job = M.get_close_evaluations(scoring_job_id=completed['scoring_job_id'])['jobs'][0]
-    assert job['items'][0]['execution_context']['orders']
+    assert job['detail_required']
+    full_job=S.load('job_results',completed['scoring_job_id'])
+    assert full_job['items'][0]['execution_context']['orders']
     assert JC.get_coverage(manifest['run_attempt_id']) == baseline
     assert len(fake.orders) == 1
     assert all(p.read_bytes() == data for p, data in protected.items())

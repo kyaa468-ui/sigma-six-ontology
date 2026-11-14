@@ -16,10 +16,13 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import common as C
+import record_store
+import storage_objects as objects
+import storage_errors
 import snapshot_store as snapshots
 
 STATUSES = ("not_submitted", "rejected", "accepted_unlinked", "linked", "recording_error")
-_ERRORS = {}  # Survives a failed disk write in the current process, never hides it.
+_ERRORS = storage_errors.ErrorRegistry()  # Survives a failed disk write in the current process, never hides it.
 _ID = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
@@ -28,7 +31,7 @@ def _now():
 
 
 def _root():
-    return Path(C.WORK) / "ontology"
+    return C.ontology_root()
 
 
 def _valid_id(value):
@@ -38,13 +41,12 @@ def _valid_id(value):
 def _error(attempt_id, operation, exc):
     item = {"error_id": "error-" + uuid.uuid4().hex, "run_attempt_id": attempt_id,
             "operation": operation, "error": str(exc), "created_at": _now()}
-    _ERRORS.setdefault((str(_root()), attempt_id), []).append(item)
     try:
         # A separate directory can survive an event-path failure in another process
         # (notably the order Hook). Total disk failure remains visible on stderr.
         _write("coverage_errors", item["error_id"], item)
     except Exception:
-        pass
+        storage_errors.retain(_ERRORS, (str(_root()), attempt_id), item)
     print(f"[judgment coverage recording_error] {operation}: {exc}", file=sys.stderr)
     return {"recording_status": "recording_error", "run_attempt_id": attempt_id, "errors": [item]}
 
@@ -59,30 +61,16 @@ def recording_error(operation, exc, attempt_id=None):
         # process from claiming success, but never interfere with a trading tool.
         item = {"error_id": "error-" + uuid.uuid4().hex, "run_attempt_id": attempt_id,
                 "operation": operation, "error": "Audit failure; error reporting also failed"}
-        _ERRORS.setdefault((str(_root()), attempt_id), []).append(item)
+        storage_errors.retain(_ERRORS, (str(_root()), attempt_id), item)
         return {"recording_status": "recording_error", "run_attempt_id": attempt_id, "errors": [item]}
 
 
 def _write(kind, identifier, data):
-    if not _valid_id(identifier):
-        raise ValueError("Invalid record ID")
+    if not _valid_id(identifier): raise ValueError('Invalid record ID')
     folder = _root() / kind
-    if kind in ("coverage_events", "coverage_errors") and _valid_id(data.get("run_attempt_id")):
-        folder = folder / data["run_attempt_id"]
-    path = folder / (identifier + ".json")
-    payload = json.dumps(snapshots.encode(data), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Readers (including another Hook/server process) see either the whole record
-    # or no record. link() publishes exclusively without replacing an existing ID.
-    fd, temporary = tempfile.mkstemp(prefix=".coverage-", suffix=".tmp", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(payload)
-            f.flush()
-            os.fsync(f.fileno())
-        os.link(temporary, path)
-    finally:
-        os.unlink(temporary)
+    if kind in ('coverage_events','coverage_errors') and _valid_id(data.get('run_attempt_id')):
+        folder = folder / data['run_attempt_id']
+    record_store.publish(folder / (identifier + '.json'), data, kind=kind)
     return data
 
 
@@ -94,32 +82,18 @@ def _event(attempt_id, event_type, **fields):
     return row
 
 
-def _records(kind, attempt_id=None):
-    rows, errors = [], []
-    root = _root() / kind
-    try:
-        paths = [p for p in root.iterdir() if p.suffix == ".json"]
-        if attempt_id and _valid_id(attempt_id):
-            folder = root / attempt_id
-            if folder.exists():
-                paths += list(folder.glob("*.json"))
-        elif kind in ("coverage_events", "coverage_errors"):
-            paths += list(root.glob("*/*.json"))
-    except FileNotFoundError:
-        return [], []
-    except OSError as exc:
-        return [], [{"operation": "read_" + kind, "error": str(exc), "unscoped": True}]
-    for path in sorted(paths):
-        try:
-            value = snapshots.load(path)
-            if not isinstance(value, dict):
-                raise ValueError("Record is not an object")
-            if not attempt_id or value.get("run_attempt_id") == attempt_id:
-                rows.append(value)
-        except (OSError, ValueError) as exc:
-            errors.append({"operation": "read_" + kind, "record": str(path.relative_to(root)),
-                           "error": str(exc), "unscoped": path.parent == root})
-    return rows, errors
+def _records(kind, attempt_id=None, fields=None):
+    errors=[];root=_root()/kind
+    rows=[]
+    folders=[root,root/attempt_id] if attempt_id and _valid_id(attempt_id) else [root]
+    for folder in folders:
+        failures=[]
+        rows.extend(record_store.iter_records(folder,filters={'run_attempt_id':attempt_id},fields=fields,errors=failures,recursive=not bool(attempt_id)))
+        for error in failures:
+            if error.get('record','').startswith(kind+'/'):error['record']=error['record'][len(kind)+1:]
+            error.update(operation='read_'+kind,unscoped=folder==root)
+        errors.extend(failures)
+    return rows,errors
 
 
 def _manifest(attempt_id):
@@ -298,7 +272,7 @@ def finish_attempt(attempt_id, status):
         return _error(attempt_id, "finish_attempt", exc)
 
 
-def _summarize(manifest, events, submissions, errors, judgment_loader=None):
+def _summarize(manifest, events, submissions, errors, judgment_loader=None, summary=False):
     attempt_id = manifest["run_attempt_id"]
     separate = manifest["kind"] == "exit"
     general = manifest["kind"] in ("decide", "view")
@@ -402,7 +376,7 @@ def _summarize(manifest, events, submissions, errors, judgment_loader=None):
     denominator = len(rows)
     recording_error = bool(errors or counts["recording_error"])
     linked_rate = counts["linked"] / denominator if denominator and not incomplete and not recording_error else None
-    return {"schema_version": 1, "run_attempt_id": attempt_id, "run_id": manifest["run_id"],
+    result = {"schema_version": 1, "run_attempt_id": attempt_id, "run_id": manifest["run_id"],
             "kind": manifest["kind"], "run_status": finish["status"] if finish else "unfinished",
             "target_set_incomplete": incomplete, "expected_count": denominator,
             "counts": counts, "linked_rate": linked_rate,
@@ -414,9 +388,21 @@ def _summarize(manifest, events, submissions, errors, judgment_loader=None):
                           "call_count": len(rule_calls), "events": rule_calls},
             "recording_status": "recording_error" if recording_error else "recorded",
             "recording_errors": errors}
+    if summary:
+        result['schema_version'] = 2
+        for row in result['targets']:
+            row['call_count'] = len(row.pop('calls'))
+            row['submission_count'] = len(row.pop('submissions'))
+            row['detail_ref'] = {'run_attempt_id':attempt_id,'code':row['code'], 'confidence_for':row['confidence_for']}
+        result['rejection_count'] = len(result.pop('rejection_history'))
+        result['rule_exit'].pop('events', None)
+        result['recording_error_count'] = len(result['recording_errors'])
+        result['recording_errors'] = result['recording_errors'][:50]
+        result['detail_ref'] = {'run_attempt_id':attempt_id}
+    return result
 
 
-def get_coverage(attempt_id=None):
+def get_coverage(attempt_id=None, *, summary=False):
     """Recompute even an unfinished run from its immutable start and events."""
     attempt_id = attempt_id or os.environ.get("RUN_ATTEMPT_ID")
     try:
@@ -428,9 +414,12 @@ def get_coverage(attempt_id=None):
                         "linked_rate": None, "target_set_incomplete": True, "recording_errors": errors}
             attempt_id = max(manifests, key=lambda m: (m.get("recorded_at_ns", 0), m.get("created_at", "")))["run_attempt_id"]
         manifest = _manifest(attempt_id)
-        events, event_errors = _records("coverage_events", attempt_id)
-        submissions, submission_errors = _records("submissions", attempt_id)
-        stored_errors, error_read_errors = _records("coverage_errors", attempt_id)
+        fields = ('event_id','run_attempt_id','event_type','recorded_at_ns','created_at','snapshot',
+                  'rule_exit','code','confidence_for','action','link','judgment_id','call_event_id','status') if summary else None
+        events, event_errors = _records("coverage_events", attempt_id, fields=fields)
+        submission_fields = ('event_id','run_attempt_id','code','confidence_for','status','judgment_id','created_at') if summary else None
+        submissions, submission_errors = _records("submissions", attempt_id, fields=submission_fields)
+        stored_errors, error_read_errors = _records("coverage_errors", attempt_id,fields=("error_id","run_attempt_id","operation","code","confidence_for","recorded_at_ns") if summary else None)
         events = [e for e in events if e.get("run_attempt_id") == attempt_id]
         submissions = [s for s in submissions if s.get("run_attempt_id") == attempt_id]
         own_errors = [e for e in stored_errors if e.get("run_attempt_id") == attempt_id]
@@ -439,8 +428,9 @@ def get_coverage(attempt_id=None):
         read_errors = event_errors + submission_errors + error_read_errors
         global_errors = [e for e in read_errors if e.get("unscoped")]
         errors = [e for e in read_errors if not e.get("unscoped")] + own_errors
-        result = _summarize(manifest, events, submissions, errors)
+        result = _summarize(manifest, events, submissions, errors, summary=summary)
         result["global_storage_errors"] = global_errors
+        result["fallback_state"] = _ERRORS.state()
         return result
     except Exception as exc:
         # A read must not create an error file or alter coverage history. Writers

@@ -1,5 +1,5 @@
 diff --git a/agent/CLAUDE.md b/agent/CLAUDE.md
-index 584c5f9..d0f9466 100644
+index 584c5f9..19ff39c 100644
 --- a/agent/CLAUDE.md
 +++ b/agent/CLAUDE.md
 @@ -6,11 +6,39 @@
@@ -42,7 +42,7 @@ index 584c5f9..d0f9466 100644
  실행 프롬프트가 어떤 실행인지 알려줍니다.
  
  ### A. 정기 판단 (09:30~15:15 15분마다, **모든 회차가 매매**)
-@@ -135,3 +163,32 @@
+@@ -135,3 +163,38 @@
  `bull`, `bear`, `decision` 은 각각 한국어 1~2문장, 숫자를 하나 이상 넣어 씁니다.
  - 좋은 예: bull "20일 수익률 +12%, 외국인 5일 +320억 순매수로 추세와 수급이 함께 강함"
  - 나쁜 예: "전망이 좋아 보임"
@@ -75,3 +75,9 @@ index 584c5f9..d0f9466 100644
 +### 변경안 검증과 운영 정책
 +
 +7번 검증·모의 계좌·AI 비교·미채택 제안은 매매 근거가 아닙니다. `policy_validation/`, `policy_registry/`를 읽거나 검증·채택 명령을 실행하지 마세요. 운영에 채택된 교훈은 서버가 브리핑에 명시적으로 전달한 적용 범위·유효기간·근거 ID만 사용합니다. 계획의 정책이 변경됐다는 응답이면 새 `plan_order`를 호출하세요. 이미 전송한 주문의 시도 ID는 유지하며 새 ID로 중복 주문하지 않습니다. 사람이 하는 채택·해제·되돌리기는 매매 AI의 역할이 아닙니다.
++
++## 저장 v2 조회 계약
++
++- `briefing.json`·`prep_rows.json`·`ontology/`의 저장 파일은 내부 참조와 manifest일 수 있습니다. 내용을 확인할 때 `get_briefing`·`get_account` 및 해당 판단·연구 조회 도구를 사용합니다. 블롭이나 인덱스의 값을 직접 인용 가능한 근거로 취급하지 않습니다.
++- 목록의 `schema_version`, `total`, `next_cursor`, `complete`를 확인하고, 필요한 다음 페이지는 같은 필터와 cursor로 요청합니다. `detail_required`·`_detail_links`가 있으면 연결된 상세 도구로 확인합니다. 생략된 원문을 읽었다고 서술하지 않습니다.
++- `get_judgment_coverage`는 상태와 개수 요약입니다. 판단·호출·거절의 원문이 필요하면 `get_judgment_detail`·`get_coverage_detail`을 사용합니다. 근거 내용·ID·제출 형식과 판단 기준은 위 계약을 그대로 따릅니다.

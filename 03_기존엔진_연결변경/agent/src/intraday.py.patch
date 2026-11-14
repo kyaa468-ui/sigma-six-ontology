@@ -1,20 +1,21 @@
 diff --git a/agent/src/intraday.py b/agent/src/intraday.py
-index dae6618..a1d5b96 100644
+index dae6618..8ed8522 100644
 --- a/agent/src/intraday.py
 +++ b/agent/src/intraday.py
-@@ -18,9 +18,11 @@ import os
+@@ -18,9 +18,12 @@ import os
  import re
  import sys
  import time
 +import uuid
  
  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
++import storage_objects
  import common as C  # noqa: E402
 +import ontology as O  # noqa: E402
  
  RANK_PATH = "/api/dostk/rkinfo"
  SESSION_MIN = 390   # 09:00~15:30
-@@ -38,7 +40,7 @@ def first_list(res, key):
+@@ -38,7 +41,7 @@ def first_list(res, key):
      return next((v for v in res.values() if isinstance(v, list)), [])
  
  
@@ -23,7 +24,7 @@ index dae6618..a1d5b96 100644
      """키움 순위 API 3번 → {code: {name, price, chg, value, foreign_qty, inst_qty}}. 원문은 work/rank_raw/ 에 남김."""
      calls = [
          ("value", "ka10032", {"mrkt_tp": "000", "mang_stk_incls": "0", "stex_tp": "1"}, "trde_prica_upper"),
-@@ -47,9 +49,12 @@ def fetch(brk, num):
+@@ -47,9 +50,12 @@ def fetch(brk, num):
      ]
      raw_dir = os.path.join(C.WORK, "rank_raw")
      os.makedirs(raw_dir, exist_ok=True)
@@ -37,7 +38,7 @@ index dae6618..a1d5b96 100644
          C.write_json(os.path.join(raw_dir, f"{tag}.json"), {"time": C.stamp(), "api": api, "body": body, "response": res})
          lists[tag] = first_list(res, key)
      for i, x in enumerate(lists["value"]):
-@@ -60,6 +65,9 @@ def fetch(brk, num):
+@@ -60,6 +66,9 @@ def fetch(brk, num):
          qty = abs(num(x.get("now_trde_qty")))
          pool[c] = {"code": c, "name": str(x.get("stk_nm", "")).strip(), "price": price,
                     "chg": round(num(x.get("flu_rt"), True) / 100, 4), "value": price * qty, "value_rank": i + 1}
@@ -47,7 +48,7 @@ index dae6618..a1d5b96 100644
      for tag in ("foreign", "inst"):
          for i, x in enumerate(lists[tag]):
              c = code6(x.get("stk_cd"))
-@@ -68,6 +76,11 @@ def fetch(brk, num):
+@@ -68,6 +77,11 @@ def fetch(brk, num):
              r = pool.setdefault(c, {"code": c, "name": str(x.get("stk_nm", "")).strip()})
              r[f"{tag}_qty"] = num(x.get("netslmt") or (num(x.get("buy_qty")) - num(x.get("sel_qty"))))
              r[f"{tag}_rank"] = i + 1
@@ -59,7 +60,7 @@ index dae6618..a1d5b96 100644
      return pool, {k: len(v) for k, v in lists.items()}
  
  
-@@ -99,34 +112,48 @@ def rank_pct(vals):
+@@ -99,34 +113,48 @@ def rank_pct(vals):
      return out
  
  
@@ -111,7 +112,7 @@ index dae6618..a1d5b96 100644
          ok.append(x)
      if not ok:
          return []
-@@ -140,12 +167,17 @@ def screen(rows, p, r, frac, regime=None):
+@@ -140,12 +168,17 @@ def screen(rows, p, r, frac, regime=None):
              sc -= s.get("spike_penalty", 0)
          raw.append(max(0.0, sc))
      top = max(raw) or 1
@@ -131,7 +132,7 @@ index dae6618..a1d5b96 100644
  
  
  def ensure_inverse(b, p, held):
-@@ -167,7 +199,7 @@ def ensure_inverse(b, p, held):
+@@ -167,7 +200,7 @@ def ensure_inverse(b, p, held):
          print("시장 ETF 후보 추가: " + ", ".join(r["name"] for r in rows))
  
  
@@ -140,7 +141,7 @@ index dae6618..a1d5b96 100644
      """장중 통과가 n개보다 적으면 08:30 후보로 n개까지 채우고(from_prep), 08:30 시장 ETF(인버스·지수) 후보는 항상 붙임.
      (11-04 09:30 처럼 통과 2개만 남아 판단할 게 없는 일 방지)"""
      out, have = list(cands), {c["code"] for c in cands}
-@@ -176,6 +208,7 @@ def fill_up(cands, prep, held, n):
+@@ -176,6 +209,7 @@ def fill_up(cands, prep, held, n):
              break
          if x["code"] not in have and x["code"] not in held and not etf(x):
              out.append({**x, "from_prep": True})
@@ -148,7 +149,7 @@ index dae6618..a1d5b96 100644
              have.add(x["code"])
      return out + [x for x in prep if etf(x) and x["code"] not in have and x["code"] not in held]
  
-@@ -211,7 +244,7 @@ def etf(x):
+@@ -211,7 +245,7 @@ def etf(x):
      return x.get("inverse") or x.get("index")
  
  
@@ -157,7 +158,7 @@ index dae6618..a1d5b96 100644
      import broker
      p, r = C.params(), C.risk_limits()
      it = p["screen"].get("intraday", {})
-@@ -224,7 +257,10 @@ def run(dry=False):
+@@ -224,7 +258,10 @@ def run(dry=False):
      if brk.name != "live":
          return print("mock 모드: 순위 API 가 없어 08:30 후보를 그대로 씀")
  
@@ -169,7 +170,21 @@ index dae6618..a1d5b96 100644
      print(f"순위 API: 거래대금 {sizes['value']} · 외국인 {sizes['foreign']} · 기관 {sizes['inst']} → 풀 {len(pool)}종목")
      if dry:
          for x in sorted(pool.values(), key=lambda x: x.get("value_rank", 999))[:15]:
-@@ -246,6 +282,7 @@ def run(dry=False):
+@@ -234,11 +271,11 @@ def run(dry=False):
+     if not pool:
+         raise RuntimeError("순위 API 결과가 비어 있음")
+ 
+-    b = C.read_json(C.BRIEFING)
++    b = C.load_briefing()
+     if not b:
+         raise RuntimeError("08:30 브리핑이 없음")
+     held = {h["code"] for h in (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", [])}
+-    cache = {x["code"]: x for x in (C.read_json(PREP_ROWS, []) or [])}
++    cache = {x["code"]: x for x in C.iter_prep_rows()}
+     ensure_inverse(b, p, held)
+ 
+     # 풀 정렬: 거래대금 순위·외국인·기관 순위 중 가장 좋은 것 순 → 일봉 지표가 없는 종목은 max_new_analyze 개까지만 새로 계산
+@@ -246,6 +283,7 @@ def run(dry=False):
                     key=lambda x: min(x.get("value_rank", 999), x.get("foreign_rank", 999), x.get("inst_rank", 999)))
      login, asof, new = None, None, 0
      rows = []
@@ -177,7 +192,7 @@ index dae6618..a1d5b96 100644
      for x in order:
          ind = cache.get(x["code"])
          if ind is None and new < it.get("max_new_analyze", 30):
-@@ -257,22 +294,43 @@ def run(dry=False):
+@@ -257,22 +295,43 @@ def run(dry=False):
                  ind = data_prep.analyze(x["code"], x["name"] or data_prep.name_of(x["code"]), p, asof, login)
              except Exception as e:  # noqa: BLE001
                  print(f"  ! {x['code']} 지표 실패: {e}")
@@ -211,8 +226,9 @@ index dae6618..a1d5b96 100644
 -        print("장중 조건을 통과한 종목이 없어 08:30 후보를 그대로 씀")
 +        print("장중 조건을 통과한 종목이 없어 직전 후보 목록을 유지함")
          b["intraday"] = {"time": n.strftime("%H:%M"), "pool": len(pool), "passed": 0, "kept_prep": True}
+-        C.write_json(C.BRIEFING, b)
 +        trace.finish(b, update_route="previous_list_retained", general_count=0, final_count=len(b["candidates"]))
-         C.write_json(C.BRIEFING, b)
++        C.write_briefing(b)
          return
      prep = b.get("candidates_prep", b.get("candidates", []))
 -    cands = fill_up(cands, prep, held, it.get("min_candidates", 0))
@@ -228,16 +244,19 @@ index dae6618..a1d5b96 100644
      old = {c["code"]: c for c in prep}
      need_news = [c for c in cands if c["code"] not in old]
      if need_news:
-@@ -285,11 +343,31 @@ def run(dry=False):
+@@ -285,11 +344,32 @@ def run(dry=False):
      b.setdefault("candidates_prep", b.get("candidates", []))
      b["candidates"] = cands
      b["intraday"] = {"time": n.strftime("%H:%M"), "pool": len(pool), "analyzed_new": new, "passed": len(cands), "kept_prep": False}
+-    C.write_json(C.BRIEFING, b)
+-    C.write_json(PREP_ROWS, list(cache.values()))
 +    trace.finish(b, general_count=general_count, final_count=len(cands))
-     C.write_json(C.BRIEFING, b)
-     C.write_json(PREP_ROWS, list(cache.values()))
++    C.write_briefing(b)
++    C.write_prep_rows(list(cache.values()))
      print(f"장중 후보 {len(cands)}개 ({n.strftime('%H:%M')}): " + ", ".join(f"{c['name']}({c['score']})" for c in cands))
  
  
++@storage_objects.scoped
 +def run(dry=False):
 +    """Preserve the legacy retained-list behavior on refresh failure, with an explicit failed attempt."""
 +    attempt = {}
@@ -246,21 +265,41 @@ index dae6618..a1d5b96 100644
 +    except Exception as exc:
 +        if dry:
 +            raise
-+        b = C.read_json(C.BRIEFING)
++        b = C.load_briefing()
 +        if not b:
 +            raise
 +        trace = O.SelectionTrace("intraday", C.params(), prior_selection=b.get("ontology"), **attempt)
 +        trace.errors.append(f"refresh: {type(exc).__name__}: {exc}")
 +        b["intraday"] = {"time": C.now().strftime("%H:%M"), "kept_prep": True, "error": str(exc)[:120]}
 +        trace.finish(b, update_route="previous_list_retained", general_count=None, final_count=len(b["candidates"]))
-+        C.write_json(C.BRIEFING, b)
++        C.write_briefing(b)
 +        print(f"장중 후보 갱신 실패, 직전 후보 목록 유지: {type(exc).__name__}: {exc}")
 +
 +
  PREP_ROWS = os.path.join(C.WORK, "prep_rows.json")   # 08:30 준비에서 계산한 전 종목 일봉 지표 (data_prep.build 가 씀)
  
  
-@@ -321,25 +399,55 @@ def live_rsi():
+@@ -301,6 +381,7 @@ def rsi_now(closes, price):
+     return round(float(gts.relative_strength_index(s, 14).iloc[-1]), 1)
+ 
+ 
++@storage_objects.scoped
+ def live_rsi():
+     """후보·보유 종목의 rsi14_live 를 지금 가격으로 채움 (conf_boost 가 씀). 오늘 산 종목도 보유에 넣음.
+     현재가는 순위 API 값(있으면) → 없으면 ka10001 (1.1초 간격). 종가가 없으면 pykrx 로 받음."""
+@@ -311,37 +392,67 @@ def live_rsi():
+     brk = broker.get()
+     if brk.name != "live":
+         return print("mock 모드: 장중 RSI 생략")
+-    b = C.read_json(C.BRIEFING)
++    b = C.load_briefing()
+     if not b:
+         return
+-    cache = {x["code"]: x for x in (C.read_json(PREP_ROWS, []) or [])}
++    cache = {x["code"]: x for x in C.iter_prep_rows()}
+     for x in b.get("candidates_prep", []) + b.get("candidates", []):
+         cache.setdefault(x["code"], x)
+     hold = b.setdefault("holdings", [])
      for h in (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
          if h["code"] not in {x["code"] for x in hold} and h["code"] in cache:
              hold.append({**cache[h["code"]]})
@@ -317,5 +356,18 @@ index dae6618..a1d5b96 100644
          x["rsi14_live"] = done[c]
 +        x["_sources"] = {**(x.get("_sources") or {}), "rsi14_live": provenance[c]}
      b["rsi_live_time"] = n.strftime("%H:%M")
-     C.write_json(C.BRIEFING, b)
+-    C.write_json(C.BRIEFING, b)
++    C.write_briefing(b)
      print(f"장중 RSI ({n.strftime('%H:%M')}): " + (", ".join(out) or "없음"))
+ 
+ 
+@@ -357,7 +468,7 @@ if __name__ == "__main__":
+         run(dry="--dry" in sys.argv)
+     except Exception as e:  # noqa: BLE001  실패해도 판단은 08:30 후보로 진행
+         print(f"장중 후보 갱신 실패, 08:30 후보를 그대로 씀: {type(e).__name__}: {e}")
+-        b = C.read_json(C.BRIEFING)
++        b = C.load_briefing()
+         if b:   # 실패도 briefing 에 남겨 대시보드·커밋에서 보이게
+             b["intraday"] = {"time": C.now().strftime("%H:%M"), "kept_prep": True, "error": f"{type(e).__name__}: {str(e)[:120]}"}
+-            C.write_json(C.BRIEFING, b)
++            C.write_briefing(b)

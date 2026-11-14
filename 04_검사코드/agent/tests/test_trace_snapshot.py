@@ -1,4 +1,13 @@
 """Offline view preparation boundaries: no hidden writes on reads or future data."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import hashlib
 import json
@@ -113,7 +122,7 @@ def test_incomplete_commit_is_unavailable_and_not_repaired(projection, monkeypat
 def test_tampered_view_is_error_not_empty_success(projection, filename):
     built = V.build_view_snapshot()
     path = V.root() / 'snapshots' / built['view_id'] / filename
-    value = json.loads(path.read_text())
+    value = read_stored(path)
     value['tampered'] = True
     if filename == 'commit.json': value['projection_hash'] = 'bad'
     path.write_text(json.dumps(value))
@@ -260,7 +269,7 @@ def test_scoring_read_change_cannot_receive_a_later_manifest_certificate(monkeyp
     source = SS.root() / 'evaluations/evaluation-race.json'
     def changed_after_case_read(*args):
         newer = {**original, 'value': 'NEW_SOURCE_VALUE'}
-        envelope = json.loads(source.read_text())
+        envelope = read_stored(source)
         envelope.update(record=newer, content_sha256=SS.digest(newer))
         source.write_text(json.dumps(envelope))
         return {'cases': [], 'errors': [], 'withheld_count': 0,

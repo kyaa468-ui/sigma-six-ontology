@@ -4,14 +4,20 @@ import sys
 from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 from prompt_validation import FrozenTools
+import record_store
+import storage_objects
+import common as C
 
 
 def main():
     path=Path(sys.argv[1])
-    request=json.loads(path.read_text(encoding='utf-8'))
+    # The explicit manifest path is supplied by the authorized experiment runner.
+    C.WORK=str(record_store.base_for(path).parent)
+    request=record_store.load(path)
     def sink(event):
         with (path.parent/'calls.jsonl').open('a',encoding='utf-8') as out:
-            out.write(json.dumps(event,ensure_ascii=False,allow_nan=False)+'\n');out.flush()
+            for part in storage_objects.chunks(event):out.write(part.decode('utf-8'))
+            out.write('\n');out.flush()
     frozen=FrozenTools(request,sink)
     server=FastMCP('frozen')
     @server.tool()

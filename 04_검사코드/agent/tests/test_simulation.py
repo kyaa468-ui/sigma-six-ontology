@@ -1,4 +1,13 @@
 """Paired, isolated virtual portfolios with explicit price/fill assumptions."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -27,7 +36,7 @@ def obs(identifier,at,price=20000,code='000001',qty=10000):
 
 
 def fixture():
-    p=json.loads((ROOT/'config/params.json').read_text());r=json.loads((ROOT/'config/risk_limits.json').read_text())
+    p=read_stored(ROOT/'config/params.json');r=read_stored(ROOT/'config/risk_limits.json')
     p['rsi_boost']=None;p['market_boost']=None
     decision={'decision_id':'one','at':START,'code':'000001','side':'매수','recommended_action':'매수',
         'module_state':{'common._EXCH':None},

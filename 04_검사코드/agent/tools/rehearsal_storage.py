@@ -25,7 +25,11 @@ def summarize_storage(workroot):
             dependencies = {}
             # This function runs after fixture patches have been restored. An
             # explicit base prevents accidentally reading the operating store.
-            snapshot_store.load(path, base=root / 'ontology', dependencies=dependencies)
+            import record_store, storage_objects
+            manifest=record_store.manifest(path,base=root/'ontology')
+            if manifest.get('format')==record_store.FORMAT:
+                storage_objects.verify_closure(manifest['object_ref'],base=root/'ontology',dependencies=dependencies)
+            else:snapshot_store.load(path,base=root/'ontology',dependencies=dependencies)
             for dependency in dependencies:
                 value = Path(dependency)
                 closure[str(value)] = value.stat().st_size
@@ -97,6 +101,35 @@ def compare_rehearsals(report, baseline_path):
         checks["monitor_retry_state"] = {"before": old_monitor.get("retry_state"),
             "after": new_monitor.get("retry_state"),
             "equal": old_monitor.get("retry_state") == new_monitor.get("retry_state")}
+    # Compare deterministic research decisions without regenerated IDs or source
+    # hashes, which intentionally change when storage code changes.
+    def research_values(saved):
+        research=saved.get('steps',{}).get('4-7',{})
+        scoring=research.get('4',{});review=research.get('5',{});validation=research.get('7',{})
+        checkpoints=[]
+        for row in scoring.get('checkpoints',[]):
+            item={key:row.get(key) for key in ('at','phase','verdict','data_status','period_status')}
+            first=row.get('first_known_refutation')
+            item['first_refutation']={key:first.get(key) for key in ('available_at','close','date','ma20','operator')} if first else None
+            checkpoints.append(item)
+        events=[{key:row.get(key) for key in ('kind','baseline_status','effect_status','baseline','expected','candidate','changed')}
+                for row in validation.get('event_replays',[])]
+        events.sort(key=lambda row:json.dumps(row,sort_keys=True,ensure_ascii=False))
+        selections=[{key:row.get(key) for key in ('baseline','expected','candidate','changed','pipeline_baseline','pipeline_candidate')}
+                    for row in validation.get('selection_replays',[])]
+        comparison={key:value for key,value in review.get('comparison',{}).get('summary',{}).items() if key!='case_ids'}
+        portfolio=validation.get('portfolio',{}).get('performance',{})
+        arms={name:{key:arm.get(key) for key in ('metrics','terminal_cash','terminal_equity','status')}
+              for name,arm in portfolio.get('arms',{}).items()}
+        return {'scoring_checkpoints':checkpoints,'daily_provider_requests':scoring.get('daily_provider_calls'),
+                'research_population':comparison,'model_seed_spec':review.get('statistics',{}).get('definition',{}).get('spec'),
+                'synthetic_model':review.get('synthetic_model_exercise'),
+                'proposal_count':research.get('6',{}).get('proposal_count'),
+                'validation_denominator':validation.get('coverage'),'execution_replays':events,'selection_replays':selections,
+                'portfolio_metrics':arms,'synthetic_portfolio':validation.get('synthetic_portfolio_exercise')}
+    a,b=research_values(before),research_values(report)
+    for key in a if ('4-7' in before.get('steps',{}) or '4-7' in report.get('steps',{})) else ():
+        checks[key]={'before':a[key],'after':b[key],'equal':a[key] is not None and a[key]==b[key]}
     old_storage = dict(before.get('storage', {}))
     old_root = Path(before.get('work', '')) if before.get('work') else None
     if old_root and old_root.is_dir() and 'ontology_bytes' not in old_storage:

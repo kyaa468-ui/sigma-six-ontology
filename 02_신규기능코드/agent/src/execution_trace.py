@@ -23,6 +23,8 @@ from datetime import timedelta, timezone
 from pathlib import Path
 
 import common as C
+import record_store
+import storage_objects as objects
 import snapshot_store as snapshots
 
 SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:@-]{0,199}\Z")
@@ -40,7 +42,7 @@ def _now():
 
 
 def _root():
-    return Path(C.WORK) / "ontology"
+    return C.ontology_root()
 
 
 def _context():
@@ -61,6 +63,7 @@ def _reference_status(value):
 
 def _clean(value):
     """Audit infinities are explicit, never JSON NaN or silently observed zeros."""
+    if isinstance(value, (objects.ObjectDict, objects.ObjectList)): return value
     if isinstance(value, dict):
         return {str(k): _clean(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -75,7 +78,7 @@ def _json(value):
 
 
 def _hash(value):
-    return hashlib.sha256(_json(value).encode()).hexdigest()
+    return objects.fingerprint(value)[0]
 
 
 def account_scope(broker=None):
@@ -122,7 +125,7 @@ def intent_fingerprint(payload):
 
 
 def _db_path():
-    return _root() / "order_dispatch.sqlite3"
+    return Path(C.WORK) / "ontology/order_dispatch.sqlite3"
 
 
 def _connect(create=False, readonly=False):
@@ -370,20 +373,11 @@ def dispatch_once(scope, attempt_id, payload, sender):
 
 
 def _archive(kind, identifier, row):
-    _id(kind, "record kind"); _id(identifier)
-    run = row.get("run_attempt_id") or "unscoped"
-    _id(run, "run attempt")
-    path = _root() / "executions" / run / kind / (identifier + ".json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".execution-", dir=path.parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            stream.write(_json(snapshots.encode(_clean(row))))
-            stream.flush(); os.fsync(stream.fileno())
-        os.link(temporary, path)
-    finally:
-        os.unlink(temporary)
-    return path
+    _id(kind, 'record kind'); _id(identifier)
+    run = row.get('run_attempt_id') or 'unscoped'
+    _id(run, 'run attempt')
+    path = _root() / 'executions' / run / kind / (identifier + '.json')
+    return record_store.publish(path, _clean(row), kind=kind)
 
 
 def record(kind, **fields):
@@ -391,7 +385,7 @@ def record(kind, **fields):
     identifier = "execution-" + uuid.uuid4().hex
     try:
         row = {"schema_version": "execution@v1", "event_id": identifier, "kind": kind,
-               "created_at": _now(), **_context(), **copy.deepcopy(fields)}
+               "created_at": _now(), **_context(), **objects.freeze(_clean(fields), kind='execution_inputs')}
         _archive(kind, identifier, row)
         return {**row, "recording_status": "recorded"}
     except Exception as exc:
@@ -406,7 +400,7 @@ def record_once(kind, request_key, **fields):
     """
     identifier = "execution-" + _hash([kind, request_key])
     try:
-        body = _clean(copy.deepcopy(fields))
+        body = objects.freeze(_clean(fields), kind='execution_inputs')
         row = {"schema_version": "execution@v1", "event_id": identifier, "kind": kind,
                "created_at": _now(), **_context(), **body, "content_hash": _hash(body)}
         try:
@@ -414,7 +408,7 @@ def record_once(kind, request_key, **fields):
         except FileExistsError:
             run = row.get("run_attempt_id") or "unscoped"
             _id(run, "run attempt"); _id(kind, "record kind")
-            previous = snapshots.load(_root() / "executions" / run / kind / (identifier + ".json"))
+            previous = record_store.load(_root() / "executions" / run / kind / (identifier + ".json"))
             if previous.get("content_hash") != row["content_hash"]:
                 raise GuardError("AUDIT_KEY_CONFLICT", "An immutable audit key already has different content")
             return {**previous, "recording_status": "recorded", "replayed": True}
@@ -685,7 +679,7 @@ def load_plan(plan_id):
         _id(plan_id, "plan")
         for path in (_root() / "executions").glob("*/order_plan/*.json"):
             try:
-                row = snapshots.load(path)
+                row = record_store.load(path)
             except (OSError, ValueError):
                 continue
             if row.get("plan_id") == plan_id:
@@ -732,27 +726,15 @@ def pending_orders(date=None):
 
 
 def _read_events():
-    events, errors = [], []
-    root = _root() / "executions"
-    if not root.exists():
-        return events, errors
-    for path in sorted(root.glob("*/*/*.json")):
-        try:
-            if path.parent.parent.name == "definitions":
-                continue
-            row = snapshots.load(path)
-            if not isinstance(row, dict):
-                raise ValueError("Execution event is not an object")
-            events.append(row)
-        except (OSError, ValueError) as exc:
-            errors.append({"run_attempt_id": path.parent.parent.name, "record": path.name, "error": str(exc)})
-    return events, errors
+    from execution_reader import EventRows
+    errors=[]
+    return EventRows(_root()/'executions',errors),errors
 
 
 def _load_json(kind, identifier):
     _id(identifier)
     path = _root() / kind / (identifier + ".json")
-    return snapshots.load(path)
+    return record_store.load(path)
 
 
 def get_execution_trace(plan_id=None, order_attempt_id=None, judgment_id=None, position_episode_id=None, rule_trigger_id=None):
@@ -765,12 +747,8 @@ def get_execution_trace(plan_id=None, order_attempt_id=None, judgment_id=None, p
     all_events, errors = _read_events()
     dispatch = []
     if _db_path().exists():
-        try:
-            db = _connect(readonly=True)
-            try: dispatch = [_decode(row) for row in db.execute("SELECT * FROM order_attempts ORDER BY created_at")]
-            finally: db.close()
-        except Exception as exc:
-            errors.append({"record": "order_dispatch.sqlite3", "error": str(exc)})
+        from execution_reader import DispatchRows
+        dispatch=DispatchRows(_connect,_decode,errors)
     elif _db_path().with_suffix(".identity.json").exists():
         errors.append({"record": "order_dispatch.sqlite3", "error": "Previously initialized dispatch ledger is missing"})
     # Expand explicit graph edges only. A matching instrument/time is never an edge.
@@ -785,17 +763,19 @@ def get_execution_trace(plan_id=None, order_attempt_id=None, judgment_id=None, p
         changed = True
         while changed:
             changed = False
-            for row in all_events + dispatch:
+            from itertools import chain
+            for row in chain(all_events.matching(ids),dispatch.matching(ids) if hasattr(dispatch,'matching') else dispatch):
                 refs = links(row)
                 if any(value in ids[key] for key, value in refs.items() if value is not None):
                     for key, value in refs.items():
                         if value is not None and value not in ids[key]: ids[key].add(value); changed = True
-        events = [row for row in all_events if any(value in ids[key] for key, value in links(row).items() if value is not None)]
-        dispatch = [row for row in dispatch if any(value in ids[key] for key, value in links(row).items() if value is not None)]
+        events = [row for row in all_events.matching(ids) if any(value in ids[key] for key, value in links(row).items() if value is not None)]
+        dispatch = [row for row in (dispatch.matching(ids) if hasattr(dispatch,'matching') else dispatch) if any(value in ids[key] for key, value in links(row).items() if value is not None)]
     else:
         run = os.environ.get("RUN_ATTEMPT_ID")
-        events = [row for row in all_events if not run or row.get("run_attempt_id") == run]
-        dispatch = [row for row in dispatch if not run or row.get("run_attempt_id") == run]
+        events = list(all_events._rows({"run_attempt_id":run} if run else None))
+        dispatch = list(dispatch.for_run(run) if hasattr(dispatch,'for_run') else dispatch)
+    events.sort(key=lambda row:(row.get("run_attempt_id") or "",row.get("kind") or "",row.get("event_id") or ""))
     own_runs = {row.get("run_attempt_id") for row in events + dispatch}
     global_errors = [error for error in errors if error.get("run_attempt_id") not in own_runs]
     errors = [error for error in errors if error.get("run_attempt_id") in own_runs or error.get("record") == "order_dispatch.sqlite3"]
@@ -857,7 +837,7 @@ def get_execution_trace(plan_id=None, order_attempt_id=None, judgment_id=None, p
     for eid in sorted(episode_ids):
         episode_events = [row for row in events if row.get("position_episode_id") == eid and row.get("kind") in ("position_opened", "position_closed")]
         state, db = None, None
-        path = _root() / "position_episodes.sqlite3"
+        path = Path(C.WORK) / "ontology" / "position_episodes.sqlite3"
         try:
             if path.exists():
                 db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
@@ -883,7 +863,7 @@ def get_execution_trace(plan_id=None, order_attempt_id=None, judgment_id=None, p
     for ref in {row.get("definition", {}).get("definition_id") for row in events if row.get("kind") == "order_plan"} - {None}:
         try:
             _id(ref)
-            definitions.append(snapshots.load(_root() / "executions/definitions/engine_definition" / (ref + ".json")))
+            definitions.append(record_store.load(_root() / "executions/definitions/engine_definition" / (ref + ".json")))
         except Exception as exc:
             missing.append({"kind": "definition", "id": ref, "reason": str(exc)})
     return {"recording_status": "recording_error" if errors else "partial" if missing else "recorded",

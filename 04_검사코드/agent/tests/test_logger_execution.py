@@ -1,4 +1,13 @@
 """Public projections preserve execution links and label balance reconciliation."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import json
 import socket
@@ -68,7 +77,7 @@ def test_balance_correction_is_estimate_with_immutable_before_after_and_dedup(is
     assert public['reconciliation_quality']=='balance_reconciled_estimate'
     assert rows==original and 'ordered' not in public
     files=archives(isolated); assert len(files)==1
-    before_bytes=files[0].read_bytes(); event=json.loads(before_bytes)
+    before_bytes=files[0].read_bytes(); event=read_stored(files[0])
     assert event['before']=={'qty':5,'price':100,'amount':500}
     assert event['after']=={'qty':10,'price':100,'amount':1000}
     assert event['source_account']['holdings'][0]['qty']==10
@@ -97,7 +106,7 @@ def test_legacy_numeric_reconciliation_is_unchanged(isolated,rows,held,expected)
     for row in result:
         assert not any(key in row for key in logger.TRACE_FIELDS)
     for path in archives(isolated):
-        event=json.loads(path.read_text())
+        event=read_stored(path)
         assert 'order_attempt_id' not in event and 'position_episode_id' not in event
         assert event['execution_quality']!='confirmed'
 

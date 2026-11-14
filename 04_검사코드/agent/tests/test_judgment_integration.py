@@ -1,4 +1,13 @@
 """Actual MCP/Hook/runner paths, all market data and subprocesses local fakes."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import importlib.util
 import io
 import itertools
@@ -45,7 +54,7 @@ def setup_run(monkeypatch, held=False):
 
 def submission(text, direction='sell', key='first', side='매수', action='매수'):
     did = text.split('브리핑 전달 ID: ')[-1].splitlines()[0]
-    receipt = json.loads((Path(C.WORK)/'ontology/deliveries'/f'{did}.json').read_text())
+    receipt = read_stored(Path(C.WORK)/'ontology/deliveries'/f'{did}.json')
     e = next(e for e in receipt['evidence_catalog'] if e['subject']=='000001' and e['field']=='inst_net')
     return {'request_key': key, 'code': '000001', 'recommended_action': action, 'confidence_for': side,
             'confidence_raw': .7, 'decision': '모의 판단', 'delivery_ids': [did], 'premises': [],
@@ -69,9 +78,9 @@ def test_actual_briefing_wrong_direction_and_corrected_judgment(monkeypatch):
     good = M.record_ai_judgments([item])[0]
     assert good['status']=='accepted'
     assert watch(good['judgment_id'])=={'ok':True}
-    cov = M.get_judgment_coverage()
+    cov = JC.get_coverage()
     assert cov['counts']['linked']==1 and len(cov['rejection_history'])==1
-    stored = M.get_ai_judgments(code='000001')['judgments'][0]
+    stored = M.get_judgment_detail(M.get_ai_judgments(code='000001')['judgments'][0]['judgment_id'])['item']
     assert stored['arguments'][1]['hypothesis_status']=='submitted_unverified'
     assert stored['decision_validation']=='submitted_unverified'
     assert cov['targets'][0]['calls'][0]['results'][0]['boost']['decision']['raw']==.7
@@ -90,7 +99,7 @@ def test_recording_status_never_changes_order_result(monkeypatch, mode, expected
     order = M.place_order('000001', '매수', planned['qty'], .7, 'bull', 'bear', 'local', judgment_id=jid,
                           plan_id=planned['plan_id'], order_attempt_id=planned['order_attempt_id'])
     assert order['ok'] and len(fake.orders)==1
-    cov = M.get_judgment_coverage(manifest['run_attempt_id'])
+    cov = JC.get_coverage(manifest['run_attempt_id'])
     assert cov['counts'][expected]==1
     assert len(cov['targets'][0]['calls'])==2
     if mode=='valid':
@@ -108,7 +117,7 @@ def test_account_delivery_and_held_two_directions(monkeypatch):
     assert watch(sell['judgment_id'], '매도', '보유')['ok']
     buy = M.record_ai_judgments([submission(text, key='add-on', action='보유')])[0]
     assert watch(buy['judgment_id'], '매수', '보유')['ok']
-    cov = M.get_judgment_coverage()
+    cov = JC.get_coverage()
     assert cov['expected_count']==2 and cov['counts']['linked']==2
     # Legacy record_decision still computes its action-based sell boost for '보유'.
     events = [t['calls'][0] for t in cov['targets'] if t['confidence_for']=='매수']
@@ -130,7 +139,7 @@ def test_hook_block_is_visible_without_server_or_submission(monkeypatch):
     monkeypatch.setattr(B, 'cached_quote', lambda code:20400)
     monkeypatch.setattr(B, 'cached_change', lambda code:0)
     with pytest.raises(SystemExit): hook.main()
-    cov=M.get_judgment_coverage()
+    cov=JC.get_coverage()
     assert cov['counts']['not_submitted']==1
     call=cov['targets'][0]['calls'][0]
     assert call['stage']=='hook' and call['results'][0]['outcome']['status']=='blocked'
@@ -143,13 +152,13 @@ def test_zero_plan_and_broker_failure_can_still_link(monkeypatch):
     planned = M.plan_order('000001','매수',.7,judgment_id=good)
     assert planned['qty']==0
     assert watch(good)['ok']
-    assert M.get_judgment_coverage()['counts']['linked']==1
+    assert JC.get_coverage()['counts']['linked']==1
     monkeypatch.setattr(fake,'order',lambda *a,**k:{'ok':False,'error':'local_failure'})
     # Real risk policy still runs; use one share within legacy limits.
     res=M.place_order('000001','매수',1,.7,'b','s','d',judgment_id=good,
                       plan_id=planned['plan_id'],order_attempt_id=planned['order_attempt_id'])
     assert not res['ok']
-    assert M.get_judgment_coverage()['counts']['linked']==1
+    assert JC.get_coverage()['counts']['linked']==1
 
 
 def test_runner_regime_only_success_is_not_coverage_success(monkeypatch):
@@ -177,13 +186,13 @@ def test_coverage_write_failure_preserves_legacy_watch(monkeypatch):
     setup_run(monkeypatch)
     monkeypatch.setattr(JC,'_write',lambda *a,**k: (_ for _ in ()).throw(OSError('fixture disk failure')))
     assert watch()['ok']
-    cov=M.get_judgment_coverage()
+    cov=JC.get_coverage()
     assert cov['recording_status']=='recording_error' and cov['linked_rate'] is None
 
 
 def test_confidence_details_match_frozen_engine():
     ns=dict(vars(C))
-    exec(json.loads((FIX/'baseline_conf_boost.json').read_text())['source'],ns)
+    exec(read_stored(FIX/'baseline_conf_boost.json')['source'],ns)
     for side,raw,rsi,regime,bad in itertools.product(['매수','매도','invalid'],[0,.6,.955,1.1],[None,20,50,85],['하락','상승'],[True,False]):
         b=brief([row(code='000001',rsi14=rsi,news=[{'risk':bad}])])
         old=ns['conf_boost']('000001',side,raw,P,b,regime)
@@ -196,10 +205,10 @@ def test_later_audit_exception_cannot_leave_false_full_coverage(monkeypatch):
     setup_run(monkeypatch)
     jid=M.record_ai_judgments([submission(M.get_briefing())])[0]['judgment_id']
     watch(jid)
-    assert M.get_judgment_coverage()['linked_rate']==1
+    assert JC.get_coverage()['linked_rate']==1
     monkeypatch.setattr(JC,'enter',lambda *a,**k:(_ for _ in ()).throw(RuntimeError('audit extension failed')))
     assert watch(jid)['ok']
-    cov=M.get_judgment_coverage()
+    cov=JC.get_coverage()
     assert cov['recording_status']=='recording_error' and cov['linked_rate'] is None
 
 
@@ -240,6 +249,6 @@ def test_hook_cache_error_is_recorded_before_denial(monkeypatch):
     monkeypatch.setattr(hook.sys,'stdin',SimpleNamespace(buffer=io.BytesIO(json.dumps(event).encode())))
     monkeypatch.setattr(B,'cached_change',lambda code:(_ for _ in ()).throw(KeyError('malformed cache')))
     with pytest.raises(KeyError): hook.main() # __main__ retains existing deny-on-error handling
-    cov=M.get_judgment_coverage()
+    cov=JC.get_coverage()
     assert cov['counts']['not_submitted']==1
     assert cov['targets'][0]['calls'][0]['results'][0]['outcome']['status']=='error'

@@ -1,4 +1,13 @@
 """Offline differential and briefing-contract tests. Run separately from legacy test_rules.py."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import hashlib
 import json
@@ -26,10 +35,10 @@ with patch.object(C,'load_env',lambda *a,**k: {}), patch.object(socket.socket,'c
 import pandas as pd
 
 FIX=ROOT/'tests/fixtures/ontology'
-CASES=json.loads((FIX/'cases.json').read_text())
-SOURCES=json.loads((FIX/'baseline_source.json').read_text())['functions']
-P=json.loads((FIX/'params.json').read_text())
-R=json.loads((FIX/'risk_limits.json').read_text())
+CASES=read_stored(FIX/'cases.json')
+SOURCES=read_stored(FIX/'baseline_source.json')['functions']
+P=read_stored(FIX/'params.json')
+R=read_stored(FIX/'risk_limits.json')
 NOW=datetime.fromisoformat(CASES['now'])
 
 
@@ -39,6 +48,7 @@ def projected(rows):
 
 def baseline(module, name):
     ns=dict(vars(D if module=='data_prep' else I))
+    ns['C'] = SimpleNamespace(**{**vars(C), 'read_json': lambda path, default=None: read_stored(path) if Path(path).exists() else default})
     for key,src in SOURCES[module].items(): exec(src,ns)
     return ns[name]
 
@@ -150,7 +160,7 @@ def test_build_matches_original_and_archives(monkeypatch,isolated):
     after=D.build()
     assert projected(before['candidates'])==projected(after['candidates'])
     assert after['ontology']['status']=='recorded'
-    saved=json.loads(next((isolated/'ontology/selections').glob('*.json')).read_text())
+    saved=read_stored(next((isolated/'ontology/selections').glob('*.json')))
     assert saved['definitions']['ir']['format']=='local-ontology-ir'
     assert saved['engine_sources']['data_prep.py']
     assert saved['observations'][0]['measurements']['price']['kind']=='daily_close'
@@ -162,19 +172,19 @@ def test_run_fetch_to_get_briefing(monkeypatch,isolated):
     fake=FakeBroker(responses(rs))
     monkeypatch.setattr(B,'get',lambda:fake)
     monkeypatch.setattr(M,'_broker',fake)
-    before=clone(C.read_json(C.BRIEFING));cache=clone(C.read_json(I.PREP_ROWS))
+    before=clone(C.load_briefing());cache=clone(list(C.iter_prep_rows()))
     baseline('intraday','run')()
-    expected=projected(C.read_json(C.BRIEFING)['candidates'])
+    expected=projected(C.load_briefing()['candidates'])
     C.write_json(C.BRIEFING,before);C.write_json(I.PREP_ROWS,cache)
     I.run()
-    b=C.read_json(C.BRIEFING)
+    b=C.load_briefing()
     assert projected(b['candidates'])==expected
     assert b['ontology']['status']=='recorded',b['ontology']
     text=M.get_briefing()
     assert isinstance(text,str),text
     for token in ['20,400원 > 20일선 20,000원','+2.0%','같은 비교','외국인 +30억 원','기관 -45억 원','방향이 엇갈림','30.0%','-15억 원','동시점 합계로 확정하지 않음','19,800','후보 선별 가격과 별도 관측']:
         assert token in text,token
-    delivery=json.loads(next((isolated/'ontology/deliveries').glob('*.json')).read_text())
+    delivery=read_stored(next((isolated/'ontology/deliveries').glob('*.json')))
     assert delivery['text']==text
     assert delivery['sha256']==hashlib.sha256(text.encode()).hexdigest()
     assert delivery['ai_run_id']=='offline-ai-run'
@@ -186,7 +196,7 @@ def test_run_fetch_to_get_briefing(monkeypatch,isolated):
     monkeypatch.setattr(C,'params',lambda:{**clone(P),'screen':{**P['screen'],'min_trading_value':123}})
     text2=M.get_briefing()
     assert text2!=text
-    assert json.loads((isolated/'ontology/deliveries'/f"{old['delivery_id']}.json").read_text())==old
+    assert read_stored(isolated/'ontology/deliveries'/f"{old['delivery_id']}.json")==old
     assert len(list((isolated/'ontology/deliveries').glob('*.json')))==2
 
 
@@ -256,16 +266,16 @@ def test_trend_actual_short_circuit():
 def test_retain_previous_intraday_and_error(monkeypatch,isolated):
     prepare(monkeypatch);D.build()
     fake=FakeBroker(responses([row()]));monkeypatch.setattr(B,'get',lambda:fake)
-    I.run();before=C.read_json(C.BRIEFING)
+    I.run();before=C.load_briefing()
     old=clone(before['candidates'])
     fake.responses=responses([row(price=1000)])
-    I.run();after=C.read_json(C.BRIEFING)
+    I.run();after=C.load_briefing()
     assert after['candidates']==old
-    snap=json.loads((isolated/'ontology/selections'/f"{after['ontology']['selection_run_id']}.json").read_text())
+    snap=read_stored(isolated/'ontology/selections'/f"{after['ontology']['selection_run_id']}.json")
     assert snap['update_route']=='previous_list_retained' and snap['general_count']==0
     def fail(*a,**k): raise RuntimeError('fixture failure')
     monkeypatch.setattr(fake,'_call',fail)
-    I.run();after=C.read_json(C.BRIEFING)
+    I.run();after=C.load_briefing()
     assert after['candidates']==old
     assert after['ontology']['status']=='incomplete'
     assert '직전 후보 목록' in D.to_text(after)
@@ -303,7 +313,7 @@ def test_adapter_rejects_unsupported_and_cycles():
 def test_delivery_failure_is_explicit_and_no_overwrite(monkeypatch,isolated):
     O.archive('deliveries','fixed',{'old':1})
     with pytest.raises(FileExistsError): O.archive('deliveries','fixed',{'new':2})
-    assert json.loads((isolated/'ontology/deliveries/fixed.json').read_text())=={'old':1}
+    assert read_stored(isolated/'ontology/deliveries/fixed.json')=={'old':1}
     monkeypatch.setattr(O,'archive',lambda *a:(_ for _ in ()).throw(OSError('disk full')))
     assert '저장 실패 (미보관)' in O.deliver('text',brief([]),[],P,R)
     t=O.SelectionTrace('prep',P);b=brief([]);t.finish(b)
@@ -347,7 +357,7 @@ def test_zero_pass_skips_dips_and_fill(monkeypatch):
     monkeypatch.setattr(I,'dips',lambda *a:pytest.fail('legacy early return must skip dips'))
     monkeypatch.setattr(I,'fill_up',lambda *a:pytest.fail('legacy early return must skip fill'))
     I.run()
-    assert C.read_json(C.BRIEFING)['intraday']['kept_prep']
+    assert C.load_briefing()['intraday']['kept_prep']
 
 
 def test_every_recorded_input_reference_resolves_to_actual_value():

@@ -2,6 +2,7 @@
 from __future__ import annotations
 import copy
 import uuid
+import storage_objects
 import common as C
 import validation_store as S
 import validation_spec as Spec
@@ -153,6 +154,7 @@ def _report(validation_id, manifest, bundle, mode, result_id):
                        'missing_historical_inputs_are_not_reconstructed_from_current_values']}
 
 
+@storage_objects.scoped
 def run_validation(validation_id, mode='replay'):
     """Deterministic local execution only. AI comparisons have a separate entrypoint."""
     if mode not in ('replay', 'portfolio', 'screen_only'):
@@ -220,19 +222,23 @@ def get_policy_validation(identifier):
                 'errors': [{'reason': str(exc)}], 'adoption_eligibility': {'status': 'ineligible', 'reasons': ['result_integrity_error']}}
 
 
-def get_validation_cases(validation_id, offset=0, limit=50):
-    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 200:
+def get_validation_cases(validation_id, offset=0, limit=50, cursor=None):
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100:
         return {'status': 'rejected', 'reason': 'invalid_pagination'}
     report = get_policy_validation(validation_id)
     cases = report.get('cases', [])
     known = 'cases' in report
-    return {'validation_id': report.get('validation_id'), 'result_id': report.get('result_id'),
+    import record_store
+    page=record_store.sequence_page(cases,scope='validation:'+str(report.get('result_id') or validation_id),cursor=cursor,limit=limit,offset=offset)
+    values=page.pop('items')
+    return {**page,'validation_id': report.get('validation_id'), 'result_id': report.get('result_id'),
             'status': report['status'], 'offset': offset, 'limit': limit, 'total': len(cases) if known else None,
             'count_known': known, 'errors': report.get('errors', []),
             'adoption_eligibility': report.get('adoption_eligibility'),
-            'cases': cases[offset:offset+limit], 'validation_result_hash': report.get('validation_result_hash')}
+            'cases': values, 'validation_result_hash': report.get('validation_result_hash')}
 
 
+@storage_objects.scoped
 def finalize_prompt_validation(validation_id, experiment_id):
     """Seal an explicit two-arm AI experiment; no provider is called here."""
     result_id = None

@@ -55,12 +55,12 @@ class Element {
  setAttribute(k,v){this[k]=v;} getAttribute(k){return this[k];} addEventListener(k,fn){this.listeners[k]=fn;}
 }
 const ids={};const document={getElementById(id){return ids[id]??=(new Element('div'));},createElement:t=>new Element(t),createElementNS:(_,t)=>new Element(t),querySelectorAll:()=>[]};
-const context={Node:Element,document,location:{hash:input.route},window:{addEventListener(){}},URLSearchParams,console,
- fetch:async()=>({ok:true,json:async()=>input.snapshot})};
+const requests=[];const context={TextDecoder,Uint8Array,atob,Node:Element,document,location:{hash:input.route},window:{addEventListener(){}},URLSearchParams,console,
+ fetch:async url=>{requests.push(url);const value=input.responses?input.responses[url.split('?')[0]]:input.snapshot;return {ok:!!value,json:async()=>value||{status:'not_found'}};}};
 vm.runInNewContext(fs.readFileSync(input.script,'utf8'),context);
 setImmediate(()=>{
  if(input.openRaw){const walk=n=>{if(n.tag==='details'&&n.children[0]?.textContent===input.openRaw)return n;for(const child of n.children||[]){const match=walk(child);if(match)return match;}};const detail=walk(ids.content);if(!detail)throw Error('raw details missing');detail.open=true;detail.listeners.toggle();detail.open=false;detail.listeners.toggle();detail.open=true;detail.listeners.toggle();}
- process.stdout.write(JSON.stringify({content:ids.content.textContent,tree:ids.content},(k,v)=>typeof v==='function'?undefined:v));
+ process.stdout.write(JSON.stringify({content:ids.content.textContent,tree:ids.content,requests},(k,v)=>typeof v==='function'?undefined:v));
 });
 '''
 
@@ -237,3 +237,39 @@ def test_other_lists_use_titles_and_keep_raw_ids_searchable_but_not_visible():
     for route,hidden in [('#proposals','proposal-one'),('#cases','app-one'),('#targets','run-one')]:
         assert hidden not in render(route)['content']
     assert '시험 변경안' in render('#proposals')['content']
+
+def render_v2(route):
+    import trace_pages as T
+    original=fixture();original['manifest']={};original['projection']['schema_version']='TRACE_VIEW@v1'
+    responses={'/api/view':T.summary(original),'/api/targets':T.list_page(original,'targets'),'/api/cases':T.list_page(original,'cases')}
+    for kind,identifier,relation in [('trace','trace-one','cases'),('case','app-one','proposals'),('proposal','proposal-one','validations')]:
+        responses[f'/api/{kind}/{identifier}']=T.detail(original,kind,identifier)
+        responses[f'/api/relations/{kind}/{identifier}/{relation}']=T.relations(original,kind,identifier,relation)
+    for identifier in ('validation-one','result-1','result-2'):
+        responses['/api/validation/'+identifier]=T.detail(original,'validation',identifier)
+    result=subprocess.run(['node','-e',RUNNER],input=json.dumps({'script':str(SCRIPT),'route':route,'responses':responses}),capture_output=True,text=True)
+    assert result.returncode==0,result.stderr
+    return json.loads(result.stdout)
+
+def test_v2_requests_only_selected_detail_and_related_metadata():
+    result=render_v2('#proposal/proposal-one')
+    assert [url.split('?')[0] for url in result['requests']]==['/api/view','/api/proposal/proposal-one','/api/relations/proposal/proposal-one/validations']
+    text=json.dumps(result['tree'],ensure_ascii=False)
+    assert '#validation/result-1' in text and '#validation/result-2' in text
+    assert '제목시험 변경안' in result['content']
+    selected=render_v2('#trace/trace-one')
+    assert '100 / 40 / 60' in selected['content']
+    assert '#case/app-one' in json.dumps(selected['tree'])
+
+def test_v2_ambiguous_validation_requires_exact_result_selection():
+    result=render_v2('#validation/validation-one')
+    assert '검증 결과 버전을 선택하세요' in result['content']
+    assert '#validation/result-2' in json.dumps(result['tree'])
+    exact=render_v2('#validation/result-2')
+    assert '기존 동작 재현통과' in exact['content']
+
+
+def test_v2_case_list_preserves_verdict_and_selected_evaluation_date():
+    result=render_v2('#cases')
+    assert '반증' in result['content'] and '2026-11-11 · 이전 평가' in result['content']
+    assert [url.split('?')[0] for url in result['requests']]==['/api/view','/api/cases']

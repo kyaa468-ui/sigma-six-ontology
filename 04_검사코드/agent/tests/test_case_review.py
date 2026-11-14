@@ -1,4 +1,13 @@
 """Offline step 1–5 integration, research lifecycle and immutable publication."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 import subprocess
 from datetime import datetime
@@ -35,7 +44,7 @@ def runner():
 
 def protect_trading():
     return {p: p.read_bytes() for p in Path(C.WORK).rglob('*')
-            if p.is_file() and '/case_review/' not in str(p)}
+            if p.is_file() and not p.name.startswith('storage_index.sqlite3') and '/case_review/' not in str(p)}
 
 
 def test_real_step1_to_step5_preserves_trading_and_traces_one_case(monkeypatch, calendar):
@@ -53,7 +62,8 @@ def test_real_step1_to_step5_preserves_trading_and_traces_one_case(monkeypatch, 
     assert case['origin_judgment_id'] == app['judgment_id']
     assert case['outcome_eligible'] is True
     assert case['evaluation_id']
-    assert case['source_manifest']
+    assert case.get('detail_required') or case.get('source_manifest')
+    assert S.load('datasets',report['review_id'])['cases'][0]['source_manifest']
     assert JC.get_coverage(manifest['run_attempt_id']) == coverage
     assert len(fake.orders) == 1
     assert all(p.read_bytes() == b for p,b in protected.items())
@@ -141,7 +151,7 @@ def test_immutable_store_rejects_corruption_and_conflicting_retry():
     assert S.archive('test', 'one', body) == body
     with pytest.raises(S.StoreError): S.archive('test', 'one', {'value':5})
     path = S.root()/'test/one.json'
-    raw = json.loads(path.read_text()); raw['record']['value'] = 5
+    raw = read_stored(path); raw['record']['value'] = 5
     path.write_text(json.dumps(raw))
     read = S.records('test')
     assert not read['records'] and read['errors']

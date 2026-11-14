@@ -277,6 +277,10 @@ def rehearse(output, baseline_report=None):
                 state['status'] = 'completed'
             finally:
                 state['seconds'] = round(time.perf_counter() - started, 3)
+                import resource
+                state['process_peak_rss_bytes']=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss*(1 if sys.platform=='darwin' else 1024)
+                import storage_objects
+                state['storage_metrics']=dict(storage_objects.METRICS)
                 save(output / 'report.json', report)
                 print(f"Phase {name}: {state['status']} ({state['seconds']:.3f}s)", flush=True)
         try:

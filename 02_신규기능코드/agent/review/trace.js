@@ -3,7 +3,8 @@
   'use strict';
   const $ = id => document.getElementById(id);
   const labels = {unlinked:'미연결',accepted:'수락',confidence_adjustment:'확신도 보정',linked:'정상 연결', not_submitted:'미제출', rejected:'거절', accepted_unlinked:'수락 후 미연결', recording_error:'기록 오류', complete:'완료', completed:'완료', partial:'부분 완료', unknown:'미확인', missing:'원본 누락', uncommitted:'저장 미완료', protected:'검증용 보호', not_started:'미시작', unfinished:'시작 후 미완료', not_run:'미실행', refuted:'반증', maintained:'유지', unscored:'미채점', in_progress:'진행 중', early_refuted:'조기 반증', data_incomplete:'자료 부족', conflict:'충돌', insufficient_data:'자료 부족', incomplete:'미완료', active:'현재 적용', inactive:'미적용', expired:'기간 만료', suspended:'중지', stale_base:'기준 변경', submitted_unverified:'AI 가설 · 미검증', passed:'통과', failed:'실패', referenced:'참조만 존재', unavailable:'조회 불가', buy:'매수', sell:'매도', daily_close:'일봉 종가', intraday_current:'장중 현재가', close_fallback:'종가 대체', intraday_estimate:'장중 수량×가격 추정액', daily_accumulated:'일봉 누적 금액', confirmed_partial:'부분 확인', confirmed_full:'전량 확인', policy_complete:'정책상 완료', adopted:'채택', reference:'참고', eligible:'채택 검토 가능', ineligible:'채택 불가'};
-  let data = null, envelope = null;
+  let data = null, envelope = null, remotePage = null, requestSerial = 0;
+  const pageHistory = new Map();
   const label = value => value == null ? '미확인' : labels[value] || String(value);
   const el = (tag, text, cls) => { const n = document.createElement(tag); if(text != null) n.textContent = text; if(cls) n.className = cls; return n; };
   const fmt = v => v === null || v === undefined ? '미확인' : typeof v === 'object' ? JSON.stringify(v) : String(v);
@@ -30,12 +31,14 @@
     const search=$('search').value.trim().toLowerCase();
     // Search only fields this prepared view permits; protected records contain no hidden raw values.
     const filtered=rows.filter(r=>!search||JSON.stringify(r).toLowerCase().includes(search));
-    const r=route(),page=Math.max(0,Number(r.q.get('page'))||0),size=30,start=page*size;
-    $('result-count').textContent=filtered.length+'건';
+    const remote=envelope?.schema_version===2&&remotePage;
+    const r=route(),page=remote?0:Math.max(0,Number(r.q.get('page'))||0),size=30,start=page*size;
+    $('result-count').textContent=(remote?remote.total:filtered.length)+'건';
     if(!filtered.length){parent.append(el('p','해당 목록에 표시할 기록이 없습니다. 보호·오류 상태는 기록 상태에서 별도로 확인하세요.','empty'));return;}
     const wrap=el('div',null,'table-wrap'),table=el('table',null,'record-list'),head=el('tr');for(const [title] of columns)head.append(el('th',title));table.append(head);
     for(const row of filtered.slice(start,start+size)){const tr=el('tr');for(const [title,render]of columns){const td=el('td'),v=render(row);td.setAttribute('data-label',title);td.append(v instanceof Node?v:el('span',fmt(v)));tr.append(td);}table.append(tr);}wrap.append(table);parent.append(wrap);
     const controls=el('div',null,'pages');
+    if(remote){const history=pageHistory.get(kind)||[];for(const text of ['이전','다음']){const b=el('button',text);b.disabled=text==='이전'?!history.length:!remote.next_cursor;b.addEventListener('click',()=>{let next;if(text==='다음'){history.push(r.q.get('cursor')||'');next=remote.next_cursor;}else next=history.pop();pageHistory.set(kind,history);const q=new URLSearchParams();if(next)q.set('cursor',next);location.hash=kind+'?'+q;});controls.append(b);}controls.append(el('span',filtered.length+'건 / 전체 '+remote.total+'건'));parent.append(controls);return;}
     for(const [text,p]of [['이전',page-1],['다음',page+1]]){const b=el('button',text);b.disabled=p<0||p*size>=filtered.length;b.addEventListener('click',()=>{const q=new URLSearchParams(r.q);q.set('page',p);location.hash=kind+'?'+q.toString();});controls.append(b);}controls.append(el('span',`${start+1}–${Math.min(start+size,filtered.length)} / ${filtered.length}`));parent.append(controls);
   }
   function caseState(c){if(c.visibility==='protected')return 'protected';if(c.recording_status==='recording_error')return 'recording_error';if(c.outcome_eligible)return c.verdict;return c.evaluation_status==='unscored'?'unscored':c.verdict==='refuted'?'early_refuted':c.period_status||c.evaluation_status||'unknown';}
@@ -79,7 +82,7 @@
     if(value.round_digits!=null)pieces.push(`소수 ${fmt(value.round_digits)}자리 반올림`);
     return pieces.join(' / ');
   }
-  function judgmentSummary(parent,values){for(const j of values||[]){parent.append(el('h4',j.judgment_id));const ref=j.confidence_at_submission?.details||{};kv(parent,[['원래 권고 / 확신도 방향',`${fmt(j.recommended_action||j.recommendation||j.action)} / ${fmt(j.confidence_for)}`],['AI 원점수',j.confidence_raw],['제출 시 보정 · 참고값',ref.adjusted??ref.result],['제출 시 보정 근거',boostExplanation(ref)],['판단 국면 · AI 분류',j.decision_regime_snapshot?.value||j.decision_regime_snapshot?.regime||j.decision_regime_snapshot?.record?.regime],['AI 최종 이유 · 문장 전체 미검증',j.decision||j.reason||j.final_reason]]);plainTable(parent,['주장 종류 / 검사','서버 요약 또는 AI 가설','실제 인용한 측정·시점·참조','주체 · 채택 상태'],(j.arguments||[]).map(a=>[a.kind==='hypothesis'?'AI 가설 · 미검증':a.kind==='fact_claim'?'사실 주장 · '+label(a.fact_validation):'인용 · '+label(a.quote_validation),a.server_summary||a.text||a.quote,claimEvidence(a),`${fmt(a.proposer)} · ${({'adopted':'채택','rejected':'기각','reference':'참고'})[a.adoption]||'미기록'}`]));parent.append(el('p',`표시됐지만 언급하지 않은 근거 ${(j.unmentioned_evidence||[]).length}건 · 채택 여부 미기록`,'muted'));}}
+  function judgmentSummary(parent,values){for(const j of values||[]){parent.append(el('h4',j.judgment_id));const ref=j.confidence_at_submission?.details||{};kv(parent,[['원래 권고 / 확신도 방향',`${fmt(j.recommended_action||j.recommendation||j.action)} / ${fmt(j.confidence_for)}`],['AI 원점수',j.confidence_raw],['제출 시 보정 · 참고값',ref.adjusted??ref.result],['제출 시 보정 근거',boostExplanation(ref)],['판단 국면 · AI 분류',j.decision_regime_snapshot?.value||j.decision_regime_snapshot?.regime||j.decision_regime_snapshot?.record?.regime],['AI 최종 이유 · 문장 전체 미검증',j.decision||j.reason||j.final_reason]]);plainTable(parent,['주장 종류 / 검사','서버 요약 또는 AI 가설','실제 인용한 측정·시점·참조','주체 · 채택 상태'],(j.arguments||[]).map(a=>[a.kind==='hypothesis'?'AI 가설 · 미검증':a.kind==='fact_claim'?'사실 주장 · '+label(a.fact_validation):'인용 · '+label(a.quote_validation),a.server_summary||a.text||a.quote,claimEvidence(a),`${fmt(a.proposer)} · ${({'adopted':'채택','rejected':'기각','reference':'참고'})[a.adoption]||'미기록'}`]));parent.append(el('p',`표시됐지만 언급하지 않은 근거 ${j.unmentioned_evidence_count??(j.unmentioned_evidence||[]).length}건 · 채택 여부 미기록`,'muted'));}}
   function executionSummary(parent,context,events){const orders=context?.orders||[];plainTable(parent,['주문 시도 / 경로','연결','요청 / 확인 / 미확인 수량','확인 상태'],orders.map(o=>[o.order_attempt_id+' / '+o.path_kind,label(o.link_status),`${fmt(o.summary?.requested_qty)} / ${fmt(o.summary?.confirmed_qty)} / ${fmt(o.summary?.unconfirmed_qty)}`,label(o.summary?.confirmation_status)]));const boosts=[];const scan=(v,stage)=>{if(!v||typeof v!=='object')return;if(!Array.isArray(v)&&('adjusted'in v)&&('raw'in v))boosts.push([stage,v.raw,v.adjusted,boostExplanation(v)]);else for(const[k,x]of Object.entries(v))if(x&&typeof x==='object')scan(x,stage+' / '+k);};for(const e of events||[])scan(e,e.stage||e.kind||'호출');if(boosts.length){parent.append(el('h4','호출 당시 확신도 보정'));plainTable(parent,['단계','원점수','보정 결과','보정 내용'],boosts);}if((context?.non_order_paths||[]).length)plainTable(parent,['비주문 경로','행동','연결'],context.non_order_paths.map(x=>[x.path_kind||x.kind,x.action,x.link_status]));}
   function evaluationSummary(parent,values){for(const entry of values||[]){const v=entry.evaluation||entry;kv(parent,[['평가 ID',v.evaluation_id],['전제 적용',v.application_id||v.premise_application_id],['판정 / 기간 / 자료',`${label(v.verdict)} / ${label(v.period_status)} / ${label(v.data_status)}`],['시장 기준일 / 지식 시각',`${fmt(v.market_as_of)} / ${fmt(v.knowledge_as_of)}`],['최초 확인 반증',v.first_known_refutation?.date||v.first_known_refutation],['계산 버전',v.evaluator_version]]);plainTable(parent,['거래일','종가 / 20일선','평가','완료 기준'],(v.comparisons||[]).map(c=>[c.date,`${fmt(c.close)} / ${fmt(c.ma20)}`,label(c.status),c.confirmation||c.reason]));}parent.append(el('p','다음 거래일 재조회 일치를 정책상 완료로 사용하며, 공급자의 최종 확정 표시와 구분합니다.','muted'));}
 
@@ -92,9 +95,72 @@
   function proposalList(){const box=heading('변경안','제안 수락은 검증 통과나 운영 적용을 뜻하지 않습니다.');pageTable(box,data.proposals||[],[['변경안',p=>link(proposalName(p.proposal_id),'proposal',p.proposal_id)],['버전',p=>p.version??p.proposal_version],['수락·준비 상태',p=>label(p.status||p.readiness?.status||p.recording_status)],['연결된 시험',p=>(p.validation_ids||[]).length]],'proposals');return box;}
   function proposalDetail(id){const p=(data.proposals||[]).find(p=>p.proposal_id===id);if(!p)return missing(id);const box=heading('변경안');if(p.visibility==='protected'){box.append(badge('protected'));return box;}appendLinks(box,'근거 사례',[...(p.support_case_ids||[]),...(p.counter_case_ids||[])],'case');appendLinks(box,'고정 검증 결과',(data.validations||[]).filter(v=>v.proposal_id===id).map(v=>v.result_id||v.validation_id),'validation');kv(box,[['제목',p.title],['유형 / 버전',`${fmt(p.kind)} / ${fmt(p.version??p.proposal_version)}`],['기록 상태',label(p.status)],['검증 준비 상태',label(p.readiness?.status)],['적용 조건',p.condition],['제안 효과 · 미검증',p.effect],['AI의 이유 · 미검증',p.reason],['예상 변화 · 미검증',p.expected_change]]);raw(box,'당시 제출·근거·변경 내용',p);return box;}
   function validationList(){const box=heading('시험 결과','완료는 계산이 끝났다는 뜻입니다. 채택 가능 여부는 별도로 확인하세요.');pageTable(box,data.validations||[],[['시험 이름',v=>summaryCell(link(trialName(v),'validation',v.result_id||v.validation_id),v.visibility==='protected'?null:proposalName(v.proposal_id))],['주요 결과',trialSummary],['채택 가능 여부',adoptionCell]],'validations');return box;}
-  function validationDetail(id){const exact=(data.validations||[]).filter(v=>v.result_id===id),matches=exact.length?exact:(data.validations||[]).filter(v=>v.validation_id===id);if(matches.length>1){const chooser=heading('검증 결과 버전을 선택하세요.','같은 시험의 결과를 임의로 고르지 않습니다. 아래 정확한 결과 ID로 고정합니다.');for(const row of matches){const p=el('p');p.append(link(trialName(row)+' · 결과 '+(matches.indexOf(row)+1),'validation',row.result_id||row.validation_id),el('span',' · '+label(row.status)+' · '+fmt(row.created_at||row.result?.created_at)));chooser.append(p);}return chooser;}const v=matches[0];if(!v)return missing(id);const box=heading(trialName(v));box.append(badge(v.status));if(v.visibility==='protected')return box;raw(box,'기록 식별자·해시',{'시험 ID':v.validation_id,'고정 결과 ID':v.result_id,'결과 해시':v.result_hash||v.validation_result_hash,'입력 ID':v.input_id,'입력 해시':v.input_hash});if(v.proposal_id)box.append(link('원래 변경안','proposal',v.proposal_id));const result=v.result||{};kv(box,[['검증 방식',trialName(v)],['기존 동작 재현',label(result.baseline_status)],['변경안의 계산 비교 상태',label(result.effect_status)],['포트폴리오·성과 검증 상태',label(result.performance?.status)],['성과 검증 자료 부족 사유',result.performance?.gaps||result.performance?.missing_inputs||result.performance?.reasons||result.gaps||[]],['채택 가능 상태',label(result.adoption_eligibility?.status)],['채택 불가 사유',result.adoption_eligibility?.reasons||[]],['당시 독립 검증 근거',result.independent_validation?.status],['실제 운영 반영',result.operational_activation===true?'별도 적용 기록 확인 필요':'시험 결과는 운영 반영 아님']]);box.append(el('p','계산 비교 완료는 포트폴리오 성과 검증 완료나 운영 수익 개선의 증거가 아닙니다.','section-note'));raw(box,'시작·중단·실패·결과·채택 가능 여부',v);return box;}
+  function validationDetail(id){if(envelope?.schema_version===2&&remotePage){const box=heading('검증 결과 버전을 선택하세요.','같은 시험의 결과를 임의로 고르지 않습니다.');pageTable(box,data.validations||[],[['고정 결과',v=>link('결과 '+v.result_id,'validation',v.result_id)],['상태',v=>label(v.status)]],'validation/'+encodeURIComponent(id));return box;}const exact=(data.validations||[]).filter(v=>v.result_id===id),matches=exact.length?exact:(data.validations||[]).filter(v=>v.validation_id===id);if(matches.length>1){const chooser=heading('검증 결과 버전을 선택하세요.','같은 시험의 결과를 임의로 고르지 않습니다. 아래 정확한 결과 ID로 고정합니다.');for(const row of matches){const p=el('p');p.append(link(trialName(row)+' · 결과 '+(matches.indexOf(row)+1),'validation',row.result_id||row.validation_id),el('span',' · '+label(row.status)+' · '+fmt(row.created_at||row.result?.created_at)));chooser.append(p);}return chooser;}const v=matches[0];if(!v)return missing(id);const box=heading(trialName(v));box.append(badge(v.status));if(v.visibility==='protected')return box;raw(box,'기록 식별자·해시',{'시험 ID':v.validation_id,'고정 결과 ID':v.result_id,'결과 해시':v.result_hash||v.validation_result_hash,'입력 ID':v.input_id,'입력 해시':v.input_hash});if(v.proposal_id)box.append(link('원래 변경안','proposal',v.proposal_id));const result=v.result||{};kv(box,[['검증 방식',trialName(v)],['기존 동작 재현',label(result.baseline_status)],['변경안의 계산 비교 상태',label(result.effect_status)],['포트폴리오·성과 검증 상태',label(result.performance?.status)],['성과 검증 자료 부족 사유',result.performance?.gaps||result.performance?.missing_inputs||result.performance?.reasons||result.gaps||[]],['채택 가능 상태',label(result.adoption_eligibility?.status)],['채택 불가 사유',result.adoption_eligibility?.reasons||[]],['당시 독립 검증 근거',result.independent_validation?.status],['실제 운영 반영',result.operational_activation===true?'별도 적용 기록 확인 필요':'시험 결과는 운영 반영 아님']]);box.append(el('p','계산 비교 완료는 포트폴리오 성과 검증 완료나 운영 수익 개선의 증거가 아닙니다.','section-note'));raw(box,'시작·중단·실패·결과·채택 가능 여부',v);return box;}
   function missing(id){return heading('연결된 기록을 열 수 없습니다.','미보관·손상·보호 상태를 기록 상태에서 확인하세요. ID: '+id);}
-  function render(){if(!data)return;const r=route();$('result-count').textContent='';for(const a of document.querySelectorAll('nav a'))a.classList.toggle('active',a.hash==='#'+r.kind);let node;if(r.kind==='trace')node=traceDetail(r.id);else if(r.kind==='cases')node=caseList(r);else if(r.kind==='case')node=caseDetail(r.id);else if(r.kind==='proposals')node=proposalList();else if(r.kind==='proposal')node=proposalDetail(r.id);else if(r.kind==='validations')node=validationList();else if(r.kind==='validation')node=validationDetail(r.id);else if(r.kind==='policies'){node=heading('적용 상태','검증 당시 결과, 현재 상태, 과거 호출에서 실제 사용한 정책을 구분합니다. 만료만으로 숫자 설정이 자동 원복되지는 않습니다.');for(const p of data.policies||[]){const c=p.current_applicability||p;kv(node,[['현재 해석 상태',label(c.status)],['감사 완료 기록',p.activation_commit_status||p.audit_status||'원본 확인']]);raw(node,'정책 식별자·버전',{revision:c.policy_revision,package_id:c.package_id,activation_id:c.activation_id,adoption_id:c.adoption_id});}raw(node,'현재 적용 해석과 저장 이력',data.policies||[]);}else if(r.kind==='health'){node=heading('기록 상태');kv(node,[['화면 상태',label(envelope.status)],['보호 건수',data.protected_count],['오류 건수',(data.errors||[]).length]]);raw(node,'오류·원천 목록',{errors:[...(envelope.errors||[]),...(data.errors||[])],sources:data.source_manifest});}else node=targetList();$('content').replaceChildren(node);}
+  function renderLocal(){if(!data)return;const r=route();$('result-count').textContent='';for(const a of document.querySelectorAll('nav a'))a.classList.toggle('active',a.hash==='#'+r.kind);let node;if(r.kind==='trace')node=traceDetail(r.id);else if(r.kind==='cases')node=caseList(r);else if(r.kind==='case')node=caseDetail(r.id);else if(r.kind==='proposals')node=proposalList();else if(r.kind==='proposal')node=proposalDetail(r.id);else if(r.kind==='validations')node=validationList();else if(r.kind==='validation')node=validationDetail(r.id);else if(r.kind==='policies'||r.kind==='policy'){node=heading('적용 상태','검증 당시 결과, 현재 상태, 과거 호출에서 실제 사용한 정책을 구분합니다. 만료만으로 숫자 설정이 자동 원복되지는 않습니다.');for(const p of data.policies||[]){if(r.kind==='policies'&&p.activation_id)node.append(link('적용 상세','policy',p.activation_id));const c=p.current_applicability||p;kv(node,[['현재 해석 상태',label(c.status)],['감사 완료 기록',p.activation_commit_status||p.audit_status||'원본 확인']]);raw(node,'정책 식별자·버전',{revision:c.policy_revision,package_id:c.package_id,activation_id:c.activation_id,adoption_id:c.adoption_id});}raw(node,'현재 적용 해석과 저장 이력',data.policies||[]);}else if(r.kind==='health'){node=heading('기록 상태');kv(node,[['화면 상태',label(envelope.status)],['보호 건수',data.protected_count],['오류 건수',envelope.counts?.errors??(data.errors||[]).length],['원천 기록 수',envelope.counts?.sources??(data.source_manifest||[]).length]]);raw(node,'오류·원천 목록',{errors:[...(envelope.errors||[]),...(data.errors||[])],sources:data.source_manifest});}else node=targetList();$('content').replaceChildren(node);}
+  function chunkLinks(item){
+    if(!item?._detail_links)return;
+    const section=heading('별도로 열 수 있는 상세','큰 원문은 요청한 부분만 표시합니다. 표시한 조각은 전체 결과가 아닙니다.');
+    for(const [field,info] of Object.entries(item._detail_links)){
+      const ref=info.detail_ref,box=el('section'),button=el('button',field+' 열기'),pre=el('pre');let offset=0;const decoder=new TextDecoder();
+      button.addEventListener('click',async()=>{
+        button.disabled=true;
+        try{
+          const params=new URLSearchParams({field,offset:String(offset)});
+          const response=await fetch('/api/chunk/'+ref.kind+'/'+encodeURIComponent(ref.id)+'?'+params,{cache:'no-store',credentials:'same-origin'});
+          const result=await response.json();if(!response.ok)throw Error(label(result.status));
+          const bytes=Uint8Array.from(atob(result.data),c=>c.charCodeAt(0));
+          pre.textContent=decoder.decode(bytes,{stream:!result.complete});
+          offset=result.next_offset;button.textContent=offset===null?'마지막 조각':'다음 조각';button.disabled=offset===null;
+        }catch(error){pre.textContent=error.message;button.disabled=false;}
+      });box.append(button,pre);section.append(box);
+    }
+    $('content').append(section);
+  }
+  async function relatedLinks(route,serial){
+    const relation={trace:'cases',case:'proposals',proposal:'validations'}[route.kind];if(!relation)return;
+    const targetKind={cases:'case',proposals:'proposal',validations:'validation'}[relation];
+    const section=heading({cases:'전제 사례',proposals:'인용한 변경안',validations:'고정 검증 결과'}[relation]);
+    const list=el('div'),button=el('button','다음 연결 기록');let cursor=null;
+    async function load(){
+      const params=new URLSearchParams({limit:'30'});if(cursor)params.set('cursor',cursor);
+      const response=await fetch('/api/relations/'+route.kind+'/'+encodeURIComponent(route.id)+'/'+relation+'?'+params,{cache:'no-store',credentials:'same-origin'});
+      const result=await response.json();if(serial!==requestSerial)return;
+      if(!response.ok){list.textContent='연결 기록을 열 수 없습니다.';button.disabled=true;return;}
+      list.replaceChildren();for(const row of result.items||[]){const id=row.result_id||row.validation_id||row.proposal_id||row.application_id;const p=el('p');p.append(link(row.title||row.code||'연결된 기록',targetKind,id));list.append(p);}
+      if(!result.total)list.textContent='연결된 기록이 없습니다.';
+      cursor=result.next_cursor;button.disabled=!cursor;
+    }
+    button.addEventListener('click',load);section.append(list,button);$('content').append(section);await load();
+  }
+  async function render(){
+    if(!data)return;
+    if(envelope.schema_version!==2){renderLocal();return;}
+    const serial=++requestSerial,r=route(),listNames=['targets','cases','proposals','validations','policies','reviews'];
+    try{
+      $('content').replaceChildren(el('p','기록을 불러오는 중입니다.','empty'));
+      const params=new URLSearchParams();params.set('limit','30');
+      const cursor=r.q.get('cursor');if(cursor)params.set('cursor',cursor);
+      const search=$('search').value.trim();if(search)params.set('search',search);
+      let endpoint;
+      if(listNames.includes(r.kind))endpoint='/api/'+r.kind+'?'+params;
+      else if(['trace','case','proposal','validation','policy'].includes(r.kind))endpoint='/api/'+r.kind+'/'+encodeURIComponent(r.id)+'?'+params;
+      else {remotePage=null;renderLocal();return;}
+      const response=await fetch(endpoint,{cache:'no-store',credentials:'same-origin'}),result=await response.json();
+      if(serial!==requestSerial)return;
+      if(!response.ok)throw Error(label(result.status));
+      for(const key of listNames)data[key]=[];data.traces={};remotePage=null;
+      if(listNames.includes(r.kind)){data[r.kind]=result.items;remotePage=result;}
+      else if(r.kind==='validation'&&result.status==='choices'){data.validations=result.items;remotePage=result;}
+      else {
+        const item=result.item;if(!item)throw Error(label(result.status));
+        if(r.kind==='trace')data.traces[r.id]=item;
+        else data[{case:'cases',proposal:'proposals',validation:'validations',policy:'policies'}[r.kind]]=[item];
+      }
+      renderLocal();
+      if(result.item){chunkLinks(result.item);await relatedLinks(r,serial);}
+    }catch(error){if(serial===requestSerial)$('content').replaceChildren(el('p','기록을 열 수 없습니다 · '+error.message,'empty'));}
+  }
   window.addEventListener('hashchange',render);$('search').addEventListener('input',render);
   fetch('/api/view',{cache:'no-store',credentials:'same-origin'}).then(async response=>{const result=await response.json();if(!response.ok||!result.projection)throw Error(label(result.status));envelope=result;data=result.projection;$('snapshot-state').textContent=`${label(result.status)} · 보관된 화면`;const ref=el('details');ref.append(el('summary','화면 식별자'),el('code',result.view_id));$('snapshot-state').append(ref);$('snapshot-times').textContent=`전제 평가 기준일 ${fmt(data.market_as_of)} · 기록 조회 기준시각 ${fmt(data.knowledge_as_of)} · 화면 생성 ${fmt(result.manifest?.created_at)}`;render();}).catch(error=>{$('snapshot-state').textContent='화면을 열 수 없습니다 · '+error.message;$('snapshot-state').className='danger';$('content').append(el('p','현재값이나 샘플로 대체하지 않았습니다. 별도 준비 명령의 기록 상태를 확인하세요.','empty'));});
 })();

@@ -13,6 +13,8 @@ from datetime import timedelta
 from pathlib import Path
 
 import common as C
+import storage_objects as objects
+import log_store
 import execution_trace as E
 from replay_context import instant
 
@@ -50,14 +52,14 @@ def capture_state(account, *, purpose='order_plan'):
     try:
         positions = C.read_json(C.POSITIONS)
         journal_path = Path(C.JOURNAL)
-        journal = C.read_jsonl(C.JOURNAL) if journal_path.is_file() else None
+        journal = log_store.capture(log_store.view(C.JOURNAL)) if journal_path.is_file() else None
         # A confirmed empty account needs no held-position metadata. Preserve
         # the observed file absence and this derivation instead of inventing it.
         positions_status = 'observed' if isinstance(positions, dict) else 'unrecorded'
         if positions is None and account.get('complete') is True and account.get('holdings') == []:
             positions, positions_status = {}, 'not_applicable_confirmed_empty_account'
         body = {'purpose': purpose, 'captured_at': C.now().isoformat(),
-                'account': copy.deepcopy(account), 'positions': positions, 'journal': journal,
+                'account': objects.freeze(account, kind='account'), 'positions': positions, 'journal': journal,
                 'positions_status': positions_status,
                 'journal_status': 'observed' if isinstance(journal, list) else 'unrecorded'}
         record = _record('portfolio_state', **body)
@@ -148,7 +150,7 @@ def capture_monitor_inputs():
     separately from actual_reads, so later replay never fills it from today.
     """
     try:
-        return [{'path': C.BRIEFING, 'value': C.read_json(C.BRIEFING),
+        return [{'path': C.BRIEFING, 'value': C.load_briefing(),
                  'read_at': C.now().isoformat(), 'status': 'observed_for_counterfactual',
                  'usage': 'counterfactual_monitor_branch'}]
     except Exception:

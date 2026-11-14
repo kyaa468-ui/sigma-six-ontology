@@ -1,0 +1,23 @@
+# Local environment and generated artifacts
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+*.tar.gz
+coverage.xml
+.coverage
+htmlcov/
+06_분리검증결과/
+보존확인.json
+**/work/

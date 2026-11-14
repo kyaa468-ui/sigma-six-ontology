@@ -1,4 +1,13 @@
 """Case-review boundaries and tuning preflight through real MCP entry points."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import contextlib
 import importlib.util
 import io
@@ -249,7 +258,7 @@ def test_valid_tuning_retains_partial_numeric_policy_and_saves_lessons(monkeypat
     result = M.apply_tuning(changes, 'local fixture', ['new lesson'])
     assert result['ok'] is True
     assert result['applied'] == expected_ok and result['rejected'] == expected_bad
-    assert json.loads(target.read_text())['decision']['buy_min_confidence'] == expected_ok[0]['to']
+    assert read_stored(target)['decision']['buy_min_confidence'] == expected_ok[0]['to']
     assert C.read_json(M.tuning.LESSONS)['lessons'] == ['new lesson']
     assert [x['kind'] for x in C.read_jsonl(C.JOURNAL)] == ['tune', 'lessons']
     before = files()
@@ -298,7 +307,7 @@ def test_regime_archive_failure_preserves_original_policy_and_coverage(monkeypat
 
 
 def test_prediction_path_and_case_review_agent_capabilities_are_isolated():
-    permissions = json.loads((ROOT / '.claude/settings.json').read_text())['permissions']
+    permissions = read_stored(ROOT / '.claude/settings.json')['permissions']
     assert 'Read(./work/ontology/case_review/**)' in permissions['deny']
     prompt = (ROOT / '.claude/agents/case_review.md').read_text()
     tools_line = next(x for x in prompt.splitlines() if x.startswith('tools:'))

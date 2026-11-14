@@ -21,6 +21,8 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import common as C
+import record_store
+import storage_objects as objects
 
 SCHEMA_VERSION = 'ai-judgment@v1'
 _FROZEN = contextvars.ContextVar('frozen_judgment_validation', default=None)
@@ -84,7 +86,7 @@ def _json(value):
 
 
 def _digest(value):
-    return hashlib.sha256(_json(value).encode()).hexdigest()
+    return objects.fingerprint(value)[0]
 
 
 def _id(value, path):
@@ -95,29 +97,17 @@ def _id(value, path):
 
 def _path(kind, identifier):
     _id(identifier, kind)
-    return Path(C.WORK) / 'ontology' / kind / (identifier + '.json')
+    return C.ontology_root() / kind / (identifier + '.json')
 
 
 def _archive(kind, identifier, value):
-    """Install a complete JSON file exactly once; readers cannot see partial writes."""
-    target = _path(kind, identifier)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix='.pending-', dir=target.parent)
-    try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            stream.write(_json(value))
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(tmp, target)
-    finally:
-        os.unlink(tmp)
-    return target
+    return record_store.publish(_path(kind, identifier), value, kind=kind)
 
 
 def _load(kind, identifier):
     path = _path(kind, identifier)
     try:
-        return json.loads(path.read_text(encoding='utf-8'))
+        return record_store.load(path)
     except (OSError, ValueError):
         return None
 
@@ -189,7 +179,10 @@ def _time_not_future(value, path):
 def _receipt(delivery_id, path, context):
     _id(delivery_id, path)
     frozen = _FROZEN.get()
-    receipt = frozen['receipts'].get(delivery_id) if frozen is not None else _load('deliveries', delivery_id)
+    cache=context.setdefault('_receipt_cache',{})
+    if delivery_id not in cache:
+        cache[delivery_id] = frozen['receipts'].get(delivery_id) if frozen is not None else _load('deliveries', delivery_id)
+    receipt=cache[delivery_id]
     if not receipt:
         _fail('UNKNOWN_DELIVERY', path, 'No persisted delivery receipt')
     if receipt.get('run_attempt_id') != context['run_attempt_id']:
@@ -210,7 +203,13 @@ def _evidence(ref, path, context):
         _fail('DELIVERY_NOT_DECLARED', path + '.delivery_id', 'Reference must be in delivery_ids')
     receipt = _receipt(delivery, path + '.delivery_id', context)
     eid = _id(ref.get('evidence_id'), path + '.evidence_id')
-    matches = [x for x in receipt.get('evidence_catalog', []) if x.get('evidence_id') == eid]
+    catalogs=context.setdefault('_catalog_indices',{})
+    if delivery not in catalogs:
+        index={}
+        for entry in receipt.get('evidence_catalog',[]):
+            index.setdefault(entry.get('evidence_id'),[]).append(entry)
+        catalogs[delivery]=index
+    matches = catalogs[delivery].get(eid,[])
     if len(matches) != 1:
         _fail('NOT_DELIVERED', path + '.evidence_id', 'Only a unique explicitly displayed catalog item can be cited')
     evidence = matches[0]
@@ -518,9 +517,8 @@ def _validate(item, content_hash, jid):
         confidence = {'raw': float(score), 'result': adjusted, 'note': note, 'details_status': 'legacy_function'}
     mentioned = {(r['delivery_id'], r['evidence_id']) for arg in validated for r in (
         arg.get('references', []) or ([arg['evidence']] if arg.get('evidence') else []))}
-    unmentioned = [{'delivery_id': did, 'evidence_id': e['evidence_id'], 'adoption': 'unrecorded'}
-                   for did in deliveries for e in _receipt(did, 'delivery_ids', context).get('evidence_catalog', [])
-                   if (did, e['evidence_id']) not in mentioned]
+    unmentioned = objects.unmentioned_evidence(
+        [(did,_receipt(did,'delivery_ids',context).get('evidence_catalog',[])) for did in deliveries],mentioned)
     position_contexts = list(dict.fromkeys(e.get('position_episode_id') or
                          (e.get('value') if e.get('field') == 'position_episode_id' else None)
                          for did in deliveries for e in _receipt(did, 'delivery_ids', context).get('evidence_catalog', [])
@@ -575,7 +573,7 @@ def record_ai_judgments(items):
             content_hash = _digest(item)
             key = item.get('request_key') if isinstance(item, dict) else None
             jid = 'judgment-' + _digest([_context()['run_attempt_id'], key])[:40]
-            duplicate = next((event for p in (Path(C.WORK) / 'ontology' / 'submissions').glob('*.json')
+            duplicate = next((event for p in (C.ontology_root() / 'submissions').glob('*.json')
                               if (event := _load('submissions', p.stem))
                               and event.get('status') == 'rejected'
                               and event.get('run_attempt_id') == _context()['run_attempt_id']
@@ -649,19 +647,16 @@ def record_ai_judgments(items):
     return results
 
 
+def iter_ai_judgments(run_attempt_id=None, code=None, delivery_id=None):
+    for row in record_store.iter_records(C.ontology_root()/'judgments',
+            filters={'run_attempt_id':run_attempt_id,'code':code}):
+        committed=load_judgment(row['judgment_id'])
+        if committed and (delivery_id is None or delivery_id in committed.get('delivery_ids',[])):
+            yield committed
+
+
 def get_ai_judgments(run_attempt_id=None, code=None, delivery_id=None):
-    """Return immutable judgments, adoption differences, premises and submission-time boosts."""
-    rows = []
-    for path in sorted((Path(C.WORK) / 'ontology' / 'judgments').glob('*.json')):
-        row = load_judgment(path.stem)
-        if not row or run_attempt_id is not None and row.get('run_attempt_id') != run_attempt_id:
-            continue
-        if code is not None and row.get('code') != code:
-            continue
-        if delivery_id is not None and delivery_id not in row.get('delivery_ids', []):
-            continue
-        rows.append(row)
-    return rows
+    return list(iter_ai_judgments(run_attempt_id,code,delivery_id))
 
 
 def read_ai_judgments(knowledge_as_of=None):
@@ -717,11 +712,11 @@ def committed_premises(knowledge_as_of=None, market_as_of=None):
     if cutoff.tzinfo is None:
         raise ValueError('knowledge_as_of requires timezone')
     market_date = datetime.fromisoformat(market_as_of or cutoff.date().isoformat()).date()
-    errors, applications, cache, declared_targets = [], {}, {}, {}
+    errors, applications, cache, declared_targets = [], {}, __import__('collections').OrderedDict(), {}
 
     def read(kind, identifier):
         path = _path(kind, identifier)
-        row = json.loads(path.read_text(encoding='utf-8'))
+        row = record_store.load(path)
         if not isinstance(row, dict):
             raise ValueError('Expected source record object')
         return row
@@ -741,11 +736,12 @@ def committed_premises(knowledge_as_of=None, market_as_of=None):
                 cache[identifier] = None
                 return None
         cache[identifier] = row
+        if len(cache) > 128: cache.popitem(last=False)
         return row
 
     def source_files(kind):
         try:
-            return sorted(p for p in (Path(C.WORK) / 'ontology' / kind).iterdir() if p.suffix == '.json')
+            return sorted(p for p in (C.ontology_root() / kind).iterdir() if p.suffix == '.json')
         except FileNotFoundError:
             return []
         except OSError as exc:

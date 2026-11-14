@@ -1,0 +1,13 @@
+{
+  "_note": "리스크 한도. 대회 내내 고정. 리스크 검증 Hook이 주문 직전에 강제하며, 에이전트와 주간 회고는 이 파일을 바꿀 수 없음. 11-03 기획팀(박문화) 확정값. 최대 보유 종목 수만 11-03 6 → 20 (S.Lee).",
+  "max_weight_per_stock": 0.20,
+  "max_positions": 20,
+  "min_cash_ratio": 0.10,
+  "daily_loss_limit": -0.03,
+  "total_loss_limit": -0.10,
+  "total_loss_cap_factor": 0.5,
+  "max_order_amount": 10000000,
+  "max_orders_per_run": 8,
+  "max_buy_day_change": 0.10,
+  "initial_capital": 50000000
+}

@@ -1,4 +1,13 @@
 """Offline durable dispatch fault tests, including independent processes."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 import multiprocessing
 import os
@@ -222,7 +231,7 @@ def test_safe_ids_and_json_nonfinite_state(isolated):
     event=E.record('size',limits={'unbounded':float('inf')})
     assert event['recording_status']=='recorded'
     path=next((isolated/'ontology/executions/attempt-local/size').glob('*.json'))
-    assert json.loads(path.read_text())['limits']['unbounded']['status']=='non_finite'
+    assert read_stored(path)['limits']['unbounded']['status']=='non_finite'
 
 
 def test_missing_previously_initialized_ledger_is_never_recreated(isolated):

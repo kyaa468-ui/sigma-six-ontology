@@ -253,6 +253,7 @@ def _simulation_inputs(events, opportunities, manifest, imports):
         'interpretation':'operator_imports_are_declared_scenario_inputs_not_verified_historical_provider_capacity' if imports else 'captured_original_inputs'}
 
 
+@__import__("evaluation_context").scoped
 def build_inputs(validation_id, refresh_key=None):
     import judgment_coverage as JC
     import ai_judgment as J
@@ -338,7 +339,7 @@ def build_inputs(validation_id, refresh_key=None):
                 gaps.append({'run_attempt_id':aid,'reason':'runtime_input_not_available_at_original_decision'})
         # Keep every original event, including hooks/zero quantities/missing IDs.
         execution_errors=[]
-        raw_events=EC._records(Path(C.WORK)/'ontology/executions',cutoff,execution_errors)
+        raw_events=EC._records(C.ontology_root()/'executions',cutoff,execution_errors)
         gaps.extend(execution_errors)
         attempt_ids={a['run_attempt_id'] for a in attempts}
         system_ids={a['run_attempt_id'] for a in system_attempts}
@@ -349,7 +350,7 @@ def build_inputs(validation_id, refresh_key=None):
                 e.get('kind') in ('monitor_check','monitor_tick','simulation_coverage') and start<=instant(e['created_at'])<=end or
                 e.get('kind') in PC.KINDS and e.get('account_scope') in own_scopes and
                     (e.get('kind') in ('portfolio_session','portfolio_session_end') or start<=instant(e['created_at'])<=end)]
-        definitions=EC._definitions(Path(C.WORK)/'ontology',events,gaps)
+        definitions=EC._definitions(C.ontology_root(),events,gaps)
         by_call={call['event_id']:o['opportunity_id'] for o in opportunities for call in o['coverage_target'].get('calls',[])}
         for e in events:
             call_id=e.get('coverage_event_id',e.get('call_event_id'))

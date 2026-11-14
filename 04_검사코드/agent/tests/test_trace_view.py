@@ -1,4 +1,13 @@
 """Offline local-server and public-writer boundaries. No market, AI or publishing."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import copy
 import gzip
 import hashlib
@@ -78,13 +87,15 @@ def test_loopback_pinned_view_and_offline_assets(server, snapshot):
 @pytest.mark.parametrize('encoding,compressed', [('gzip', True), ('gzip;q=0.5', True),
                                                ('gzip;q=0', False), ('identity', False)])
 def test_large_view_transport_preserves_exact_logical_payload(server, snapshot, encoding, compressed):
-    snapshot['projection']['test_repeated_observations'] = [{'source': 'synthetic', 'value': 20400}] * 200
+    snapshot['projection']['targets']=[{'trace_id':f'trace-{i:03}','code':'000001','status':'complete'} for i in range(50)]
     before = copy.deepcopy(snapshot)
-    status, headers, body = request(server, '/api/view', headers={'Accept-Encoding': encoding})
+    status, headers, body = request(server, '/api/targets', headers={'Accept-Encoding': encoding})
     assert status == 200
     assert (headers.get('Content-Encoding') == 'gzip') is compressed
     decoded = gzip.decompress(body) if compressed else body
-    assert json.loads(decoded) == before
+    import trace_pages
+    assert json.loads(decoded)==trace_pages.list_page(before,'targets')
+    assert len(decoded)<=1024*1024
     if compressed:
         assert len(body) < len(decoded) / 4
     assert snapshot == before
@@ -138,7 +149,7 @@ def test_final_public_writer_strips_prose_private_ids_and_keeps_zero(tmp_path, m
     monkeypatch.setattr(C, 'DOCS_DATA', str(tmp_path))
     row=private_row()
     logger.out('trades',[row])
-    value=json.loads((tmp_path/'trades.json').read_text())[0]
+    value=read_stored(tmp_path/'trades.json')[0]
     assert (value['confidence'],value['qty'],value['price'])==(0.0,40,20400)
     encoded=json.dumps(value)
     assert 'PRIVATE_' not in encoded and 'order_no' not in value and 'judgment_id' not in value
@@ -171,3 +182,17 @@ def test_public_migration_prepares_separate_bundle_and_leaves_source(tmp_path):
     assert 'PRIVATE_' not in (tmp_path/'staging/trades.json').read_text()
     with pytest.raises(ValueError):logger.sanitize_public_directory(source,source)
     with pytest.raises(ValueError):logger.sanitize_public_directory(source,tmp_path/'staging')
+
+def test_related_results_and_ambiguous_validation_are_paged(server,snapshot):
+    snapshot['projection']['proposals']=[{'proposal_id':'proposal-a','title':'selected'}]
+    snapshot['projection']['validations']=[{'validation_id':'validation-a','result_id':f'result-{i:03}','proposal_id':'proposal-a','status':'complete'} for i in range(111)]
+    route='/api/relations/proposal/proposal-a/validations?limit=100'
+    status,_,body=request(server,route);page=json.loads(body)
+    assert status==200 and len(page['items'])==100 and page['total']==111
+    from urllib.parse import quote
+    status,_,body=request(server,route+'&cursor='+quote(page['next_cursor']))
+    last=json.loads(body);assert status==200 and len(last['items'])==11 and last['complete']
+    status,_,body=request(server,'/api/validation/validation-a')
+    choice=json.loads(body);assert status==200 and choice['status']=='choices' and choice['total']==111
+    status,_,body=request(server,'/api/validation/result-110')
+    assert status==200 and json.loads(body)['item']['result_id']=='result-110'

@@ -17,6 +17,8 @@ import uuid
 
 import common as C
 import snapshot_store
+import record_store
+import storage_objects as objects
 
 VERSION = 'TRACE_SNAPSHOT@v1'
 _ID = re.compile(r'view-[a-f0-9]{32}\Z')
@@ -27,7 +29,7 @@ class SnapshotError(ValueError):
 
 
 def root():
-    return Path(C.WORK) / 'ontology' / 'trace_view'
+    return C.ontology_root() / 'trace_view'
 
 
 def canonical(value):
@@ -35,7 +37,7 @@ def canonical(value):
 
 
 def digest(value):
-    return hashlib.sha256(canonical(value).encode('utf-8')).hexdigest()
+    return objects.fingerprint(value)[0]
 
 
 def _identifier(value):
@@ -45,32 +47,14 @@ def _identifier(value):
 
 
 def _write_immutable(path, body):
-    """A complete file appears once; an interrupted write never becomes JSON."""
     path = Path(path)
-    # Public exports remain standalone allowlisted JSON. Only the private view
-    # shares immutable blobs with the records from which it was prepared.
-    stored = snapshot_store.encode(body) if path.name == 'projection.json' and path.parent.parent == root() / 'snapshots' else body
-    payload = canonical(stored).encode('utf-8')
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(prefix='.trace-', suffix='.tmp', dir=path.parent)
-    try:
-        with os.fdopen(descriptor, 'wb') as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.link(temporary, path)
+    if path.name == 'projection.json' and path.parent.parent == root() / 'snapshots':
+        record_store.publish(path, body, kind='trace_view', exclusive=False)
+    else:
+        try: objects.publish_json(path, body)
         except FileExistsError:
-            if path.read_bytes() != payload:
+            if objects.file_fingerprint(path) != objects.fingerprint(body):
                 raise SnapshotError('IMMUTABLE_VIEW_CONFLICT')
-        if os.name != 'nt':
-            directory = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
-    finally:
-        os.unlink(temporary)
 
 
 def _read(path):
@@ -82,7 +66,7 @@ def _read(path):
             or any(parent.is_symlink() for parent in (path, *path.parents)
                    if parent != root() and root() in parent.parents)):
         raise SnapshotError('SYMLINK_VIEW_FORBIDDEN')
-    value = snapshot_store.decode(json.loads(path.read_text(encoding='utf-8')))
+    value = record_store.load(path)
     if not isinstance(value, dict):
         raise SnapshotError('VIEW_OBJECT_REQUIRED')
     return value
@@ -95,17 +79,18 @@ def _capture_sources():
     cannot certify a different version of a source they already used. Only JSON
     ledger sources are captured; views and mutable SQLite locks are excluded.
     """
-    base = Path(C.WORK) / 'ontology'
+    base = C.ontology_root()
     if not base.exists():
         return {}
     captured = {}
-    for path in sorted(base.rglob('*.json')):
+    for path in base.rglob('*'):
+        if not path.is_file() or path.suffix not in ('.json','.commit'):continue
         relative = path.relative_to(base)
         if relative.parts[0] == 'trace_view':
             continue
         if path.is_symlink() or not path.resolve().is_relative_to(base.resolve()):
             raise SnapshotError('SOURCE_PATH_OUTSIDE_ONTOLOGY')
-        captured[str(relative)] = hashlib.sha256(path.read_bytes()).hexdigest()
+        captured[str(relative)] = objects.file_fingerprint(path)[0]
     return captured
 
 
@@ -120,7 +105,7 @@ def _verify_prior_sources(sources, captured):
 def _verify_sources(sources):
     if not isinstance(sources, list):
         raise SnapshotError('SOURCE_MANIFEST_REQUIRED')
-    base = (Path(C.WORK) / 'ontology').resolve()
+    base = (C.ontology_root()).resolve()
     seen = {}
     for source in sources:
         if not isinstance(source, dict):
@@ -135,7 +120,7 @@ def _verify_sources(sources):
         if relative in seen and seen[relative] != expected:
             raise SnapshotError('CONFLICTING_SOURCE_HASH')
         seen[relative] = expected
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+        if objects.file_fingerprint(path)[0] != expected:
             raise SnapshotError('SOURCE_CHANGED_DURING_PREPARATION')
 
 
@@ -168,6 +153,7 @@ def _failure(view_id, operation, exc):
     return result
 
 
+@objects.scoped
 def build_view_snapshot(market_as_of=None, knowledge_as_of=None):
     import trace_query as Q
     import research_evidence as RE
@@ -219,6 +205,7 @@ def build_view_snapshot(market_as_of=None, knowledge_as_of=None):
         return _failure(view_id, operation, exc)
 
 
+@objects.scoped
 def load_view_snapshot(view_id):
     """Pure, fail-closed read. Never re-read live inputs to rewrite old facts."""
     try:
@@ -231,13 +218,15 @@ def load_view_snapshot(view_id):
         commit = _read(folder / 'commit.json')
         manifest = _read(folder / 'manifest.json')
         projection = _read(folder / 'projection.json')
+        physical = record_store.manifest(folder / 'projection.json')
+        projection_hash = physical['logical_sha256'] if physical.get('format') == record_store.FORMAT else digest(projection)
         if (manifest.get('schema_version') != VERSION or commit.get('schema_version') != VERSION
                 or manifest.get('view_id') != identifier or commit.get('view_id') != identifier
                 or manifest.get('status') not in ('complete', 'partial')
                 or projection.get('schema_version') != 'TRACE_VIEW@v1'
                 or commit.get('manifest_hash') != digest(manifest)
-                or commit.get('projection_hash') != digest(projection)
-                or manifest.get('projection_hash') != digest(projection)
+                or commit.get('projection_hash') != projection_hash
+                or manifest.get('projection_hash') != projection_hash
                 or manifest.get('status') != projection.get('status')):
             raise SnapshotError('VIEW_INTEGRITY_MISMATCH')
         # Confirm the durable pre-presentation reservation has not disappeared.

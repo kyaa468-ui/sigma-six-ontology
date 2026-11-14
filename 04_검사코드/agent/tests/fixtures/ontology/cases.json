@@ -1,0 +1,682 @@
+{
+  "asof": "2026-11-05",
+  "now": "2026-11-06T10:30:00+09:00",
+  "rows": [
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000010",
+      "name": "가상1"
+    },
+    {
+      "ma5": 19800,
+      "ma20": 19500,
+      "ma60": 19000,
+      "close": 20000,
+      "price": 20000,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 150000,
+      "inst_qty": -225000,
+      "news": [],
+      "code": "000020",
+      "name": "가상2"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": null,
+      "inst_net": null,
+      "foreign_qty": null,
+      "inst_qty": null,
+      "news": [],
+      "code": "000030",
+      "name": "가상3"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 0,
+      "inst_net": 0,
+      "foreign_qty": 0,
+      "inst_qty": 0,
+      "news": [],
+      "code": "000040",
+      "name": "가상4"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 19900,
+      "price": 19900,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000050",
+      "name": "가상5"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 1.8,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000060",
+      "name": "가상6"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 3.5,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000070",
+      "name": "가상7"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.3,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000080",
+      "name": "가상8"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.1,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000090",
+      "name": "가상9"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": null,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000100",
+      "name": "가상10"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": 3000000000,
+      "inst_net": -4500000000,
+      "foreign_qty": 10000,
+      "inst_qty": -12000,
+      "news": [],
+      "code": "000110",
+      "name": "가상11"
+    },
+    {
+      "ma5": 20200,
+      "ma20": 20000,
+      "ma60": 19000,
+      "close": 20400,
+      "price": 20400,
+      "trading_value_20d": 10000000000,
+      "vol20": 0.4,
+      "ret5": 0.03,
+      "ret20": 0.1,
+      "rsi14": 50,
+      "mdd60": -0.1,
+      "ma20_slope5": 0.01,
+      "limit_up_recent": false,
+      "chg": 0.02,
+      "value": 5000000000,
+      "foreign_net": -1,
+      "inst_net": -2,
+      "foreign_qty": -1,
+      "inst_qty": -2,
+      "news": [],
+      "code": "000120",
+      "name": "가상12"
+    }
+  ],
+  "cases": [
+    {
+      "stage": "prep",
+      "regime": "상승",
+      "enabled": true,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000090",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.543
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.543
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.771
+        }
+      ]
+    },
+    {
+      "stage": "prep",
+      "regime": "상승",
+      "enabled": false,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000040",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000090",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000120",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.355
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.677
+        }
+      ]
+    },
+    {
+      "stage": "prep",
+      "regime": "하락",
+      "enabled": true,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000090",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.771
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.543
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.543
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.771
+        }
+      ]
+    },
+    {
+      "stage": "prep",
+      "regime": "하락",
+      "enabled": false,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000040",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000090",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000120",
+          "high_vol": false,
+          "score": 0.677
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.355
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.677
+        }
+      ]
+    },
+    {
+      "stage": "intraday",
+      "regime": "상승",
+      "enabled": true,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.4
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.64
+        }
+      ]
+    },
+    {
+      "stage": "intraday",
+      "regime": "상승",
+      "enabled": false,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000040",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000120",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.473
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.716
+        }
+      ]
+    },
+    {
+      "stage": "intraday",
+      "regime": "하락",
+      "enabled": true,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.64
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.4
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.64
+        }
+      ]
+    },
+    {
+      "stage": "intraday",
+      "regime": "하락",
+      "enabled": false,
+      "expected": [
+        {
+          "code": "000020",
+          "high_vol": false,
+          "score": 1.0
+        },
+        {
+          "code": "000010",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000100",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000110",
+          "high_vol": false,
+          "score": 0.716
+        },
+        {
+          "code": "000030",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000040",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000120",
+          "high_vol": false,
+          "score": 0.5
+        },
+        {
+          "code": "000080",
+          "high_vol": false,
+          "score": 0.473
+        },
+        {
+          "code": "000060",
+          "high_vol": true,
+          "score": 0.716
+        }
+      ]
+    }
+  ]
+}

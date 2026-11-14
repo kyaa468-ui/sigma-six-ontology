@@ -19,9 +19,12 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import common as C
+import record_store as records_v2
+import storage_objects as objects
+import storage_errors
 
 _ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:@-]{0,199}\Z")
-_ERRORS = {}
+_ERRORS = storage_errors.ErrorRegistry()
 
 
 class StoreError(ValueError):
@@ -33,7 +36,7 @@ class StoreBusy(RuntimeError):
 
 
 def root():
-    return Path(C.WORK) / 'ontology' / 'policy_registry'
+    return C.ontology_root() / 'policy_registry'
 
 
 def _id(value):
@@ -47,7 +50,7 @@ def canonical(value):
 
 
 def digest(value):
-    return hashlib.sha256(canonical(value).encode()).hexdigest()
+    return objects.fingerprint(value)[0]
 
 
 def _path(kind, identifier):
@@ -57,47 +60,31 @@ def _path(kind, identifier):
 def load(kind, identifier):
     path = _path(kind, identifier)
     try:
-        value = json.loads(path.read_text(encoding='utf-8'))
-    except FileNotFoundError:
+        value = records_v2.load(path)
+    except FileNotFoundError as exc:
+        if path.exists():raise StoreError("INCOMPLETE_RECORD: "+str(path)) from exc
         return None
     if not isinstance(value, dict):
         raise StoreError(f'{kind}/{identifier}: expected object')
     if value.get('format') != 'immutable-policy-registry-record@v1' or not isinstance(value.get('record'), dict):
         raise StoreError(f'{kind}/{identifier}: missing policy registry integrity envelope')
-    if digest(value['record']) != value.get('content_sha256'):
+    if not isinstance(value, objects.ObjectDict) and digest(value['record']) != value.get('content_sha256'):
         raise StoreError(f'{kind}/{identifier}: policy registry content hash mismatch')
-    return value['record']
+    record=value['record']
+    if isinstance(record,objects.ObjectDict):record._record_order=getattr(value,'_record_order',0)
+    return record
 
 
 def archive(kind, identifier, body):
-    """Publish exactly one complete value. Same key/content is an idempotent read."""
-    if not isinstance(body, dict):
-        raise StoreError('Policy registry records must be objects')
-    payload = canonical({'format': 'immutable-policy-registry-record@v1', 'content_sha256': digest(body), 'record': body})
+    """Freeze once, publish a committed v2 record, retain old logical hashes."""
+    if not isinstance(body, dict): raise StoreError('Records must be objects')
     target = _path(kind, identifier)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix='.policy-registry-', suffix='.tmp', dir=target.parent)
+    envelope = {'format':'immutable-policy-registry-record@v1', 'content_sha256':digest(body), 'record':body}
     try:
-        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        try:
-            os.link(temporary, target)
-        except FileExistsError:
-            previous = load(kind, identifier)
-            if previous is None or canonical(previous) != canonical(body):
-                raise StoreError(f'Immutable policy registry key conflict: {kind}/{identifier}')
-            return previous
-        if os.name != 'nt':
-            directory = os.open(target.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory)
-            finally:
-                os.close(directory)
-    finally:
-        os.unlink(temporary)
-    return copy.deepcopy(body)
+        records_v2.publish(target, envelope, kind=kind, exclusive=False)
+        return records_v2.load(target)['record']
+    except ValueError as exc:
+        raise StoreError(str(exc)) from exc
 
 
 @contextmanager
@@ -122,45 +109,44 @@ def locked(identifier, timeout=30):
 
 
 def records(kind):
-    folder = root() / _id(kind)
-    result, errors = [], []
-    try:
-        paths = sorted(folder.iterdir())
-    except FileNotFoundError:
-        return {'records': [], 'errors': []}
-    except OSError as exc:
-        return {'records': [], 'errors': [{'kind': kind, 'error': str(exc)}]}
-    for path in paths:
-        if path.suffix != '.json':
+    errors = []
+    rows = list(iter_records(kind, errors=errors))
+    return {'records': rows, 'errors': errors}
+
+
+def iter_records(kind, *, filters=None, fields=None, errors=None):
+    for envelope in records_v2.iter_records(root() / _id(kind), filters=filters, errors=errors):
+        value = envelope['record']
+        if not isinstance(envelope, objects.ObjectDict) and digest(value) != envelope.get('content_sha256'):
+            if errors is None: raise StoreError('Record content hash mismatch')
+            errors.append({'kind':kind,'error':'Record content hash mismatch'})
             continue
-        try:
-            value = load(kind, path.stem)
-            if value is None:
-                raise StoreError('Record disappeared during read')
-            result.append(value)
-        except (OSError, ValueError) as exc:
-            errors.append({'kind': kind, 'record_id': path.stem, 'error': str(exc)})
-    return {'records': result, 'errors': errors}
+        if isinstance(value,objects.ObjectDict):value._record_order=getattr(envelope,'_record_order',0)
+        yield {k:value[k] for k in fields if k in value} if fields is not None else value
 
 
 def record_error(job_id, operation, error):
     """A policy registry error never changes the historical AI run's coverage status."""
     row = {'error_id': 'policy-registry-error-' + uuid.uuid4().hex, 'proposal_run_id': job_id,
            'operation': operation, 'error': str(error), 'recorded_at': C.now().isoformat()}
-    _ERRORS.setdefault(str(root()), []).append(copy.deepcopy(row))
     try:
         archive('errors', row['error_id'], row)
     except Exception:
-        pass
+        storage_errors.retain(_ERRORS, str(root()), row)
+        print('Unpersisted storage error: ' + str(row), file=__import__('sys').stderr)
     return {'recording_status': 'recording_error', **row}
 
 
-def errors(job_id=None):
-    stored = records('errors')
-    by = {x['error_id']: x for x in stored['records'] if isinstance(x.get('error_id'), str)}
-    by.update({x['error_id']: x for x in _ERRORS.get(str(root()), [])})
-    return {'records': [x for x in by.values() if job_id is None or x.get('proposal_run_id') == job_id],
-            'errors': stored['errors']}
+def errors(job_id=None, *, cursor=None, limit=50):
+    failures=[]
+    persisted=iter_records('errors',filters={'proposal_run_id':job_id},errors=failures)
+    pending=[x for x in _ERRORS.get(str(root()),[]) if job_id is None or x.get('proposal_run_id')==job_id]
+    from itertools import chain
+    page=records_v2.versioned_page(chain(persisted,pending),scope=str((root(),'errors',job_id)),
+        cursor=cursor,limit=limit,key=lambda row:row['error_id'])
+    rows=page.pop('items')
+    return {**page,'records':rows,'errors':failures,'fallback_state':_ERRORS.state()}
+
 
 
 VERSION = 'POLICY_REGISTRY@v1'

@@ -1,5 +1,5 @@
 diff --git a/agent/src/tuning.py b/agent/src/tuning.py
-index bf1fdae..cc6e453 100644
+index bf1fdae..4a4eee3 100644
 --- a/agent/src/tuning.py
 +++ b/agent/src/tuning.py
 @@ -10,8 +10,11 @@
@@ -32,9 +32,9 @@ index bf1fdae..cc6e453 100644
 +    # 고정한 입력을 주입하며, 감사 정보는 운영 조정 결과에 섞지 않는다.
 +    today = C.today().isoformat() if snapshot is None else snapshot["today"]
 +    q = (C.read_json(os.path.join(C.WORK, "quotes.json"), {}) if snapshot is None else snapshot["quotes"]) or {}
-+    prep_rows = (C.read_json(os.path.join(C.WORK, "prep_rows.json"), []) if snapshot is None else snapshot["prep_rows"]) or []
++    prep_rows = (list(C.iter_prep_rows()) if snapshot is None else snapshot["prep_rows"]) or []
 +    prep = {x["code"]: x for x in prep_rows}
-+    b = (C.read_json(C.BRIEFING, {}) if snapshot is None else snapshot["briefing"]) or {}
++    b = (C.load_briefing(default={}) if snapshot is None else snapshot["briefing"]) or {}
      asof = b.get("asof")
 -    acc = C.read_json(C.ACCOUNT, {}) or {}
 +    acc = (C.read_json(C.ACCOUNT, {}) if snapshot is None else snapshot["account"]) or {}

@@ -228,15 +228,19 @@ def get_proposal_context(proposal_run_id):
                 'errors':[S.record_error(proposal_run_id,'get_proposal_context',exc)]}
 
 
-def get_proposal_cases(proposal_run_id,offset=0,limit=50):
+def get_proposal_cases(proposal_run_id,offset=0,limit=50,cursor=None):
     if isinstance(offset,bool) or not isinstance(offset,int) or offset<0 or isinstance(limit,bool) or not isinstance(limit,int) or not 1<=limit<=100:
         return {'status':'rejected','errors':[{'code':'INVALID_PAGINATION'}]}
     try:
         context=_load_context(proposal_run_id)
-        cases=context['cases'][offset:offset+limit]
-        ids=[c['application_id'] for c in cases]
+        import record_store, storage_objects
+        page=record_store.sequence_page(context['cases'],scope='proposal:'+proposal_run_id,cursor=cursor,limit=limit,offset=offset,budget=512*1024)
+        cases=page.pop('items')
+        ids=[c['application_id'] for c in cases if c.get('application_id')]
         catalog=[x for x in context['catalog'] if x.get('application_id') in ids]
-        return _deliver(context,{'cases':cases,'catalog':catalog,'offset':offset,'total':len(context['cases']),'recording_status':'recorded'},
+        if storage_objects.logical_size(catalog)>400*1024:
+            catalog=[];ids=[];page['catalog_complete']=False
+        return _deliver(context,{**page,'cases':cases,'catalog':catalog,'offset':offset,'total':len(context['cases']),'recording_status':'recorded'},
                         catalog=catalog,case_ids=ids)
     except Exception as exc:
         return {'proposal_run_id':proposal_run_id,'recording_status':'recording_error',

@@ -1,4 +1,13 @@
 """Actual saved steps 1–7 -> operator view -> public staging, entirely offline."""
+
+
+def read_stored(path):
+    """Logical fixture reads support inline v1 and explicit committed v2 records."""
+    import record_store
+    from pathlib import Path
+    path = Path(path)
+    return record_store.load_input(path) if path.name in ('briefing.json','prep_rows.json') else record_store.load(path)
+
 import json
 import hashlib
 import sys
@@ -52,6 +61,7 @@ def forbid_runtime(monkeypatch):
 
 def protected_bytes():
     return {name:data for name,data in bytes_under(Path(C.WORK)).items()
+            if not name.startswith('ontology/storage_index.sqlite3')
             if not name.startswith('ontology/trace_view/')
             and not name.startswith('ontology/case_review/usage_events/')
             and not name.startswith('ontology/case_review/locks/')}
@@ -118,6 +128,6 @@ def test_view_commands_reject_ai_and_missing_view(monkeypatch):
 
 def test_trading_ai_cannot_read_view_or_export_paths():
     runner=load_module('trace_cli_permissions',ROOT/'run.py')
-    permissions=json.loads((ROOT/'.claude/settings.json').read_text())['permissions']['deny']
+    permissions=read_stored(ROOT/'.claude/settings.json')['permissions']['deny']
     denied='Read(./work/ontology/trace_view/**)'
     assert denied in runner.TOOLS_DENY and denied in permissions

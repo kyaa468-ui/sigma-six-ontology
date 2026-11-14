@@ -1,10 +1,13 @@
 {
-  "format": "SIGMA_SIX_STRUCTURE_EXTRACT@v1",
+  "format": "SIGMA_SIX_STRUCTURE_EXTRACT@v2",
   "created_at": "2026-11-07T15:08:16.196530+09:00",
-  "source_repository": "/Users/geonyoung/Documents/hynix-298f",
+  "updated_at": "2026-11-14T16:41:46.262334+09:00",
+  "source_repository": "https://github.com/kyaa468-ui/SION",
+  "source_commit": "c7379d6efbbb9d41313383f0508a23de2a170221",
+  "previous_source_commit": "70f941da896f13398ce1816b81ced70cf9958a2d",
   "baseline_commit": "25f7da455f025720564ccd56ced36df4ea3ece1b",
-  "source_branch": "feat/ontology-feedback",
-  "destination": "/Users/geonyoung/Documents/시그마식스 온톨로지",
+  "baseline_repository": "original Sigma baseline Git object",
+  "destination": ".",
   "runtime_instances_included": false,
   "independently_runnable": false,
   "copied_files": [
@@ -39,6 +42,12 @@
       "bytes": 81106
     },
     {
+      "source": "agent/requirements-storage.lock",
+      "path": "02_신규기능코드/agent/requirements-storage.lock",
+      "sha256": "7cb424080b30cf0c14d65d86cb2f45d276466eb284cb4a1869b27cc4cef5c24c",
+      "bytes": 1602
+    },
+    {
       "source": "agent/review/index.html",
       "path": "02_신규기능코드/agent/review/index.html",
       "sha256": "2af286e116d7a8a15e1023013d8e67de16de0a1a11528df7001f22fab1fa0d16",
@@ -53,26 +62,26 @@
     {
       "source": "agent/review/trace.js",
       "path": "02_신규기능코드/agent/review/trace.js",
-      "sha256": "75c979ea8a6c6f1cb51c4a14fb817b6871aaf46ff086718f6b4414d64a8f217c",
-      "bytes": 30787
+      "sha256": "4e2d295ec448309382af014885e385c2b2399ad353a82def03cb089dfc23117f",
+      "bytes": 36739
     },
     {
       "source": "agent/src/ai_judgment.py",
       "path": "02_신규기능코드/agent/src/ai_judgment.py",
-      "sha256": "bdcfe3fff0615fa2a9a64e0e9bb4c8a63a3350883d3c075eea465887803d1a75",
-      "bytes": 53795
+      "sha256": "67e08a9c1686bc78bac7d327d529318c18c9ffe44fe92cd88a60b288a8a3967d",
+      "bytes": 53537
     },
     {
       "source": "agent/src/audit_inputs.py",
       "path": "02_신규기능코드/agent/src/audit_inputs.py",
-      "sha256": "64a98cc4097765f1998cc981510a1f901e3ed14b857c456bac407cda847bbd8c",
-      "bytes": 2577
+      "sha256": "4680f1d216595cae5f2d62789d2b6505f2ae5df8ba6c3654020d2872d7a17678",
+      "bytes": 2824
     },
     {
       "source": "agent/src/case_dataset.py",
       "path": "02_신규기능코드/agent/src/case_dataset.py",
-      "sha256": "0dba69ea5f85d2d6df0ec2485685401e7831e6e00dae69ccb906a8b4718f09f8",
-      "bytes": 35567
+      "sha256": "46a74994d858edd3b7ecd4572b9946702fea083a0f1aca6ac983b35881f80646",
+      "bytes": 35669
     },
     {
       "source": "agent/src/case_prediction.py",
@@ -83,26 +92,26 @@
     {
       "source": "agent/src/case_review.py",
       "path": "02_신규기능코드/agent/src/case_review.py",
-      "sha256": "de08a531a524b11880d65fbb28ff750f34dca09122a42066e385f9513a1ec13d",
-      "bytes": 28180
+      "sha256": "41b607eeda86960cab92ca1384018ffa1738ae9491e1aacb0fe46ff997e5ba15",
+      "bytes": 28296
     },
     {
       "source": "agent/src/case_statistics.py",
       "path": "02_신규기능코드/agent/src/case_statistics.py",
-      "sha256": "25b10b7444efc44d76c8f3cb58d9a70a4fda1a5476e363b0be10d0edafe3644e",
-      "bytes": 21654
+      "sha256": "ae5cc0d59f24434a38c491abdc72d746f3d5726d2f2dfe31bcbb78a20f561d71",
+      "bytes": 21835
     },
     {
       "source": "agent/src/case_store.py",
       "path": "02_신규기능코드/agent/src/case_store.py",
-      "sha256": "3fc6234f73d4b4dc5b38c25c2bf47f1cf3bbb15316b27bb2bb9e13af083c3d7f",
-      "bytes": 5683
+      "sha256": "11760b50c143ada6061c027ed9153b6e373a430c49ebbd86cef59af52bbee519",
+      "bytes": 5587
     },
     {
       "source": "agent/src/close_evaluation.py",
       "path": "02_신규기능코드/agent/src/close_evaluation.py",
-      "sha256": "ddae71ff09dcffcc5f1a07e2bd355cb86c71cb0a47c2ea3cde2e7ddd3c9e20da",
-      "bytes": 17178
+      "sha256": "d212b1a6af510af63716cf2779cf86b2175c6f7316fa265cee14509e443f11ed",
+      "bytes": 18528
     },
     {
       "source": "agent/src/condition_contract.py",
@@ -113,14 +122,20 @@
     {
       "source": "agent/src/daily_observations.py",
       "path": "02_신규기능코드/agent/src/daily_observations.py",
-      "sha256": "d9cfb1e99648bfdf94a7cb2cd72e10d1490dc57308eabae4dcae23693a6f574f",
-      "bytes": 13784
+      "sha256": "f70583869d5f5bfe5916f69dfd3d653f0b1520c96c7d2534186e132aedd144be",
+      "bytes": 13818
     },
     {
       "source": "agent/src/evaluation_context.py",
       "path": "02_신규기능코드/agent/src/evaluation_context.py",
-      "sha256": "0a3abd5513874bb6469654c8502355c5dcb2dd72faaf90b2e0f5ea582424a645",
-      "bytes": 19622
+      "sha256": "a899e5518f68af759d3b84014888a3a953e0b94edb68fd5f80ef6fe15786836d",
+      "bytes": 22118
+    },
+    {
+      "source": "agent/src/execution_reader.py",
+      "path": "02_신규기능코드/agent/src/execution_reader.py",
+      "sha256": "c782caa8658d6ec6cfc4062c290e00cfff1bc31dcc442b5aa96452a09ed42304",
+      "bytes": 2759
     },
     {
       "source": "agent/src/execution_reconcile.py",
@@ -131,8 +146,8 @@
     {
       "source": "agent/src/execution_trace.py",
       "path": "02_신규기능코드/agent/src/execution_trace.py",
-      "sha256": "a4b20d28ff34c4362a6a89cfa0f6dc4c25db6e20513a3ccff370863a5595a5fb",
-      "bytes": 46760
+      "sha256": "70191aaca8762a8189ed4c52da9fbe146dc532e24109739bac47911240e6e2e1",
+      "bytes": 46201
     },
     {
       "source": "agent/src/judgment_context.py",
@@ -143,20 +158,26 @@
     {
       "source": "agent/src/judgment_coverage.py",
       "path": "02_신규기능코드/agent/src/judgment_coverage.py",
-      "sha256": "a75c0bc7420283da9ae4e1655cd6e815b252344e360f2853c17f9212c9f67681",
-      "bytes": 21923
+      "sha256": "46f954c6ee9a78d58dceee8a7d286b4e271f540302b2e117bf744ea7a7a8419b",
+      "bytes": 22182
     },
     {
       "source": "agent/src/learning_proposals.py",
       "path": "02_신규기능코드/agent/src/learning_proposals.py",
-      "sha256": "f74f7d0dfbd6cb21321c46e22913cd02d94b5be87ddba5f0c60e3cd4f6ab4f5a",
-      "bytes": 37153
+      "sha256": "1366ef7d3fda3114cf5fc6a71f596ee17925964575246549de49ff0b1d8842b8",
+      "bytes": 37492
     },
     {
       "source": "agent/src/lesson_registry.py",
       "path": "02_신규기능코드/agent/src/lesson_registry.py",
       "sha256": "feabf44ec3ec01be427c53d790bee6ca331813e246f6700abae7e95922346d86",
       "bytes": 18105
+    },
+    {
+      "source": "agent/src/log_store.py",
+      "path": "02_신규기능코드/agent/src/log_store.py",
+      "sha256": "7260dae74db81b1489e4cbe08b5522bd4ab9b3ad64c2e190eeb8814da3e93838",
+      "bytes": 14405
     },
     {
       "source": "agent/src/market_calendar.py",
@@ -167,8 +188,8 @@
     {
       "source": "agent/src/ontology.py",
       "path": "02_신규기능코드/agent/src/ontology.py",
-      "sha256": "0934f85830c759007cce09c08bd2cc4d97725560d16a2e9691d86d80e9c9d1f6",
-      "bytes": 44110
+      "sha256": "a6ad1720eafb702d94a89663e14b2260d7f99d8aa30a6da4aac044b72a64b1c4",
+      "bytes": 43810
     },
     {
       "source": "agent/src/ontology_adapter.py",
@@ -185,26 +206,26 @@
     {
       "source": "agent/src/policy_registry.py",
       "path": "02_신규기능코드/agent/src/policy_registry.py",
-      "sha256": "3400ea54077e5d30351a5c208becdc7fba0a12d2391cc59af61c27a8f1c7f85d",
-      "bytes": 18499
+      "sha256": "377dac1272022c349a124755f7806ad865114718ff7504e0f93c39609fa98f38",
+      "bytes": 18392
     },
     {
       "source": "agent/src/policy_validation.py",
       "path": "02_신규기능코드/agent/src/policy_validation.py",
-      "sha256": "264e441995509c20ef6c90b4aac51cbbcd5b785418915a58afb44246e1427267",
-      "bytes": 24215
+      "sha256": "c88ebc253ef500edf2d4e78b4038c334cbd5573b8fba3c9117681153132d1543",
+      "bytes": 24488
     },
     {
       "source": "agent/src/portfolio_capture.py",
       "path": "02_신규기능코드/agent/src/portfolio_capture.py",
-      "sha256": "a4dae078ffe2a503c662e4de3af6e9d5f231dac933c556047a5980eedccf090d",
-      "bytes": 14432
+      "sha256": "906cf03292b96558346d34989a35f783e6ec82f45acc9e50cb62c54c60af9285",
+      "bytes": 14515
     },
     {
       "source": "agent/src/position_episodes.py",
       "path": "02_신규기능코드/agent/src/position_episodes.py",
-      "sha256": "11a5841bfe0fd481b578f0903f035da28bc3f7ac4dc09db800fcfd18f07cb73b",
-      "bytes": 6141
+      "sha256": "9b8bef9e90e88ab49f6e63119b61abda22273022546bc81185e7464054af6281",
+      "bytes": 6145
     },
     {
       "source": "agent/src/premise_evaluation.py",
@@ -213,22 +234,34 @@
       "bytes": 15207
     },
     {
+      "source": "agent/src/process_spool.py",
+      "path": "02_신규기능코드/agent/src/process_spool.py",
+      "sha256": "4359919fd767badafe896415d333ce390b76b8d25cd5415f07f43ff95303dc13",
+      "bytes": 2769
+    },
+    {
       "source": "agent/src/prompt_validation.py",
       "path": "02_신규기능코드/agent/src/prompt_validation.py",
-      "sha256": "2c388e8a526f3406d8723dc45be5f682e9a35caaa5ce8b1a0efc2d6ef1ad21f9",
-      "bytes": 20756
+      "sha256": "29b23f1fbae579cbdb8093a5e8b2b5cfdcb6c1b963a19a3ec53669e35b8f2afb",
+      "bytes": 21568
     },
     {
       "source": "agent/src/proposal_store.py",
       "path": "02_신규기능코드/agent/src/proposal_store.py",
-      "sha256": "d3c15f1dd66539739caf8d27bd7d81d4a4ff57da388b77bced0c7be272adef3f",
-      "bytes": 5762
+      "sha256": "fd6ccd2ddbaff6fddd98eb82339abced351ce7fa9c5905b889021842432bda2f",
+      "bytes": 5654
+    },
+    {
+      "source": "agent/src/record_store.py",
+      "path": "02_신규기능코드/agent/src/record_store.py",
+      "sha256": "108699a3a7b034c81a1722d3e7d38523b4003275fdc65d2820cbdd1493a9ad4f",
+      "bytes": 15542
     },
     {
       "source": "agent/src/replay_context.py",
       "path": "02_신규기능코드/agent/src/replay_context.py",
-      "sha256": "7906d149c4c16c693756d570bbcb54f1011cd2cdf7e1958ee77e2c6b3d843088",
-      "bytes": 27361
+      "sha256": "3ae910cd7f8477358e358cb06ee7e1debeb1abf226efb1311da8b4af9d2e7c23",
+      "bytes": 27588
     },
     {
       "source": "agent/src/research_evidence.py",
@@ -237,16 +270,22 @@
       "bytes": 16306
     },
     {
+      "source": "agent/src/research_pages.py",
+      "path": "02_신규기능코드/agent/src/research_pages.py",
+      "sha256": "4ad32d20b427fc02199b7e82f5d1e842c0b9df1dc5e8d6b5e6978ab04176a3e9",
+      "bytes": 1791
+    },
+    {
       "source": "agent/src/runtime_inputs.py",
       "path": "02_신규기능코드/agent/src/runtime_inputs.py",
-      "sha256": "02c70c887ec7c42e9d993ecb94cac97c1dd41765dcd366ee19337a81c4b289d1",
-      "bytes": 7430
+      "sha256": "119b739ef0ecb0f95da5ca793372eb9511d096a3aa497ae3d92f936491ecc7b5",
+      "bytes": 7703
     },
     {
       "source": "agent/src/scoring_store.py",
       "path": "02_신규기능코드/agent/src/scoring_store.py",
-      "sha256": "da3de9daf35eb11bc8b86461935be4764ab130b057920aa535b71ae44da4aca7",
-      "bytes": 5378
+      "sha256": "54cf3d5fd9a5ac3ccddb7929ea0ad8033893f76da724599e1c0e079b75db7161",
+      "bytes": 5299
     },
     {
       "source": "agent/src/simulation.py",
@@ -263,38 +302,62 @@
     {
       "source": "agent/src/snapshot_store.py",
       "path": "02_신규기능코드/agent/src/snapshot_store.py",
-      "sha256": "2b60ba5358e91e5c205f818417e32fe1b768a8fe09a5e063827b95e3a17b9fd0",
-      "bytes": 11386
+      "sha256": "33a6e0a8f1eb3736cc3b6b3050e609fcaa71dc6386b681b376e6c448883986f5",
+      "bytes": 11812
+    },
+    {
+      "source": "agent/src/storage_errors.py",
+      "path": "02_신규기능코드/agent/src/storage_errors.py",
+      "sha256": "1b01ff6c1f1236489a3e542abb6ed7454549b7ff2bc5263efa81f2c07b329a24",
+      "bytes": 1796
+    },
+    {
+      "source": "agent/src/storage_index.py",
+      "path": "02_신규기능코드/agent/src/storage_index.py",
+      "sha256": "281456d38834634bf86dcf0f3721add98ee34a951e01c9044b991bc4007b7110",
+      "bytes": 4542
+    },
+    {
+      "source": "agent/src/storage_objects.py",
+      "path": "02_신규기능코드/agent/src/storage_objects.py",
+      "sha256": "e17cedbe1e70e0fd12e8ca6a6b93aba93b30748db9e903f4c79899e25dfbbce4",
+      "bytes": 30619
     },
     {
       "source": "agent/src/trace_export.py",
       "path": "02_신규기능코드/agent/src/trace_export.py",
-      "sha256": "80a77aca73a0cfe6732757d2397c2931e666c3c2b431a410b00546ce88d261a2",
-      "bytes": 13639
+      "sha256": "0fe2368faea8bba06768090355ce277cda5df912b57df2fce586530d887220c6",
+      "bytes": 13650
+    },
+    {
+      "source": "agent/src/trace_pages.py",
+      "path": "02_신규기능코드/agent/src/trace_pages.py",
+      "sha256": "074af0f83333c50f739933f36f4158adabd0095b9889e60cafa80c12cfcd0eeb",
+      "bytes": 12206
     },
     {
       "source": "agent/src/trace_query.py",
       "path": "02_신규기능코드/agent/src/trace_query.py",
-      "sha256": "5f571634812adf9ec11604be60aef2a20c35ef9295193c6cd067bed57e97b526",
-      "bytes": 38131
+      "sha256": "7d93b6ef0b0df2588989a390a75c2797fa02e6fab12083477efa0e5e6a966204",
+      "bytes": 41064
     },
     {
       "source": "agent/src/trace_snapshot.py",
       "path": "02_신규기능코드/agent/src/trace_snapshot.py",
-      "sha256": "6c1cd214630dd8117cccb2282475457f1d8049450c29f96653f9e6feb6f74843",
-      "bytes": 12156
+      "sha256": "09b09c3768831235a7c9afc0568e8a5e27c9879ddf0424478789856a41d00fa0",
+      "bytes": 11618
     },
     {
       "source": "agent/src/trace_view.py",
       "path": "02_신규기능코드/agent/src/trace_view.py",
-      "sha256": "8e745cbfb3726a33141bc8e913484826800691aa8d97957c2863c6b1f1cc285a",
-      "bytes": 5499
+      "sha256": "dedd422cc69dfd4685faf38104059712bc772526c13410fffd153966bc98dc34",
+      "bytes": 7278
     },
     {
       "source": "agent/src/validation_dataset.py",
       "path": "02_신규기능코드/agent/src/validation_dataset.py",
-      "sha256": "3aaa3779ae6c6863287ce2c0fcf9acd403820576b3496e89ce66296326764093",
-      "bytes": 31607
+      "sha256": "da18f8eae3c98e803002152c270d4b01c51bf0e759d05f807e521d085456f7a3",
+      "bytes": 31638
     },
     {
       "source": "agent/src/validation_holdout.py",
@@ -305,8 +368,8 @@
     {
       "source": "agent/src/validation_mcp.py",
       "path": "02_신규기능코드/agent/src/validation_mcp.py",
-      "sha256": "d94afb0f3cd6effa4cfde7abfe1c1f240811624774e246fdbaa261825eed7f7e",
-      "bytes": 944
+      "sha256": "85f5285a5e788f61ffb892a4ea2d8761b284f93b78ede666613f76ed1edc955b",
+      "bytes": 1151
     },
     {
       "source": "agent/src/validation_spec.py",
@@ -317,14 +380,62 @@
     {
       "source": "agent/src/validation_store.py",
       "path": "02_신규기능코드/agent/src/validation_store.py",
-      "sha256": "160a1ad50ca02eb4d03c45c79fb46cb5c65f81c2d08ad239a99367b5f51b46dd",
-      "bytes": 5757
+      "sha256": "f325b66375c76a661c595c4909ab7f084955f276f790c0f91baa18bbcf1e0bc8",
+      "bytes": 5647
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/baseline_conf_boost.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/baseline_conf_boost.json",
+      "sha256": "0de906f9180d808910d52235b21b6d997a44ecdefd1ca89ad881807fad047f85",
+      "bytes": 2427
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/baseline_source.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/baseline_source.json",
+      "sha256": "e1b2f5e77cb312dd3a06114d3393abc7cc70e6fe05620585b56f05c06d9ed953",
+      "bytes": 16151
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/cases.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/cases.json",
+      "sha256": "0b3b3dd412852cb5c3532b9c5bcc3d232daf48ef1c4fe2b338267edc7b6a766e",
+      "bytes": 14274
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/execution_baseline_source.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/execution_baseline_source.json",
+      "sha256": "a0a5858e840f00c21bda6c41d831830185c819fa8cff254b44b3c52327282b02",
+      "bytes": 19463
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/params.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/params.json",
+      "sha256": "4d26f3e09c57deffd2a2693365120f2b5855c2c981affe309a99f3275efc897b",
+      "bytes": 12960
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/risk_limits.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/risk_limits.json",
+      "sha256": "921c2443b49d8bb68813f6733237cb6e0529bd33ce3af4336e628eeb42030587",
+      "bytes": 560
+    },
+    {
+      "source": "agent/tests/fixtures/ontology/step4/baseline.json",
+      "path": "04_검사코드/agent/tests/fixtures/ontology/step4/baseline.json",
+      "sha256": "ccb7d58b29055fba87bea88d5fb2dc385f10035bfe7c8dd9cf857d984ff02d90",
+      "bytes": 17561
+    },
+    {
+      "source": "agent/tests/storage_fixture_helpers.py",
+      "path": "04_검사코드/agent/tests/storage_fixture_helpers.py",
+      "sha256": "5ba7f5b222b6028cf066e695a62f61a4dbbd9535c9276bc21d191b2d078e46f2",
+      "bytes": 650
     },
     {
       "source": "agent/tests/test_ai_judgment.py",
       "path": "04_검사코드/agent/tests/test_ai_judgment.py",
-      "sha256": "e7a94d608dc6e3d61ef7217ca63b2ce0bc61ad1d287fc9108986a49be05c6dc4",
-      "bytes": 17651
+      "sha256": "f3e70365ee898c4b1af5b18ec7ed841ad5dee8e7de3e54aa803533613aba733e",
+      "bytes": 17936
     },
     {
       "source": "agent/tests/test_calendar_extension.py",
@@ -347,14 +458,14 @@
     {
       "source": "agent/tests/test_case_review.py",
       "path": "04_검사코드/agent/tests/test_case_review.py",
-      "sha256": "3dd26a2b51a8a56a5a79ab63d7af7a8c85d33ff66e59fc1d7ae30dc1ec12b0b1",
-      "bytes": 14141
+      "sha256": "d16bb48efc3940099c0f7069e0e6da950961bbe7ea1e5bdf2d86e20a46b7f29c",
+      "bytes": 14604
     },
     {
       "source": "agent/tests/test_case_review_tools.py",
       "path": "04_검사코드/agent/tests/test_case_review_tools.py",
-      "sha256": "02eb2f130a465a348a0c6cad039bf6c901f939895cbefbf382bf4670ee797aa7",
-      "bytes": 15954
+      "sha256": "0de161ac8dbd5905dfc3b2fe6d2c9d5c3891fdf84cc52cfdd217ffd50d003eb8",
+      "bytes": 16237
     },
     {
       "source": "agent/tests/test_case_statistics.py",
@@ -365,8 +476,8 @@
     {
       "source": "agent/tests/test_close_evaluation.py",
       "path": "04_검사코드/agent/tests/test_close_evaluation.py",
-      "sha256": "45e49074b7ac35457c023773a36922d6acecab894f247f54ab76f1dcf5f9c321",
-      "bytes": 16048
+      "sha256": "1d6f260cc0f2edf590fe7508c7d71dccc8ac7ae2639e04dc1ec000a3f9f8b76c",
+      "bytes": 16195
     },
     {
       "source": "agent/tests/test_condition_contract.py",
@@ -383,14 +494,14 @@
     {
       "source": "agent/tests/test_evaluation_context.py",
       "path": "04_검사코드/agent/tests/test_evaluation_context.py",
-      "sha256": "e0a449395590d51634f7465729e800f525f860004d5df6818fd1ccdce65472f3",
-      "bytes": 11433
+      "sha256": "f7e466cab57cff69e6b4518402c33289feb5d06a31469264ceead7d71b22e819",
+      "bytes": 11727
     },
     {
       "source": "agent/tests/test_evidence_v2.py",
       "path": "04_검사코드/agent/tests/test_evidence_v2.py",
-      "sha256": "ea91e4f01a03849b5033ad2646c89c9059c82799e3f6dfd65d1321e11055acfc",
-      "bytes": 10290
+      "sha256": "d63fd188925b770de4a5035bb425e1d6caa7ecd44dbd29757e740a9db54d661d",
+      "bytes": 10567
     },
     {
       "source": "agent/tests/test_execution_broker.py",
@@ -401,74 +512,74 @@
     {
       "source": "agent/tests/test_execution_context_v2.py",
       "path": "04_검사코드/agent/tests/test_execution_context_v2.py",
-      "sha256": "77feb5cf4fd94b7bfc667ac1159687f1e315583b395427d30c700348253ffccf",
-      "bytes": 9875
+      "sha256": "dc83f101770f955d5db5b42fe770e8455493f9a4619c58fa61ae3935e188982e",
+      "bytes": 9948
     },
     {
       "source": "agent/tests/test_execution_inputs.py",
       "path": "04_검사코드/agent/tests/test_execution_inputs.py",
-      "sha256": "2ef907d4114948f38ef73a4620cd8ffdccca0eb1b5b50029a4c9456fb413f1dc",
-      "bytes": 12578
+      "sha256": "d125a5a11bec7db3f37322352dbd1b8657181ebb3fefd69dca3f0ea78566d4b7",
+      "bytes": 12846
     },
     {
       "source": "agent/tests/test_execution_integration.py",
       "path": "04_검사코드/agent/tests/test_execution_integration.py",
-      "sha256": "121e6dcb0299509a6d619f7c23cba1d7e0afdbf537f52d15f42044bbbff80527",
-      "bytes": 13552
+      "sha256": "94263a8ea57d78cbf649a2cb7e3cfeee9322bc950196530961da5bc0a46598a0",
+      "bytes": 13620
     },
     {
       "source": "agent/tests/test_execution_trace.py",
       "path": "04_검사코드/agent/tests/test_execution_trace.py",
-      "sha256": "0ef27f563282baed375ebc1c024768db8727c757a90d6e1698467cc6cbe84753",
-      "bytes": 15831
+      "sha256": "a825ad660d5b6ad4d92ef42f4180fe9f31e04fc80d8e4e49215c93d0a53cd585",
+      "bytes": 16127
     },
     {
       "source": "agent/tests/test_judgment_coverage.py",
       "path": "04_검사코드/agent/tests/test_judgment_coverage.py",
-      "sha256": "94a95e4cc23edb2d4d04cbe03a7e54fc6abc8566b295a29c7ce360479243453d",
-      "bytes": 15696
+      "sha256": "0449f04d566cd4e8695cf5d4516ff6f2b4b05230635f5417d73047c5c92e077b",
+      "bytes": 15992
     },
     {
       "source": "agent/tests/test_judgment_integration.py",
       "path": "04_검사코드/agent/tests/test_judgment_integration.py",
-      "sha256": "550d5d40d85657d886475d886cbc65e9ee5a2b6415d30b1188ca999395dd0ce1",
-      "bytes": 12773
+      "sha256": "58212e651364508edc41ec27a3d6c1dad9e0b52d7e66d23ef43aa95106aa0b5c",
+      "bytes": 13020
     },
     {
       "source": "agent/tests/test_learning_proposals.py",
       "path": "04_검사코드/agent/tests/test_learning_proposals.py",
-      "sha256": "21943d442113dc8049600c5372cacd22781a3819981f092f2c0269c670a22417",
-      "bytes": 27340
+      "sha256": "7cb136225772dc29940a4316ddf5313b3ae2f2882f2d26efb5059fdb0a955384",
+      "bytes": 27687
     },
     {
       "source": "agent/tests/test_lesson_registry.py",
       "path": "04_검사코드/agent/tests/test_lesson_registry.py",
-      "sha256": "f8d77ce569d63efc8da222da664e862571f129d472f8dbe328419dbf596e4a30",
-      "bytes": 16747
+      "sha256": "4dc82a219bdaef1bad262317ebaaa10f73298ecaa03ecab9e338c330d6428527",
+      "bytes": 17064
     },
     {
       "source": "agent/tests/test_logger_execution.py",
       "path": "04_검사코드/agent/tests/test_logger_execution.py",
-      "sha256": "8ffffdefc655b369883cbbebe7a1c66d5d906d43198ffcdc6acc5912c4996e1b",
-      "bytes": 5593
+      "sha256": "4c8dd0c44f9ecef9857fda666da4507dcf7b3c4affda5af93fc0ba92b26235e5",
+      "bytes": 5886
     },
     {
       "source": "agent/tests/test_ontology.py",
       "path": "04_검사코드/agent/tests/test_ontology.py",
-      "sha256": "aa45b7df8fe9fec0512912a0a09a58547c5111c2f15856c45c984c079d313bac",
-      "bytes": 21648
+      "sha256": "33e45c935ce70b2d3f6355e24f421013a9ce7d2bc1c68579e24b66830b23b25a",
+      "bytes": 21940
     },
     {
       "source": "agent/tests/test_policy_adoption.py",
       "path": "04_검사코드/agent/tests/test_policy_adoption.py",
-      "sha256": "afe6fae89c0ef2fd1715d52968a58c90ef6474ac31ca700694f139963e527d43",
-      "bytes": 16545
+      "sha256": "50dcade593ff12f9892183080c1cdb96223bb063100dc96b3aff61097d97f6bf",
+      "bytes": 16830
     },
     {
       "source": "agent/tests/test_policy_runtime_integration.py",
       "path": "04_검사코드/agent/tests/test_policy_runtime_integration.py",
-      "sha256": "d28a813acb20ec0174a81c543e73a7a5a398258e660a4c3808606c7a388bfc33",
-      "bytes": 3818
+      "sha256": "e4e20f716b6514272e95a3e4e5c8c89fb2b5ad3d4f9f443cdefebcb8471a7d8b",
+      "bytes": 4114
     },
     {
       "source": "agent/tests/test_policy_runtime_race.py",
@@ -479,8 +590,8 @@
     {
       "source": "agent/tests/test_policy_validation.py",
       "path": "04_검사코드/agent/tests/test_policy_validation.py",
-      "sha256": "dffbe9f2b25c2dce54a701a2d14e787a45d56081d49e809ec58e96211ec1c80b",
-      "bytes": 19422
+      "sha256": "8f447ab24e8bd57d2df274c20a2d8b171de1f45d6a9e6b99d81dab3868d8680f",
+      "bytes": 19703
     },
     {
       "source": "agent/tests/test_portfolio_capture.py",
@@ -491,14 +602,14 @@
     {
       "source": "agent/tests/test_premise_evaluation.py",
       "path": "04_검사코드/agent/tests/test_premise_evaluation.py",
-      "sha256": "024f1cef4c44aafd04dc0c747d9e9e22f7eb9a6b6e700812b4d6a6a55bc33704",
-      "bytes": 16567
+      "sha256": "3aa2864150fbf85d6c38879cff663d8b9c3c206c84941d8441cd6a4761b8cf75",
+      "bytes": 16898
     },
     {
       "source": "agent/tests/test_prompt_validation.py",
       "path": "04_검사코드/agent/tests/test_prompt_validation.py",
-      "sha256": "a6638941484d4a0e1d3a0a417cee4720bdf0830ce941eb4fac641aeea80f17d8",
-      "bytes": 10318
+      "sha256": "0fb63e0b294d6ae1852dfe0ae4d7e4d5d7011f7e621085271a032283a8c24331",
+      "bytes": 10590
     },
     {
       "source": "agent/tests/test_proposal_integration.py",
@@ -539,56 +650,74 @@
     {
       "source": "agent/tests/test_simulation.py",
       "path": "04_검사코드/agent/tests/test_simulation.py",
-      "sha256": "c6ce04c750a5d69d27446df9fe54ed5b4893dad5fc6052186d8500f4eebd3bc2",
-      "bytes": 8327
+      "sha256": "3299f5d4703a0eb37fd16259ba2fc1b16685fafcdf9f16d36857acf28ffb5415",
+      "bytes": 8608
     },
     {
       "source": "agent/tests/test_snapshot_readers.py",
       "path": "04_검사코드/agent/tests/test_snapshot_readers.py",
-      "sha256": "5a593b72d2b736a9c0d5060f06ef7f291163efc6fab88a5c52fd4bc445b00bc5",
-      "bytes": 4044
+      "sha256": "4e5b855039486bd03a260b3d6f93484ee6be2a56f46b88df884fca39c03728db",
+      "bytes": 4110
     },
     {
       "source": "agent/tests/test_snapshot_store.py",
       "path": "04_검사코드/agent/tests/test_snapshot_store.py",
-      "sha256": "6db992b027a7cdd8cd0b9f4117d8a05e4e4d49a13bf3fb691d0f2ce622b5fbfd",
-      "bytes": 8675
+      "sha256": "9c83a6f46e4d32bba5510dc9f51a8157ad18f5a1f28b84ad7c91a16058fbe7cf",
+      "bytes": 8799
+    },
+    {
+      "source": "agent/tests/test_storage_v2.py",
+      "path": "04_검사코드/agent/tests/test_storage_v2.py",
+      "sha256": "fce703bf00327d920b7c8d113b0e103a86d287e25816f42f1ed56e463fd6b363",
+      "bytes": 4639
+    },
+    {
+      "source": "agent/tests/test_storage_v2_extended.py",
+      "path": "04_검사코드/agent/tests/test_storage_v2_extended.py",
+      "sha256": "b7bc37b8c0880cb7c364a83990e38d6ddd21ceb52175b110a7ce95c7a58b0d5d",
+      "bytes": 9977
+    },
+    {
+      "source": "agent/tests/test_storage_v2_operations.py",
+      "path": "04_검사코드/agent/tests/test_storage_v2_operations.py",
+      "sha256": "21cdf4b09208779c0ce1d21a807d72ccaa571960587653e9de03955ed8407df7",
+      "bytes": 11145
     },
     {
       "source": "agent/tests/test_trace_browser_contract.py",
       "path": "04_검사코드/agent/tests/test_trace_browser_contract.py",
-      "sha256": "56a294aa100cd27ded42d7c1aa50690c34503ed1c1a25fabb7381fe174932f69",
-      "bytes": 16465
+      "sha256": "07510b8135f84eb3818e4b37d4d3bd0f5bf46c94736ea12c294630fa9337fb8a",
+      "bytes": 18932
     },
     {
       "source": "agent/tests/test_trace_export.py",
       "path": "04_검사코드/agent/tests/test_trace_export.py",
-      "sha256": "6b657976294bf37c644201ce96f8a42605730a6e10e27f9c51287508b4b13548",
-      "bytes": 7426
+      "sha256": "b076248372b7020b47f0a298feb409365965adbefcc9dc6cdec24fefc9318af4",
+      "bytes": 7709
     },
     {
       "source": "agent/tests/test_trace_integration.py",
       "path": "04_검사코드/agent/tests/test_trace_integration.py",
-      "sha256": "a8fe8dca728377228fb479df9f5bfc7d10a3b6e90ff25ed14030e1217e02c293",
-      "bytes": 6086
+      "sha256": "666721b519d121361e7e6b1f172c24a56e1fc04b1a9bd31d11fc1499c5a49267",
+      "bytes": 6449
     },
     {
       "source": "agent/tests/test_trace_query.py",
       "path": "04_검사코드/agent/tests/test_trace_query.py",
-      "sha256": "c84ec384118aae9c04c39a26bcbc6e2b64149965b372ec3097bf34f3d29ab097",
-      "bytes": 11608
+      "sha256": "575dbde65588b905050a8a2598f9dc75dd8c73629e57523299b445b4ea9931cc",
+      "bytes": 15279
     },
     {
       "source": "agent/tests/test_trace_snapshot.py",
       "path": "04_검사코드/agent/tests/test_trace_snapshot.py",
-      "sha256": "4beb7776a180595cb049908d5f84e38fa66443d34d9e75dabee9567ccfafb8d8",
-      "bytes": 13176
+      "sha256": "fb354a79f95b3a431674b84b32344c17ba2459b3109c69b7e99644acffad1995",
+      "bytes": 13461
     },
     {
       "source": "agent/tests/test_trace_view.py",
       "path": "04_검사코드/agent/tests/test_trace_view.py",
-      "sha256": "09f52f0b1dd69493789938e0abae6152c124f67d265131a8a0f3de05d489825f",
-      "bytes": 8597
+      "sha256": "8130e75c4ea07c961d3d3bce261edb752440b3f2d84536a16f9d11b2fa7e1d83",
+      "bytes": 10064
     },
     {
       "source": "agent/tests/test_validation_data.py",
@@ -609,10 +738,16 @@
       "bytes": 18788
     },
     {
+      "source": "agent/tools/migrate_storage_v2.py",
+      "path": "02_신규기능코드/agent/tools/migrate_storage_v2.py",
+      "sha256": "219ade4d7502a5cd038e33ad31a430736436126b7d20a400ddd4807e9730b996",
+      "bytes": 13140
+    },
+    {
       "source": "agent/tools/rehearsal_execution.py",
       "path": "04_검사코드/agent/tools/rehearsal_execution.py",
-      "sha256": "da42b5c2f4a1b3146a9a2fddcfbb2d6a8344eae5f9ca4fc9bd05aa35345519aa",
-      "bytes": 23410
+      "sha256": "a92560a77634aaf977d49e87e39dc01781e70e16f52dd1576e05e168967ad476",
+      "bytes": 23419
     },
     {
       "source": "agent/tools/rehearsal_faults.py",
@@ -629,20 +764,38 @@
     {
       "source": "agent/tools/rehearsal_storage.py",
       "path": "04_검사코드/agent/tools/rehearsal_storage.py",
-      "sha256": "8ca577894295b8d5876d7843f14cc6296fb1ab4f29f67c554adfcfde51cab8ed",
-      "bytes": 7868
+      "sha256": "0176828c5c822960a4ae3e8790b644d85befa6939fb2ea55a28098a2875c6aeb",
+      "bytes": 10633
+    },
+    {
+      "source": "agent/tools/resume_storage_view_rehearsal.py",
+      "path": "04_검사코드/agent/tools/resume_storage_view_rehearsal.py",
+      "sha256": "28c264055a31777829a356a3a1bf401bd0a9d2335b7c41a7e1404c0aff76cfa7",
+      "bytes": 7609
     },
     {
       "source": "agent/tools/run_ontology_rehearsal.py",
       "path": "04_검사코드/agent/tools/run_ontology_rehearsal.py",
-      "sha256": "08fce4929c12ef8249777f3e805afdccd5928c335d744a6db1e56db620ad47d3",
-      "bytes": 18914
+      "sha256": "4ca188dfe408af7c57c6067a34984a9cf11a9aae5025a57e4e13ae4bf0393e4b",
+      "bytes": 19195
+    },
+    {
+      "source": "agent/tools/run_storage_v2_benchmarks.py",
+      "path": "04_검사코드/agent/tools/run_storage_v2_benchmarks.py",
+      "sha256": "380f91a7d1ae1611e8755d37d4d319eea96d6b9f547cbea3afff987870b2e126",
+      "bytes": 5492
     },
     {
       "source": "agent/tools/verify_ontology_workbench.py",
       "path": "02_신규기능코드/agent/tools/verify_ontology_workbench.py",
       "sha256": "140a68e009e2571aa918f2648bd0c965e23b5253b517e7b4a785a6c48ced023b",
       "bytes": 2226
+    },
+    {
+      "source": "docs/STORAGE_V2.md",
+      "path": "05_설계검토문서/docs/STORAGE_V2.md",
+      "sha256": "818c202fa1d36a8486d5f952d594529589a3c5fec82cd97a9b70586289a4b4d3",
+      "bytes": 8471
     },
     {
       "source": "docs/trace-summary.js",
@@ -684,36 +837,36 @@
       "source": "agent/.claude/settings.json",
       "path": "03_기존엔진_연결변경/agent/.claude/settings.json.patch",
       "baseline_sha256": "0dc93770e04059c322f3f6636ac050c15562ee032ed6d1f0618cf2c308a427fa",
-      "current_sha256": "ea0f1150c45062b819b1bcdd992e57017e2d025fe0b42c2a3d72e7aa588ce995",
-      "patch_sha256": "088ab48f70dd806947b29a74d5a3123058be05d756ff43d75d87097efe1958f8"
+      "current_sha256": "15ffbf75d0b234dccee6c8367168a5001a9ebaa38884e38f2bf42055fd9df3fd",
+      "patch_sha256": "051deb22accca176cbf2551a2841857af3da45e83b60ac72fe73b9a4275f83e0"
     },
     {
       "source": "agent/CLAUDE.md",
       "path": "03_기존엔진_연결변경/agent/CLAUDE.md.patch",
       "baseline_sha256": "1ccc5e827dc5ddf6bcf0b6ea44173b6ec1f3e9820c001359248c917b22243ce0",
-      "current_sha256": "d09e277064800e9f37cd6422b9782d44b49b5f10c3d8267c1d410751217b2e4e",
-      "patch_sha256": "a55453da247084b5eedd5d4f8dc3c08e303774862e3c1cdb2227e6dacfa9d892"
+      "current_sha256": "bbcc8d868684c232443db772c986de1f7fbfc9de89ee6d4f3b4d9c48a5a0dbc0",
+      "patch_sha256": "20930ecb101a5e8b6212ce5f50c8d11cc573125f9c3eeeb9aff44f5ef6ff1397"
     },
     {
       "source": "agent/README.md",
       "path": "03_기존엔진_연결변경/agent/README.md.patch",
       "baseline_sha256": "2f9100bb0e6602eb7ef3b2011e030766f67cd15357628bd5f4879284129f292c",
-      "current_sha256": "ab140c6e324a12fa867d24c9a34a3b611380e97b8c5b70545a6e52f451ba1af6",
-      "patch_sha256": "466e42ed3b5616aed00c7fcd285087f8d80525636791658468c68758b32880b2"
+      "current_sha256": "937a3fe58c2760a9862cba0a5f3d853d7a73ebefd9f212f039b66c792608e55f",
+      "patch_sha256": "2f6257d056f70d6d5256ee70937e75ba35e1b9093ed6460844c8e771722f2d59"
     },
     {
       "source": "agent/requirements.txt",
       "path": "03_기존엔진_연결변경/agent/requirements.txt.patch",
       "baseline_sha256": "c9bbec3c149c76674a5de4f530556c3d30cfc48d9993baf1626017d34520e1e8",
-      "current_sha256": "1f28a4a9a42341451d072ab9149f8663e3b1cac657fee9862e348b29f620e271",
-      "patch_sha256": "b119e8639c91a76e726f12c7e18d2e9a75634db59c283c29246b974b85187f67"
+      "current_sha256": "599f39cf4624c4f88e5ff492b9730a8022e2b3d8dcb7f71ade299a3f43be797a",
+      "patch_sha256": "d5145a2fbb79eb9e7efd912c89c000066c3a4844eee880719ec5c95d627aee96"
     },
     {
       "source": "agent/run.py",
       "path": "03_기존엔진_연결변경/agent/run.py.patch",
       "baseline_sha256": "2bb1b4a1575fb879b626ce653b8d430a7276aa1046423f521e97bbe6ee47ec16",
-      "current_sha256": "8c792b113ce02af6ece81837a2d2dbfa7e0380da02a22bd2df29baf13533a62a",
-      "patch_sha256": "78f6c5714fdff2ad6c3e42445916fa0b2104ad84e4903bd9e9100c43b6585dc4"
+      "current_sha256": "569b6ca79a72110368a50a6c45c156ede46a4de922ebacdbe55eff5086424ab5",
+      "patch_sha256": "3b3a5d5928030972c8417cb07b5d68303ed0f79251260aea803151bf1838bbc7"
     },
     {
       "source": "agent/setup_tasks.ps1",
@@ -733,36 +886,36 @@
       "source": "agent/src/common.py",
       "path": "03_기존엔진_연결변경/agent/src/common.py.patch",
       "baseline_sha256": "efb78761c9b7585deb20face1ff58316d472eba0adb7b401fd55b2219e00048d",
-      "current_sha256": "5493eb72cd0ca0058ec3107a3f1c8f305fbbdd7e407c49c9493cc719ac854e07",
-      "patch_sha256": "59ceb74b7e48abe89703e58bb893bff79cb352d62fcb589021faf0baade2a97e"
+      "current_sha256": "40ef4942bf81d77b06ff03da809ec6db590b7b86d28b307648ef97acff0cb5d2",
+      "patch_sha256": "bc94b0a8cdd5dad2e1a36cf2f75580c8cc1f4518be6bab3a95e254f8e23375a1"
     },
     {
       "source": "agent/src/data_prep.py",
       "path": "03_기존엔진_연결변경/agent/src/data_prep.py.patch",
       "baseline_sha256": "c3c2d11db112451865c562e0e7c8aeca6ed47c1c5603f35c6a4c5deec7a47ae1",
-      "current_sha256": "fae82b59cfb08cbefd9a6c6c436296ea12fd1f2cbe46299ddbee8931e1a36cc8",
-      "patch_sha256": "62b8e43699c3a28c3706492a63a4dd7b66541397d80be7ddc3c07bcc0251c12c"
+      "current_sha256": "a15432f23a8f6e1e78af83cdd14803a8bef2f58cf376adf328306afe942443b2",
+      "patch_sha256": "c1256dda8b0775dd56234481c1370da02c4fdb42690501970751178011288931"
     },
     {
       "source": "agent/src/intraday.py",
       "path": "03_기존엔진_연결변경/agent/src/intraday.py.patch",
       "baseline_sha256": "4b33d02793be65c81ac5e8bc9e583677df1a5fbd1cf985ab9fb539e6b7288610",
-      "current_sha256": "141b6cc9e7dac12a73b6a48776dabea5e3f0d7c3c13fab80c4f06ad359618028",
-      "patch_sha256": "e440350809eaf615867bd5c5ed47bd38b08bc0693a9b3fdd3fbfa2baa8b20e7a"
+      "current_sha256": "f1e1cbad2702c4a51b51435fd3d03751d9c924e0a3825bc5544ac7ae3089196d",
+      "patch_sha256": "7487ce5eb1e88b2f96c0175aa3a1cd42a339b795cb10ba3b7c2a95f08bd44bfb"
     },
     {
       "source": "agent/src/logger.py",
       "path": "03_기존엔진_연결변경/agent/src/logger.py.patch",
       "baseline_sha256": "69cfe76ac9f00a0d505a787f6797082871577d0e195d340849e40e3d6cc58610",
-      "current_sha256": "c7c592148c491d7618561460e7a0a1b9130a3210f5cf916fd1e0643b1b6c2d97",
-      "patch_sha256": "7ef14c5cafdec384369609c6cf7a2d2efc3f6b680320de1c9f18a172bc385af0"
+      "current_sha256": "fa3b11f1b59bc6fc3b12b7566aeab0214168179130af3762889033dba1e983fb",
+      "patch_sha256": "ef602d91218ea0f74c813e990f092d94812a52bcae3a3f02d7994d3cdd7908ae"
     },
     {
       "source": "agent/src/mcp_server.py",
       "path": "03_기존엔진_연결변경/agent/src/mcp_server.py.patch",
       "baseline_sha256": "d32bc881e8fb7a337c566c53cae93352037d85d2d387e55f207ee89768534c57",
-      "current_sha256": "3c811b319da1ff9733159c57aaba253d488634ee454f67956d8c3fa3e81ba654",
-      "patch_sha256": "f29ebd2306bdc271e15d3fe43b0015f8012e66e757763090fabcb360278c6828"
+      "current_sha256": "c2e8e64b322933a10f793498e4401199c8ca048e00f4e2db44917f592257e2a0",
+      "patch_sha256": "ed3eb592bd887f9fb60549661b71d5a8f886777654102a6623d20589feccccd6"
     },
     {
       "source": "agent/src/monitor.py",
@@ -789,8 +942,8 @@
       "source": "agent/src/tuning.py",
       "path": "03_기존엔진_연결변경/agent/src/tuning.py.patch",
       "baseline_sha256": "da6ea23d0b361687c7a2ce7935288e9f2c76765d9afca0cd62153c7ee39b804e",
-      "current_sha256": "4183af5992105fa49d8e0136d8dcd618de1a4aac6d921d3a36df27d31f969127",
-      "patch_sha256": "e06fe322918ef91fb0f7b3b050ddf0a546a5fd6f711098c22adf8be40b6c6c33"
+      "current_sha256": "3797a306635906888bdf55452ed324c284fab7a7e68e05cdf91589bc3693082d",
+      "patch_sha256": "79758c2e97e2bca1de7625890439ea24332f58091a380549342d8aba5a3065bb"
     },
     {
       "source": "docs/DEPLOY.md",
@@ -816,84 +969,112 @@
   ],
   "excluded": [
     {
-      "source": "agent/tests/fixtures/ontology/baseline_conf_boost.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/baseline_source.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/cases.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/execution_baseline_source.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/params.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/risk_limits.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
-      "source": "agent/tests/fixtures/ontology/step4/baseline.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
-    },
-    {
       "source": "agent/tests/fixtures/ontology/step4/environment.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "3bd6300e02c81d9356867369b0fb39952b6e36c11c32149c9caea7a929359f4d",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step5/baseline.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "e152b36be8035014ced6a5d009be46207589d26204cdafb52632ad4d4a840c8f",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step5/verification.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "5396270129ff44ba87461b76541b4d06115f963ff6dc2e3f812d21e8e14b7810",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step6/baseline.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "7e519cc64a1fa293da9eac4dd6a7dcfe0f120770af940e5b890f55a303ab1da6",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step6/verification.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "07c2963aeddc8d3c84d7e77b662865f71b02f1623ab1a179431c222143602bf4",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step7/baseline.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "0a3b645620e568fcb13c8d9d66b8bb0a97f5474bd2c7cf18f4eb3f6b35c23599",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step7/pytest.txt",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "582aaf0a4ed4cabe180afd7d0a9a3b886bdd915d186166bedcb98aa6f51a50c9",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step7/verification.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "cc5520e196e8acb55237e0849ea70e0f16fa042a7c3be179a99c15e8a592117b",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step8/baseline.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "a85619131c70d1b992c9a9a07cbd42f73937d7b7a90389c90ad9060c43ee0b78",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step8/pytest.txt",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "4c8cacd9f0f4974f7b7074bdcc2e71e96d4af1d7e3c076435fc59e10437b3f9e",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/step8/verification.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "7e5151cd2f006d67edbac14296f0798edbc3234b17e65c363f039ae28fa999b5",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/test-environment.txt",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "2b31ea642947d55c42cc6ca13b0ee3f597328c8afa4c63a0240f6b3c39c90514",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
     },
     {
       "source": "agent/tests/fixtures/ontology/workbench-verification.json",
-      "reason": "고정 모의 입력·이전 원본·검사 결과 자료"
+      "sha256": "589d9e7b364110f065f75530a934d536c50eb797b8d8675a889cf46ad4670b77",
+      "reason": "현재 검사에서 읽지 않는 과거 실행 결과·환경 기록·검증 산출물."
+    },
+    {
+      "source": "docs/SION_수정계획1_핵심요약_2페이지.docx",
+      "sha256": "4580dcb03c9fd16c7903e625a9df9e6e1b9a600ec2cd8c04ee8e2149a991feb1",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/STORAGE_V2_VALIDATION.md",
+      "sha256": "06db4afd3d8fd75004f7646c7197c8a5fdf517bfe94b2411815ff82aeff75be2",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/검토_수정계획_1_2와_SiON_문제원인_대조.md",
+      "sha256": "12ab365d534543da2b0e89f3430bdf161d0930f80b2bac8177454178546a69ca",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/공통온톨로지_기반_판단구조_설계계획.md",
+      "sha256": "4d6b2ee887b2e805ea7c74c0e380157202afa9c3117ef51244195a0a94e62cf7",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/수정계획_01_원본데이터_중복복사_저장_복원_개선.md",
+      "sha256": "5fc63d22023d9bbe36055827a62b850601d3922c872772f3fc4ff048887fd959",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/수정계획_02_AI_근거전달_간소화_짧은참조_대응표.md",
+      "sha256": "fc7e76582487fd4321e128de22e67a069cfd1b7efbabfa484fa79906358dd258",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/수정계획리포트-온톨로지백서.md",
+      "sha256": "3f337dabf0e7be64068c1672f3bcfc9722871aef99ba8a170fc0dea8a6a9666a",
+      "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
     }
-  ]
+  ],
+  "excluded_scopes": [
+    "untracked/ignored runtime work directories",
+    "credentials and .env",
+    "source Git metadata",
+    "source virtual environments and caches"
+  ],
+  "fixture_policy": "Only the seven fixed input/reference fixtures consumed by tests are included. Historical reports and environment/output artifacts are excluded.",
+  "public_distribution": true
 }
