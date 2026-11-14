@@ -1,0 +1,195 @@
+{
+  "format": "SIGMA_SEMANTIC_DEFINITIONS@v1",
+  "version": 1,
+  "concepts": [
+    {
+      "id": "security",
+      "fields": [
+        "code"
+      ],
+      "meaning": "종목코드는 상품 식별자이며 회사 법인과 동일하지 않음",
+      "producer": "ontology.py",
+      "consumer": "sizing.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "price",
+      "fields": [
+        "price"
+      ],
+      "meaning": "장중 현재가; 일별 종가와 구별",
+      "producer": "intraday.py",
+      "consumer": "common.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "close",
+      "fields": [
+        "close"
+      ],
+      "meaning": "원천과 시점에 따라 일별 종가 또는 장중 대용값; 공급자 맥락 보존",
+      "producer": "data_prep.py",
+      "consumer": "ontology.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "investor_flow",
+      "fields": [
+        "foreign_net",
+        "inst_net"
+      ],
+      "meaning": "공급자 외국인/기관 분류의 실제 반환 날짜별 순매수액 합; 합계 양수는 매일 순매수가 아님",
+      "producer": "data_prep.py",
+      "consumer": "intraday.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "intraday_flow",
+      "fields": [
+        "foreign_today",
+        "inst_today"
+      ],
+      "meaning": "장중 순매수 수량×현재가 추정; 확정 거래금액 아님",
+      "producer": "intraday.py",
+      "consumer": "ontology.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "positive_flow_ratio",
+      "fields": [
+        "flow_today_ratio",
+        "flow_ratio"
+      ],
+      "meaning": "각 주체 양수 부분만 합산한 후보 비율; 부호 있는 순합계/동반매수와 다름",
+      "producer": "intraday.py",
+      "consumer": "data_prep.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "moving_average",
+      "fields": [
+        "ma5",
+        "ma20",
+        "ma60"
+      ],
+      "meaning": "창·반올림·입력 시리즈 포함; 전제평가의 정밀20일 평균과 구별",
+      "producer": "data_prep.py",
+      "consumer": "common.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "gap",
+      "fields": [
+        "gap",
+        "trend_gap"
+      ],
+      "meaning": "가격/MA20−1; 선 위 상태와 같은 입력을 쓰므로 독립 호재 중복 금지",
+      "producer": "data_prep.py",
+      "consumer": "ai_judgment.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "candidate_rank",
+      "fields": [
+        "score"
+      ],
+      "meaning": "비교 모집단 내 순위 점수; AI 확신도와 별개",
+      "producer": "data_prep.py",
+      "consumer": "mcp_server.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "news_flag",
+      "fields": [
+        "risk"
+      ],
+      "meaning": "제목 키워드 일치 표시; 실제 악재 여부와 투자 영향은 AI 해석",
+      "producer": "data_prep.py",
+      "consumer": "common.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "holding_period",
+      "fields": [
+        "max_hold_days"
+      ],
+      "meaning": "현재 보유기간 계산은 시작일 다음부터 평일 수; 거래소 휴장일 달력 아님",
+      "producer": "common.py",
+      "consumer": "monitor.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "premise_period",
+      "fields": [
+        "horizon"
+      ],
+      "meaning": "전제별 계약에 따른 다음 거래소 세션; 보유기간 평일과 구별",
+      "producer": "premise_evaluation.py",
+      "consumer": "case_dataset.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "confidence_raw",
+      "fields": [
+        "confidence_raw"
+      ],
+      "meaning": "기존 지침 구간·AI 재량 숫자; 성공확률 아님",
+      "producer": "semantic_layer.py",
+      "consumer": "mcp_server.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "confidence_adjusted",
+      "fields": [
+        "adjusted"
+      ],
+      "meaning": "RSI/국면/활성정책 기존 보정·상한·반올림; AI 이중 보정 금지",
+      "producer": "common.py",
+      "consumer": "sizing.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "position",
+      "fields": [
+        "qty",
+        "avg_price"
+      ],
+      "meaning": "계좌·상품·시점의 보유 관측; 추정과 브로커 확인 분리",
+      "producer": "broker.py",
+      "consumer": "position_episodes.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "execution",
+      "fields": [
+        "plan_id",
+        "order_attempt_id"
+      ],
+      "meaning": "계획·허용·전송·접수·체결 확인은 서로 다른 사건",
+      "producer": "execution_trace.py",
+      "consumer": "execution_reconcile.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    },
+    {
+      "id": "causal_path",
+      "fields": [
+        "path_id"
+      ],
+      "meaning": "평가한 인과 해석의 단위; 참조와 인과의 입증은 다름; 다른 경로의 통계적 독립성 미보장",
+      "producer": "semantic_layer.py",
+      "consumer": "semantic_layer.py",
+      "validation": "ai_judgment._argument + semantic_layer; qualitative conclusions remain unverified"
+    }
+  ],
+  "qualitative_terms": {
+    "strong": "기존 지침 원문 유지; 역할별 근거와 AI 평가",
+    "clear_risk": "근거/인과 명확성, 발생 가능성, 손실 규모의 정성 평가와 총괄의 종합 근거"
+  },
+  "prohibited_inference": [
+    "missing means zero",
+    "quote match means source truth",
+    "path count means independent risks",
+    "joint citation means joint buy interpretation",
+    "accepted schema means valid investment claim"
+  ]
+}

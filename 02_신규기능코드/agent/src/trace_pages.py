@@ -94,6 +94,18 @@ def _trace_preview(value,field,budget):
                 'additional_wire_views': [{**_small(w, ('wire_format','bundle_alias','renderer_version','display_status','visibility_note','detail_request')),
                                            'payload_available_in_delivery_detail': True} for w in row.get('additional_wire_views', [])],
                 'quotes':[_small(item,('instrument_id','price','kind','observed_at','available_at','observation_id')) for item in row.get('quotes',[])[:30]]}}
+    if field=='semantic_execution':
+        result={'eligibility':value.get('eligibility'), 'visibility':value.get('visibility'), 'stages':{}}
+        for role,stage in (value.get('stages') or {}).items():
+            if not stage:
+                result['stages'][role]=None
+                continue
+            summary=_small(stage,('stage_id','role','status','input_id','runtime_call_id','confidence_raw','confidence_band_id','decision'))
+            for key in ('evaluations','objections'):
+                summary[key]=list(stage.get(key,[]))[:20]
+                summary['evaluation_count' if key=='evaluations' else 'objection_count']=len(stage.get(key,[]))
+            result['stages'][role]=summary
+        return result if O.logical_size(result)<=budget else {'status':'detail_required'}
     if field=='execution_context':
         rows=value.get('orders',[])
         result={'orders':[{**_small(row,('order_attempt_id','path_kind','link_status')),
@@ -152,7 +164,7 @@ def detail(loaded,kind,identifier,*,field=None,cursor=None,limit=50):
         if size<=min(128*1024,remaining):output[key]=value[key];remaining-=size
         else:
             typ=O.field_kind(value,key)
-            preview_fields={'trace':('observations','judgments','evaluations','deliveries','execution_context'),
+            preview_fields={'trace':('observations','judgments','evaluations','deliveries','execution_context','semantic_execution'),
                             'validation':('result',),'case':('evaluation',),
                             'proposal':('readiness',),'policy':('current_applicability',)}
             preview=_selected_preview(value[key],kind,key,min(64*1024,remaining)) if key in preview_fields.get(kind,()) else None

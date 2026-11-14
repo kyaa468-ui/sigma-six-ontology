@@ -273,3 +273,23 @@ def test_v2_case_list_preserves_verdict_and_selected_evaluation_date():
     result=render_v2('#cases')
     assert '반증' in result['content'] and '2026-11-11 · 이전 평가' in result['content']
     assert [url.split('?')[0] for url in result['requests']]==['/api/view','/api/cases']
+
+
+def test_semantic_panel_distinguishes_missing_role_unreviewed_and_unknown_loss():
+    value=fixture()
+    value['projection']['traces']['trace-one']['semantic_execution']={
+        'eligibility':{'status':'reassessment_required'},
+        'stages':{'interpretation':{'status':'accepted'},'bull':{'status':'accepted','evaluations':[
+            {'path_id':'path-one','evidence_clarity':'원자료 확인','causal_clarity':'가정 포함',
+             'likelihood':'판단하기 어려움','loss_magnitude':'규모 자료 부족','uncertainties':['지속성 미확인']}]},
+            'bear':None,'lead':{'status':'accepted','confidence_raw':0,'confidence_band_id':'opposed',
+                              'decision':{'salient_risk_count':None,'unreviewed_ids':['objection-one'],
+                                          'joint_buy_interpretation_paths':['joint-history-only'],
+                                          'adopted_joint_buy_interpretation_paths':[],
+                                          'dispositions':[{'evaluation_id':'objection-one','state':'unreviewed','reason':'미검토'}]}}}}
+    text=render('#trace/trace-one',value)['content']
+    for expected in ('공통 의미 위의 판단 단계','미제출·미확인','반대 없음으로 해석하지 않음','판단하기 어려움','규모 자료 부족','미검토'):
+        assert expected in text
+    assert '원확신도0' in text
+    assert '양측이 매수 해석에 동의한 경로["joint-history-only"]' in text
+    assert '총괄이 채택한 공동 경로[]' in text

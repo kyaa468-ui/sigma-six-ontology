@@ -213,6 +213,19 @@
       ]
     },
     {
+      "module": "semantic_layer.py",
+      "existing_engine_imports": [
+        "common",
+        "monitor"
+      ]
+    },
+    {
+      "module": "semantic_runner.py",
+      "existing_engine_imports": [
+        "common"
+      ]
+    },
+    {
       "module": "simulation.py",
       "existing_engine_imports": [
         "common"
@@ -296,6 +309,37 @@
         "agent/.claude/agents/*.md",
         "agent/src/mcp_server.py",
         "agent/run.py"
+      ]
+    },
+    {
+      "consumer": "semantic_layer.py",
+      "requires": [
+        "agent/config/ontology/semantic_definitions.json",
+        "agent/CLAUDE.md",
+        "agent/.claude/agents/*.md",
+        "agent/src/semantic_layer.py",
+        "agent/src/semantic_runner.py",
+        "agent/src/common.py",
+        "agent/src/sizing.py",
+        "agent/src/risk.py",
+        "agent/src/mcp_server.py",
+        "agent/src/ai_judgment.py",
+        "agent/src/judgment_coverage.py"
+      ]
+    },
+    {
+      "consumer": "semantic_runner.py / run.py",
+      "requires": [
+        "agent/.claude/agents/bull.md",
+        "agent/.claude/agents/bear.md",
+        "agent/.claude/agents/regime.md"
+      ]
+    },
+    {
+      "consumer": "tools/rehearse_semantic.py",
+      "requires": [
+        "agent/tests/test_ontology.py",
+        "agent/tests/test_judgment_integration.py"
       ]
     }
   ]

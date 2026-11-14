@@ -1,5 +1,5 @@
 diff --git a/agent/src/mcp_server.py b/agent/src/mcp_server.py
-index 4d7480b..4ffe8d2 100644
+index 4d7480b..5bbd6fe 100644
 --- a/agent/src/mcp_server.py
 +++ b/agent/src/mcp_server.py
 @@ -13,10 +13,18 @@
@@ -34,7 +34,7 @@ index 4d7480b..4ffe8d2 100644
      import risk
      import sizing
      import tuning
-@@ -33,6 +47,58 @@ with contextlib.redirect_stdout(sys.stderr):
+@@ -33,6 +47,74 @@ with contextlib.redirect_stdout(sys.stderr):
  mcp = FastMCP("kiwoom")
  _broker = None
  
@@ -48,6 +48,22 @@ index 4d7480b..4ffe8d2 100644
 +def tool_access_error(fn, args, kwargs):
 +    """Check before tool/audit code: a comparison run only sees its frozen bundle."""
 +    mode, name = os.environ.get("RUN_MODE"), fn.__name__
++    import semantic_layer as SL
++    if name in {"get_semantic_context", "submit_semantic_stage", "get_semantic_trace"} and not SL.required():
++        return {"ok": False, "error_code": "SEMANTIC_TRADING_MODE_REQUIRED"}
++    if SL.required():
++        role = os.environ.get("SION_SEMANTIC_ROLE")
++        if role not in SL.ROLES:
++            return {"ok": False, "error_code": "SEMANTIC_ROLE_REQUIRED"}
++        if name == "record_ai_judgments":
++            return {"ok": False, "error_code": "USE_SEMANTIC_STAGE_SUBMISSION"}
++        import semantic_runner
++        if 'mcp__kiwoom__' + name not in semantic_runner.tools_for(role, mode):
++            return {"ok": False, "error_code": "SEMANTIC_ROLE_TOOL_FORBIDDEN"}
++        if name in {"plan_order", "place_order", "record_decision"} and role != "lead":
++            return {"ok": False, "error_code": "SEMANTIC_LEAD_REQUIRED"}
++        if name == "set_regime" and (role != "interpretation" or any((C.ontology_root()/"semantic"/os.environ.get("RUN_ATTEMPT_ID", "missing")/"chains").glob("*.json"))):
++            return {"ok": False, "error_code": "SEMANTIC_REGIME_FROZEN"}
 +    if name == 'get_evidence_detail':
 +        if mode not in {'decide', 'view', 'exit', 'case_review', 'proposal_review', 'validation_review'}:
 +            return {'ok': False, 'error_code': 'WIRE_TOOL_FORBIDDEN'}
@@ -93,7 +109,7 @@ index 4d7480b..4ffe8d2 100644
  
  def brk():
      global _broker
-@@ -45,16 +111,136 @@ def brk():
+@@ -45,16 +127,136 @@ def brk():
  def quiet(fn):
      @functools.wraps(fn)
      def wrap(*a, **k):
@@ -234,7 +250,7 @@ index 4d7480b..4ffe8d2 100644
      acc = C.read_json(C.ACCOUNT, {}) or {}
      for r in b.get("candidates", []) + b.get("holdings", []) + acc.get("holdings", []):
          if r["code"] == code:
-@@ -63,11 +249,12 @@ def name_of(code):
+@@ -63,11 +265,12 @@ def name_of(code):
  
  
  def positions_view(acc):
@@ -248,7 +264,7 @@ index 4d7480b..4ffe8d2 100644
                      "stop": m.get("stop"), "take": m.get("take"),
                      "held_days": C.business_days(m["entry_date"], C.today()) if m.get("entry_date") else None,
                      "max_days": m.get("max_days")})
-@@ -78,9 +265,14 @@ def positions_view(acc):
+@@ -78,9 +281,14 @@ def positions_view(acc):
  @quiet
  def get_briefing() -> str:
      """오늘 브리핑: 시장 지표, 후보 종목, 보유 종목 지표(숫자 요약)와 오늘 적용되는 기준값. 판단은 반드시 이 숫자에 근거할 것."""
@@ -264,7 +280,7 @@ index 4d7480b..4ffe8d2 100644
      p, r = C.params(), C.risk_limits()
      ctx = [
          "", "## 오늘 기준값 (코드가 강제함)",
-@@ -135,14 +327,50 @@ def get_briefing() -> str:
+@@ -135,14 +343,50 @@ def get_briefing() -> str:
      if mb := p.get("market_boost"):
          ctx.append(f"- 시장 하락 보정 (코드가 적용): set_regime 으로 기록한 국면이 {'·'.join(mb['regimes'])} 이면 "
                     f"신규 매수 확신도 +{mb['add']:.2f} (악재 뉴스 ⚠ 제외). 국면을 이유로 스스로 확신도를 올리거나 내리지 않음")
@@ -320,7 +336,7 @@ index 4d7480b..4ffe8d2 100644
      """후보·보유 종목의 지금 가격과 오늘 등락률. 지표는 전일 종가 기준이라 오늘 급등·급락을 여기서 봄."""
      rows, seen = [], set()
      for x in b.get("candidates", []) + (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
-@@ -151,16 +379,24 @@ def intraday(b, r):
+@@ -151,16 +395,24 @@ def intraday(b, r):
          seen.add(x["code"])
          try:
              q = brk().quote_info(x["code"])
@@ -350,7 +366,7 @@ index 4d7480b..4ffe8d2 100644
  
  
  
-@@ -170,102 +406,458 @@ def get_account() -> dict:
+@@ -170,102 +422,467 @@ def get_account() -> dict:
      """계좌 총자산·현금·보유 종목(평단, 현재가, 수익률, 비중, 손절가, 익절가, 보유일)과 오늘 손익, 지금 주식 비중 상한."""
      acc = brk().account()
      cap, regime = sizing.equity_cap(C.params(), C.risk_limits(), acc)
@@ -403,6 +419,8 @@ index 4d7480b..4ffe8d2 100644
 -    qty 가 0 이면 limited_by 에 이유가 있습니다. place_order 에는 여기서 나온 qty 이하만 쓸 수 있습니다.
 +    qty 가 0 이면 limited_by 에 이유가 있습니다. place_order 에는 여기서 나온 qty 이하와 plan_id/order_attempt_id를 전달합니다.
      매도: 손절·익절·최대 보유일 규칙 매도면 rule_exit=true (전량). 판단 매도는 확신도가 낮으면 일부만(partial=true)."""
++    import semantic_layer as SL
++    confidence = SL.consume(code, side, confidence, judgment_id, rule_exit=rule_exit, stage="plan")
      acc = brk().account()
 +    try:
 +        import portfolio_capture as PC
@@ -465,6 +483,10 @@ index 4d7480b..4ffe8d2 100644
 +    if probe.get("status") in ("claimed", "complete"):
 +        # A replay never refreshes prices, reevaluates risk or writes another fill.
 +        return E.dispatch_once(scope, order_attempt_id, payload, lambda: (_ for _ in ()).throw(AssertionError("replay cannot send")))
++    import semantic_layer as SL
++    confidence = SL.consume(code, side, confidence, judgment_id, rule_exit=rule_exit, stage="order")
++    if SL.required() and not rule_exit and link_invalid(plan_id, code, side, confidence, judgment_id):
++        return {"ok": False, "error_code": "SEMANTIC_PLAN_LINK_REQUIRED"}
 +    import policy_registry as PR
 +    stale = None if not plan_id and (rule_exit or os.environ.get('RUN_MODE') == 'exit') else PR.check_plan_revision(plan_id)
 +    if stale:
@@ -508,6 +530,7 @@ index 4d7480b..4ffe8d2 100644
 +    # The same writer lock as human adoption/tuning closes the last risk→send
 +    # race. Retries already returned above and never acquire this/send again.
 +    with PR.change_lock():
++        confidence = SL.consume(code, side, confidence, judgment_id, rule_exit=rule_exit, stage="dispatch")
 +        current = PR.snapshot(C.read_json(tuning.PARAMS_PATH))
 +        used = (_AUDIT.get() or {}).get('policy') or {}
 +        if any(current.get(k) != used.get(k) for k in ('revision','policy_revision','status')):
@@ -541,6 +564,11 @@ index 4d7480b..4ffe8d2 100644
 -              bull=bull, bear=bear, decision=decision, order_no=res.get("order_no"),
 -              filled=res.get("filled", True), rule_exit=rule_exit)
 -    return {"ok": True, **res, "name": name}
+-
+-
+-@mcp.tool()
+-@quiet
+-def record_decision(code: str, action: str, confidence: float, bull: str, bear: str, decision: str) -> dict:
 +    try:
 +        regime = (C.latest_regime() or {}).get("regime")
 +        meta = C.read_json(C.POSITIONS, {}) or {}
@@ -579,17 +607,18 @@ index 4d7480b..4ffe8d2 100644
 +        audit_call(E.record, "bookkeeping_error", order_attempt_id=order_attempt_id, error=str(exc))
 +        return {**res, "recording_status": "recording_error", "bookkeeping_error": str(exc)}
 +
- 
- 
- @mcp.tool()
- @quiet
--def record_decision(code: str, action: str, confidence: float, bull: str, bear: str, decision: str) -> dict:
++
++
++@mcp.tool()
++@quiet
 +@tracked("record_decision")
 +def record_decision(code: str, action: str, confidence: float, bull: str, bear: str, decision: str,
 +                    judgment_id: str | None = None, confidence_for: str | None = None, plan_id: str | None = None) -> dict:
      """주문하지 않은 판단을 기록합니다. action 은 '보유' | '관망'. 판단 갱신(매매 없는 회차)에서는 '매수 예정' | '매도 예정' 도 씀."""
      side = "매도" if action in ("보유", "매도 예정") else "매수"
 -    adj, note = C.conf_boost(code, side, confidence)   # 매수였다면 / 매도였다면 코드가 붙였을 보정
++    import semantic_layer as SL
++    confidence = SL.consume(code, confidence_for or side, confidence, judgment_id, stage="decision")
 +    detail = C.conf_boost_details(code, side, confidence)  # legacy action-based direction preserved
 +    adj, note = detail["adjusted"], detail["note"]
 +    audit_boost("decision", detail)
@@ -850,7 +879,7 @@ index 4d7480b..4ffe8d2 100644
  @mcp.tool()
  @quiet
  def submit_review(week: int, period: str, suggestion: str, report_markdown: str) -> dict:
-@@ -295,10 +887,48 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
+@@ -295,10 +912,78 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
      lessons = decision_outcomes 점검에서 얻은 교훈 2~5줄 (예: "외국인 3일 연속 순매수 종목을 관망했다가 +4% 놓침 → 이런 경우 확신도를 낮추지 말 것").
      다음 판단부터 브리핑에 실려 총괄·bull·bear 가 참고함 (기준값과 따로, 판단 자체를 고치는 용도).
      서버가 허용 키·범위·변경폭·개수·쿨다운·기준값 일관성을 검사해 통과한 것만 반영하고, 거절 사유를 돌려줍니다."""
@@ -900,6 +929,36 @@ index 4d7480b..4ffe8d2 100644
 +def get_evidence_detail(ref: str, fields: list[str]) -> dict:
 +    """이번 실행에서 받은 E/M 참조의 지정 필드만 추가 전달. 새 묶음으로 인용하며 원래 대응표는 불변입니다."""
 +    return W.detail(ref, fields)
++
++
++
++
++def link_invalid(plan_id, code, side, confidence, judgment_id):
++    return not plan_id or plan_link(plan_id, code, side, confidence, judgment_id).get('status') != 'linked'
++
++
++@mcp.tool()
++@quiet
++def get_semantic_context(code: str | None = None, confidence_for: str | None = None) -> dict:
++    """역할에 배정된 대상 목록 또는 선행 결과·공통 의미·현재 기준을 고정한 실제 단계 입력. 반환 input_id로 제출합니다."""
++    import semantic_layer
++    return semantic_layer.context(code, confidence_for)
++
++
++@mcp.tool()
++@quiet
++def submit_semantic_stage(input_id: str, data: dict) -> dict:
++    """get_semantic_context의 contract에 맞춰 현재 역할의 평가 제출. 선행 입력·역할은 서버가 지정하며 최종 단계가 판단 ID를 발급합니다."""
++    import semantic_layer
++    return semantic_layer.submit(input_id, data)
++
++
++@mcp.tool()
++@quiet
++def get_semantic_trace(code: str, confidence_for: str) -> dict:
++    """현재 회차의 대상별 관측·인과 해석·역할 평가·구간 선택과 미제출/미검토 상태를 조회합니다."""
++    import semantic_layer
++    return semantic_layer.trace(code, confidence_for)
  
  
  if __name__ == "__main__":

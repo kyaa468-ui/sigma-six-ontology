@@ -1,10 +1,10 @@
 {
   "format": "SIGMA_SIX_STRUCTURE_EXTRACT@v2",
   "created_at": "2026-11-07T15:08:16.196530+09:00",
-  "updated_at": "2026-11-14T17:27:12.379437+09:00",
+  "updated_at": "2026-11-14T19:30:17.950003+09:00",
   "source_repository": "https://github.com/kyaa468-ui/SION",
-  "source_commit": "9332219befde5e580089d44fb35e89961f308433",
-  "previous_source_commit": "c7379d6efbbb9d41313383f0508a23de2a170221",
+  "source_commit": "251a61d2b739db9dcee72b0ce0c9b0ddf82cfe63",
+  "previous_source_commit": "9332219befde5e580089d44fb35e89961f308433",
   "baseline_commit": "25f7da455f025720564ccd56ced36df4ea3ece1b",
   "baseline_repository": "original Sigma baseline Git object",
   "destination": ".",
@@ -40,6 +40,13 @@
       "mode": "100644"
     },
     {
+      "source": "agent/config/ontology/semantic_definitions.json",
+      "path": "01_모델정의/semantic_definitions.json",
+      "sha256": "2ee3a50c14eb7ecc489e2f6063cd754ec75ff6f871761de18fa9ac7522f77b5f",
+      "bytes": 6872,
+      "mode": "100644"
+    },
+    {
       "source": "agent/config/ontology/sigma-six.ir.json",
       "path": "01_모델정의/sigma-six.ir.json",
       "sha256": "5aa0015c3be5697b1c42ed38a361cf9fe922129f213bf1f4621a3c1f6a251d29",
@@ -70,8 +77,8 @@
     {
       "source": "agent/review/trace.js",
       "path": "02_신규기능코드/agent/review/trace.js",
-      "sha256": "42d3f83560ce235d16a4f59a08a97a623251ddc020f8ec26a7777de2383236ba",
-      "bytes": 38289,
+      "sha256": "b092d9d21693b3a4ae953e76f31b6dfb0b750b2a4756d1cdce874530a5268e82",
+      "bytes": 40552,
       "mode": "100644"
     },
     {
@@ -189,8 +196,8 @@
     {
       "source": "agent/src/judgment_coverage.py",
       "path": "02_신규기능코드/agent/src/judgment_coverage.py",
-      "sha256": "46f954c6ee9a78d58dceee8a7d286b4e271f540302b2e117bf744ea7a7a8419b",
-      "bytes": 22182,
+      "sha256": "5991a92e9b5398493bd731c606c37518f2315325fb33ceca56e8de965b0e3071",
+      "bytes": 23096,
       "mode": "100644"
     },
     {
@@ -287,8 +294,8 @@
     {
       "source": "agent/src/prompt_validation.py",
       "path": "02_신규기능코드/agent/src/prompt_validation.py",
-      "sha256": "bb19c6757059c9efde8501bf257d4ce544176891d9fc735de790b5a7ac8e6b7c",
-      "bytes": 23739,
+      "sha256": "758eef78457b1d0b869bb2baa9b65baa8f2db42bf1612a75443e6bdc462995a5",
+      "bytes": 23952,
       "mode": "100644"
     },
     {
@@ -329,8 +336,8 @@
     {
       "source": "agent/src/runtime_inputs.py",
       "path": "02_신규기능코드/agent/src/runtime_inputs.py",
-      "sha256": "91c7640e6f49e8c2b245baeeefe8409ac3ed0c4066d3fc2b5f647a7878f6638b",
-      "bytes": 8702,
+      "sha256": "5f753bdbab24db7fa39d34be812261d7b26fe9b983e151721c62a14915017a4c",
+      "bytes": 8831,
       "mode": "100644"
     },
     {
@@ -338,6 +345,20 @@
       "path": "02_신규기능코드/agent/src/scoring_store.py",
       "sha256": "54cf3d5fd9a5ac3ccddb7929ea0ad8033893f76da724599e1c0e079b75db7161",
       "bytes": 5299,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/src/semantic_layer.py",
+      "path": "02_신규기능코드/agent/src/semantic_layer.py",
+      "sha256": "d4e54593f992c760278e0e156bd8d6c0adaba38eaf561202b8ce96d5ad0f4d32",
+      "bytes": 33340,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/src/semantic_runner.py",
+      "path": "02_신규기능코드/agent/src/semantic_runner.py",
+      "sha256": "2c73058038c06a201b249566ae99168ae6458c69732354d9cd0740d6bb375130",
+      "bytes": 10251,
       "mode": "100644"
     },
     {
@@ -392,15 +413,15 @@
     {
       "source": "agent/src/trace_pages.py",
       "path": "02_신규기능코드/agent/src/trace_pages.py",
-      "sha256": "dd4cf546e5f71623db2b05078751e9bcbe000672057d7467763f112cb4da499e",
-      "bytes": 13211,
+      "sha256": "c426d2e726fd30c6d1ad22175ef6aaefd126dcac310368ff04be5dac40edd11c",
+      "bytes": 14030,
       "mode": "100644"
     },
     {
       "source": "agent/src/trace_query.py",
       "path": "02_신규기능코드/agent/src/trace_query.py",
-      "sha256": "f47bb05bcbdb3abd03eccc85576ec3cd2c07cdbe6e0195d9ccd2cb85ede1b822",
-      "bytes": 44377,
+      "sha256": "5e5301597cc026e2eb68fdffac69993a5a85eae243bb6b80785cf7169f481a38",
+      "bytes": 45332,
       "mode": "100644"
     },
     {
@@ -455,8 +476,8 @@
     {
       "source": "agent/tests/conftest.py",
       "path": "04_검사코드/agent/tests/conftest.py",
-      "sha256": "10fe8d292897b03f182b9a78f95818db2dedb779d078b319657a730cd2e76663",
-      "bytes": 606,
+      "sha256": "7bf8148a75e2aa5fae4f9286bd278ec4c6f32421e80631c4ff40e59115f51042",
+      "bytes": 821,
       "mode": "100644"
     },
     {
@@ -735,8 +756,8 @@
     {
       "source": "agent/tests/test_prompt_validation.py",
       "path": "04_검사코드/agent/tests/test_prompt_validation.py",
-      "sha256": "0fb63e0b294d6ae1852dfe0ae4d7e4d5d7011f7e621085271a032283a8c24331",
-      "bytes": 10590,
+      "sha256": "20f90e0fc2978071dfc02c3aae1aad624c0162c7042d38cec37d3e8765ef0d4d",
+      "bytes": 11233,
       "mode": "100644"
     },
     {
@@ -779,6 +800,20 @@
       "path": "04_검사코드/agent/tests/test_research_evidence.py",
       "sha256": "1858e8e9bd0d725aa1c1f3d2b1c6d2d26f06be1d6183b37502251ee1cd493d1d",
       "bytes": 10201,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tests/test_semantic_layer.py",
+      "path": "04_검사코드/agent/tests/test_semantic_layer.py",
+      "sha256": "0c2ccf46e30d09f8c1d48eb82838fd0d43ef65cb57559a4d90411f3de8cbf970",
+      "bytes": 22314,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tests/test_semantic_review_regressions.py",
+      "path": "04_검사코드/agent/tests/test_semantic_review_regressions.py",
+      "sha256": "84dd55553fd257f3aadd49c105e27a436d3a7d15d1d823856b38772b02f10ae7",
+      "bytes": 12205,
       "mode": "100644"
     },
     {
@@ -826,8 +861,8 @@
     {
       "source": "agent/tests/test_trace_browser_contract.py",
       "path": "04_검사코드/agent/tests/test_trace_browser_contract.py",
-      "sha256": "07510b8135f84eb3818e4b37d4d3bd0f5bf46c94736ea12c294630fa9337fb8a",
-      "bytes": 18932,
+      "sha256": "a355dccdac3ee0e69ae5f5e7e9b6839e28fd53aeac5b49132146de8cfca0b259",
+      "bytes": 20488,
       "mode": "100644"
     },
     {
@@ -929,6 +964,13 @@
       "mode": "100644"
     },
     {
+      "source": "agent/tools/rehearse_semantic.py",
+      "path": "04_검사코드/agent/tools/rehearse_semantic.py",
+      "sha256": "ac007b1e8acfc9719e7e61124578ca965d13e43a1137a958ce3a483ae8bd0e31",
+      "bytes": 7453,
+      "mode": "100644"
+    },
+    {
       "source": "agent/tools/resume_storage_view_rehearsal.py",
       "path": "04_검사코드/agent/tools/resume_storage_view_rehearsal.py",
       "sha256": "28c264055a31777829a356a3a1bf401bd0a9d2335b7c41a7e1404c0aff76cfa7",
@@ -947,6 +989,13 @@
       "path": "04_검사코드/agent/tools/run_storage_v2_benchmarks.py",
       "sha256": "380f91a7d1ae1611e8755d37d4d319eea96d6b9f547cbea3afff987870b2e126",
       "bytes": 5492,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tools/semantic_reassessment.py",
+      "path": "02_신규기능코드/agent/tools/semantic_reassessment.py",
+      "sha256": "2160f75143a407517cce1f681cf34eb8385c50bb22034430316a8473f9964ebb",
+      "bytes": 981,
       "mode": "100644"
     },
     {
@@ -1006,8 +1055,8 @@
       "source": "agent/.claude/hooks/risk_check.py",
       "path": "03_기존엔진_연결변경/agent/.claude/hooks/risk_check.py.patch",
       "baseline_sha256": "8c17ccc99da9e6dce8020372b8e224072e13bda8fc175f57d072142eef512df0",
-      "current_sha256": "580a115ad4ef5720eaab3109f44c6b5cd20329c502bc72f23605bb58c40b4bfb",
-      "patch_sha256": "17b41b99294e01abdd2775123c93df4286880979c9b666b7aa21ca1a1d6bbe2e",
+      "current_sha256": "0577d5110d112e0cb398691c3c12a749ebe9bdeb72d6d1469a1d6f748ac94388",
+      "patch_sha256": "9674f4c1f91bbb3b4c2df9c49c948c98a17c879a2070b5aac044773dbdbfa433",
       "change": "modified",
       "baseline_mode": "100644",
       "current_mode": "100644"
@@ -1026,8 +1075,8 @@
       "source": "agent/CLAUDE.md",
       "path": "03_기존엔진_연결변경/agent/CLAUDE.md.patch",
       "baseline_sha256": "1ccc5e827dc5ddf6bcf0b6ea44173b6ec1f3e9820c001359248c917b22243ce0",
-      "current_sha256": "939dae83f35451b8b1f37d919825c6848c76ec3e9664bc1df95de389bb0dadb5",
-      "patch_sha256": "6afd3bf7e6677ee392de5ef7a882d1c59a06193d12e4c9790a7b55760647e391",
+      "current_sha256": "22bd96b675fab1b279836600d0de38eecec2d9595374d9867568030b891efdec",
+      "patch_sha256": "8879b699cad6340ecdf0469ae3cefccdcc967c10ed8510211d89c337eb7dc574",
       "change": "modified",
       "baseline_mode": "100644",
       "current_mode": "100644"
@@ -1056,8 +1105,8 @@
       "source": "agent/run.py",
       "path": "03_기존엔진_연결변경/agent/run.py.patch",
       "baseline_sha256": "2bb1b4a1575fb879b626ce653b8d430a7276aa1046423f521e97bbe6ee47ec16",
-      "current_sha256": "edf566eddd77b6ae4330e78e0f212f3049fea0817f6626e41eaa3920cf3948b7",
-      "patch_sha256": "800a0b28049ea1365f7c0d3163e5e214ba14c07426e21e83a41e7d9bba1d2056",
+      "current_sha256": "33e197d369178e5d75a851a14a57811766d529d278ed22978eec19d880d8fafa",
+      "patch_sha256": "657aa11936a9e5c07af1df30eaba42338f8f4f5ce2caf5e9939360b5b24e715a",
       "change": "modified",
       "baseline_mode": "100644",
       "current_mode": "100644"
@@ -1126,8 +1175,8 @@
       "source": "agent/src/mcp_server.py",
       "path": "03_기존엔진_연결변경/agent/src/mcp_server.py.patch",
       "baseline_sha256": "d32bc881e8fb7a337c566c53cae93352037d85d2d387e55f207ee89768534c57",
-      "current_sha256": "05be4560cecd894fe37adb36860b3009e685095ba2725734fc3c150a4f5b98dc",
-      "patch_sha256": "66ce7712e2969b4bd4e860951e4525476ea419e7315cc6fb65da5490fe733566",
+      "current_sha256": "023f6b5cafa691f2b578a8730944010c4b0776f9158872a11f6a384bb118902a",
+      "patch_sha256": "e3074455aa8f10e5ca846a09e234e2b2c99010d4c778cac170e9a292a78ab9ce",
       "change": "modified",
       "baseline_mode": "100644",
       "current_mode": "100644"
@@ -1204,6 +1253,13 @@
     }
   ],
   "excluded": [
+    {
+      "source": "Ontology_white_paper",
+      "mode": "160000",
+      "kind": "commit",
+      "oid": "1bd70488f9ed720305da8e5a889e1a26d1304dab",
+      "reason": "별도 백서 저장소의 Git 서브모듈 참조. 온톨로지 실행·검사 입력이 아니며 내용을 재귀적으로 포함하지 않음."
+    },
     {
       "source": "agent/tests/fixtures/ontology/step4/environment.json",
       "sha256": "3bd6300e02c81d9356867369b0fb39952b6e36c11c32149c9caea7a929359f4d",
@@ -1290,6 +1346,11 @@
       "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
     },
     {
+      "source": "docs/수정계획4.md",
+      "sha256": "48bedb6d86b0cbc2ebb664a88a9431155e016fd67612e1ed147b6277e51e9287",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
       "source": "docs/수정계획_01_원본데이터_중복복사_저장_복원_개선.md",
       "sha256": "5fc63d22023d9bbe36055827a62b850601d3922c872772f3fc4ff048887fd959",
       "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
@@ -1303,6 +1364,41 @@
       "source": "docs/수정계획리포트-온톨로지백서.md",
       "sha256": "3f337dabf0e7be64068c1672f3bcfc9722871aef99ba8a170fc0dea8a6a9666a",
       "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "docs/수정사항3_AI직접검증.md",
+      "sha256": "94db2fc8f77ff4f796584737bbed57e13f76600973a105c35861de42d8fce141",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/수정사항3_검토지적_수정검증.md",
+      "sha256": "70c80297bcd80f3dffc054b6d1d8689b7df221595c8820c5eab432fd53775f7d",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/수정사항3_공통온톨로지와_판단실행_도메인협의초안.md",
+      "sha256": "e046edf721e6ee618176793a4b1f722d5fc0dba13918530c46bc6c7292cbf062",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/수정사항3_구현검증.md",
+      "sha256": "adf5fc4df638c4997eb4419630a4c041df3e892941d610de205976bb7677e0b9",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/수정사항3_기존엔진기준_의미대응표.md",
+      "sha256": "99955efe6e2ed1899687877e1b3811d43b95f60290ef6ac1a3931611d08bf9c6",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/수정사항3_위험평가_가중치재검토.md",
+      "sha256": "7ab85d08da4346bd900e74a7774b3ce15d3dd85f8eddbd72abebf25feccc1e12",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
+    },
+    {
+      "source": "docs/시멘틱_레이어_구축_계획.md",
+      "sha256": "0287a7467d315e12fa674845e6070ce8a4d37fc66401d00bbe028cbd97dca9cb",
+      "reason": "미구현 계획·도메인 협의 초안·내부 구현/검토/사후 보고. 현재 적용 계약은 적용안내와 별도 공개 계약으로 설명."
     },
     {
       "source": "outputs/sion-plan1-dashboard/SION_수정계획1_성과대시보드.xlsx",
@@ -1433,6 +1529,121 @@
       "source": "reports/compact-evidence-20261114-final/검증보고서.md",
       "sha256": "d9cf2ff119b4e80a302ac4b2e67aa8e559b93575bed2e8ffaa9acbb9af0f53d8",
       "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/before-fix-rejections.json",
+      "sha256": "b71d9bbef500140646b37f33bde928567d84355a30208042913b6ce49df1f6cb",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/interactive-adapter.py",
+      "sha256": "881f007ede721f6f87392477205fca7febb4984549c091ec9d211f55acff34dd",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/metadata.json",
+      "sha256": "3747ccdb1641e660e07f462d77a25fae3c6aa9b717a1a2cc726dacba3069ef9b",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/period-fix-pytest.txt",
+      "sha256": "f9c0a23cc1e852ab91daa07daecce54a10189ccc8ff51b28b95e37c798de90df",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/period-fix-pytest.xml",
+      "sha256": "4fcd9566de05523ebe3f445060996007589c2e1afe99d27efe7e4e5be69e8713",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/report.json",
+      "sha256": "3456000e4ac26606b8081b61c37e6bb27dbf27c00f4f502d280fbd49b923f412",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/source-hashes.json",
+      "sha256": "76ba044d93e01a182c1a1cd188e115a197aa2f8656506089f256cd9037040f05",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/transcript.jsonl",
+      "sha256": "c96cb4d7d90bfaa6d3854c639e25ffe7e41a2d93689a0cfcedfacea1ad5f5637",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/codex-direct/verification.json",
+      "sha256": "35c5b15149e6cb3a6967810d36705052c9fea9b4fbd2fad6de00ccfe7c497fb7",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/final-focused.txt",
+      "sha256": "5d3393cf362ad455c036cfa27c59f841e8081f593f8187f8a880fa22562b4b67",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/final-focused.xml",
+      "sha256": "06c683ca10c663d300bcce6ba21cdc713a4f9e8153024a889eaa598706816bd8",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/full-suite-summary.json",
+      "sha256": "244c556de933a12172a778dad7ac932a7cd9c251218c1b2a536e9a86950f62b9",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/model-attempt.json",
+      "sha256": "e791dac1da2d5b01a4d650ea2b1b83546bdc430c31ff9e08faa80a0ae2647a0d",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/source-hashes.json",
+      "sha256": "ba7f5a6773df1d00469b4c24423ec7046087be293829cc6123e398df46abbd98",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-layer-20261114/verification.json",
+      "sha256": "ced8fcde17d6323ab0ffc80c4569383c20453778db5ecc8b2eb7989313afef3a",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/before-fix-probes.txt",
+      "sha256": "f715b3e7a030c62d6143f1c2aca8a7caa77e7627eb40bcf3eeceb209f6a5a0c1",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/original-probes.txt",
+      "sha256": "266733ee721600ea674d18a868ac9772c43b61bb7ec3ee9804c09d9f11fc23ce",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/original-probes.xml",
+      "sha256": "4582dbbd97b6aae5359c62bbdcb4e1cb4662baedc013bc16253d5cf520938a9b",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/original-review-probes.py",
+      "sha256": "0cea5623808ff4462c18ee7efcd282dbe0ceda692d810bead0ebe642d63798aa",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/regression.txt",
+      "sha256": "8d18f13593c3f65ad0cb6683ffc77583b695d2c1a4e728fb639d22d158e8bd06",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/regression.xml",
+      "sha256": "f6b8e15ef8789006922fe5a845d128ed4a169587302668a4268a16bcd9d29284",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/source-hashes.json",
+      "sha256": "ea01fd140245a55ed5aea44829bb51686278e2a0c6619bcbebf95784f79574bd",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
+    },
+    {
+      "source": "reports/semantic-review-fixes-20261114/verification.json",
+      "sha256": "4f94f67e35d26febbd455f5abfd0a7715e031e295d405f69176e3eca61c0e8cf",
+      "reason": "과거 실행 결과·모델 호출 기록·검사 출력·환경/해시 기록. 실행 코드의 필수 입력이 아님."
     }
   ],
   "excluded_scopes": [

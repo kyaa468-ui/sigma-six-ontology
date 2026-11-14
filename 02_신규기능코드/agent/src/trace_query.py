@@ -590,7 +590,21 @@ def build_projection(market_as_of=None, knowledge_as_of=None):
             selected_objects = {id(e) for e in own_exec}
             own_exec = [e for e in executions if id(e) in selected_objects or e.get('order_attempt_id') in exact_attempt_ids]
             own_exec = [e for e in own_exec if not _blocked(e, reservations)]
+            # Follow only this visible target's explicit stage chain. Reader
+            # applies the historical cutoff and records every source hash.
+            import semantic_layer as SL
+            cid = 'chain-' + SL.digest([aid, code, side])[:32]
+            prefix = 'semantic/' + aid + '/'
+            semantic = None
+            chain = reader.read(prefix + 'chains/' + cid + '.json')
+            if chain:
+                semantic = {'chain':chain, 'stages':{role:reader.read(prefix + 'stages/' + cid + '-' + role + '.json')
+                                                  for role in SL.ROLES},
+                            'eligibility':reader.read(prefix + 'invalidations/' + cid + '.json') or {'status':'not_invalidated'}}
+                if _blocked(semantic, reservations):
+                    semantic = {'visibility':'protected','reason':'shared_semantic_input_contains_reserved_data'}
             base['traces'][tid] = {'trace_id': tid, 'target': row, 'visibility': 'available',
+                'semantic_execution': semantic,
                 'observations': observations, 'deliveries': receipt_rows, 'judgments': own_j,
                 'premises': [c.get('application_snapshot', {'application_id': c['application_id']}) for c in own_cases],
                 'execution_context': execution, 'execution_events': own_exec, 'calls': calls, 'call_results': call_results,

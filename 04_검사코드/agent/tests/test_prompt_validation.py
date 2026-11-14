@@ -83,6 +83,17 @@ def test_actual_ai_requires_separate_explicit_flag_and_fixed_settings(monkeypatc
     assert not S.records('prompt_experiments')['records']
 
 
+def test_legacy_prompt_comparison_does_not_claim_staged_execution(monkeypatch):
+    _,inputs,_=setup_pair(monkeypatch)
+    for row in inputs['runtime_inputs'].values():
+        row['snapshot']['options']={'semantic_stages':['interpretation','bull','bear','lead']}
+    def forbidden(*args):
+        raise AssertionError('A single-call replay cannot represent the staged pipeline')
+    result=P.run_prompt_validation('v1',model='fake-model',repetitions=2,budget_usd=1,provider=forbidden)
+    assert not result['trial_ids']
+    assert any(g['reason']=='staged_semantic_replay_not_supported_by_legacy_prompt_comparison' for g in result['gaps'])
+
+
 def test_unknown_condition_does_not_invent_prompt_effect(monkeypatch):
     item,_,spec=setup_pair(monkeypatch)
     spec['proposal_snapshot']['condition']={'op':'gt','left':{'field':'features.gap'},'right':{'value':0,'unit':'ratio'}}

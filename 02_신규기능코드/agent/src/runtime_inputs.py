@@ -41,6 +41,7 @@ def capture_attempt(attempt_id, kind, prompt, allowed_tools, options=None):
         root = Path(C.AGENT)
         files = [root/'CLAUDE.md', root/'.claude/settings.json', root/'src/mcp_server.py', root/'run.py']
         files += sorted((root/'.claude/agents').glob('*.md'))
+        files += [root/'src/semantic_layer.py', root/'src/semantic_runner.py', root/'config/ontology/semantic_definitions.json']
         sources = {}
         for path in files:
             sources[str(path.relative_to(root))] = path.read_text(encoding='utf-8') if path.is_file() else None

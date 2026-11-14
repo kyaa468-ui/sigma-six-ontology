@@ -169,6 +169,22 @@ def observe_targets(briefing=None, account=None):
         return _error(attempt_id, "observe_targets", exc)
 
 
+def register_review_targets(attempt_id, targets):
+    """Append server-selected review directions without rewriting the manifest."""
+    try:
+        _manifest(attempt_id)
+        rows = []
+        for target in targets:
+            code, side = str(target['code']), target['confidence_for']
+            if not code or side not in ('매수', '매도'):
+                raise ValueError('Invalid review target')
+            rows.append(_target(code, side, 'semantic_registered_review'))
+        event = _event(attempt_id, 'review_targets', targets=rows)
+        return {'recording_status': 'recorded', 'event_id': event['event_id']}
+    except Exception as exc:
+        return _error(attempt_id, 'register_review_targets', exc)
+
+
 def _load_judgment(judgment_id):
     # Lazy import keeps validation and coverage modules independent at import time.
     import ai_judgment
@@ -301,6 +317,9 @@ def _summarize(manifest, events, submissions, errors, judgment_loader=None, summ
             for code in snapshot["candidates"]:
                 if code not in held:
                     add(code, "매수", "observed_candidate")
+        elif kind == 'review_targets':
+            for target in event['targets']:
+                add(target['code'], target['confidence_for'], 'semantic_registered_review')
         elif kind == "call_enter":
             if separate or event.get("rule_exit"):
                 rule_calls.append(event)
@@ -414,7 +433,7 @@ def get_coverage(attempt_id=None, *, summary=False):
                         "linked_rate": None, "target_set_incomplete": True, "recording_errors": errors}
             attempt_id = max(manifests, key=lambda m: (m.get("recorded_at_ns", 0), m.get("created_at", "")))["run_attempt_id"]
         manifest = _manifest(attempt_id)
-        fields = ('event_id','run_attempt_id','event_type','recorded_at_ns','created_at','snapshot',
+        fields = ('event_id','run_attempt_id','event_type','recorded_at_ns','created_at','snapshot','targets',
                   'rule_exit','code','confidence_for','action','link','judgment_id','call_event_id','status') if summary else None
         events, event_errors = _records("coverage_events", attempt_id, fields=fields)
         submission_fields = ('event_id','run_attempt_id','code','confidence_for','status','judgment_id','created_at') if summary else None

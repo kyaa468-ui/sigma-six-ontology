@@ -306,6 +306,9 @@ def run_prompt_validation(validation_id, *, with_ai=False, model=None, repetitio
         aid = opportunity['run_attempt_id']
         ri = inputs.get('runtime_inputs',{}).get(aid)
         if isinstance(ri,dict) and 'snapshot' in ri: ri=ri['snapshot']
+        if ri and (ri.get('options') or {}).get('semantic_stages'):
+            gaps.append({'target':opportunity,'reason':'staged_semantic_replay_not_supported_by_legacy_prompt_comparison'})
+            continue
         subset = [r for r in receipts if r.get('run_attempt_id')==aid]
         if not ri or not ri.get('cmd_prompt') or not subset:
             gaps.append({'target':opportunity,'reason':'original_prompt_or_receipts_unavailable'});continue

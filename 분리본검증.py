@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from urllib.parse import unquote
 
 
 def digest(data):
@@ -36,6 +37,25 @@ def main():
         for item in manifest[key]:
             p = local(item['path'])
             require(p.is_file() and digest(p.read_bytes()) == item[field], item['path'])
+            if p.is_file() and key == 'copied_files':
+                require(p.stat().st_size == item['bytes'], '파일 크기 불일치: ' + item['path'])
+                mode = '100755' if p.stat().st_mode & 0o100 else '100644'
+                require(mode == item['mode'], '파일 권한 불일치: ' + item['path'])
+    authored = {'README.md', '적용안내.md', '업데이트내역.md', '객체구조_전체목록.md',
+                '05_설계검토문서/시멘틱실행계약.md'}
+    metadata = authored | {'LICENSE', '.gitignore', '분리내역.json', '분리본검증.py',
+                           '구조보기.html', '03_기존엔진_연결변경/기존엔진_의존목록.json'}
+    expected = metadata | {x['path'] for k in ('copied_files', 'integration_patches') for x in manifest[k]}
+    actual = {p.relative_to(root).as_posix() for p in root.rglob('*')
+              if p.is_file() and not {'.git', '__pycache__', '.pytest_cache'}.intersection(p.relative_to(root).parts)
+              and p.name != '.DS_Store'}
+    require(expected == actual, '공개 파일 목록 불일치: ' + str(sorted(expected ^ actual)))
+    for name in authored:
+        path = local(name)
+        for link in re.findall(r'\[[^\]]*\]\(([^)]+)\)', path.read_text()):
+            if not link.startswith(('http:', 'https:', '#')):
+                target = (path.parent / unquote(link.split('#', 1)[0])).resolve()
+                require(target.is_relative_to(root) and target.exists(), '안내 링크 누락: ' + name + ': ' + link)
     syntax_count = 0
     for item in manifest['copied_files']:
         p = local(item['path'])
@@ -51,6 +71,14 @@ def main():
     data = json.loads(re.search(r'<script type="application/json" id="model-source">(.*?)</script>', html, re.S)[1])
     require(data['ontology'] == ir['ontology'], 'HTML 모델 불일치')
     require(data['bindings'] == bindings, 'HTML 매핑 불일치')
+    semantics = json.loads((root / '01_모델정의/semantic_definitions.json').read_text())
+    require(data.get('semanticDefinitions') == semantics, 'HTML 공통 의미 정의 불일치')
+    concepts = semantics['concepts']
+    require(semantics['format'] == 'SIGMA_SEMANTIC_DEFINITIONS@v1'
+            and len({c['id'] for c in concepts}) == len(concepts), '공통 의미 정의 형식/중복 ID')
+    for concept in concepts:
+        require(all(concept.get(k) for k in ('id', 'fields', 'meaning', 'producer', 'consumer', 'validation')),
+                '공통 의미 정의 누락: ' + str(concept.get('id')))
     require(data['files'] == manifest['copied_files'], 'HTML 파일 목록 불일치')
     require(data['patches'] == manifest['integration_patches'], 'HTML 패치 목록 불일치')
     deps = json.loads((root / '03_기존엔진_연결변경/기존엔진_의존목록.json').read_text())
@@ -100,13 +128,33 @@ def main():
             return subprocess.check_output(['git', '-C', str(args.source_repo), *params])
         commit = manifest['source_commit']
         base = manifest['baseline_commit']
+        def tree(ref):
+            entries = {}
+            for raw in git('ls-tree', '-rz', ref).split(b'\0'):
+                if raw:
+                    meta, name = raw.split(b'\t', 1)
+                    mode, kind, oid = meta.decode().split()
+                    entries[name.decode()] = {'mode': mode, 'kind': kind, 'oid': oid}
+            return entries
+        target_tree, base_tree = tree(commit), tree(base)
         for item in manifest['copied_files']:
+            require(target_tree[item['source']]['mode'] == item['mode'], '원본 권한 불일치: ' + item['source'])
             require(digest(git('show', commit + ':' + item['source'])) == item['sha256'], '원본 불일치: ' + item['source'])
             source_verified += 1
         for item in manifest['integration_patches']:
             require(digest(git('show', commit + ':' + item['source'])) == item['current_sha256'], '변경 후 원본 불일치: ' + item['source'])
             require(digest(git('show', base + ':' + item['source'])) == item['baseline_sha256'], '기준 원본 불일치: ' + item['source'])
             source_verified += 1
+            require(target_tree[item['source']]['mode'] == item['current_mode'], '변경 후 원본 권한 불일치: ' + item['source'])
+            require(base_tree[item['source']]['mode'] == item['baseline_mode'], '기준 원본 권한 불일치: ' + item['source'])
+        for item in manifest['excluded']:
+            entry = target_tree[item['source']]
+            if entry['kind'] == 'commit':
+                require(all(item.get(k) == entry[k] for k in ('mode', 'kind', 'oid')),
+                        '제외 서브모듈 참조 불일치: ' + item['source'])
+            else:
+                require(digest(git('show', commit + ':' + item['source'])) == item['sha256'],
+                        '제외 원본 해시 불일치: ' + item['source'])
         raw = git('diff', '--name-only', '-z', base, commit).decode().split('\0')
         covered = {x['source'] for x in manifest['copied_files'] + manifest['integration_patches'] + manifest['excluded']}
         require(set(filter(None, raw)) == covered, '기준 대비 변경 파일 누락 또는 과다 포함')
@@ -121,11 +169,15 @@ def main():
                 p = destination / name
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_bytes(git('show', base + ':' + name))
+                p.chmod(0o755 if base_tree[name]['mode'] == '100755' else 0o644)
             for item in manifest['integration_patches']:
                 patch = str(local(item['path']))
                 subprocess.run(['git', 'apply', '--check', patch], cwd=destination, check=True)
                 subprocess.run(['git', 'apply', patch], cwd=destination, check=True)
-                require(digest((destination / item['source']).read_bytes()) == item['current_sha256'], '패치 복원 불일치: ' + item['source'])
+                p = destination / item['source']
+                require(digest(p.read_bytes()) == item['current_sha256'], '패치 복원 불일치: ' + item['source'])
+                require(('100755' if p.stat().st_mode & 0o100 else '100644') == item['current_mode'],
+                        '패치 복원 권한 불일치: ' + item['source'])
             for item in manifest['copied_files']:
                 p = destination / item['source']
                 p.parent.mkdir(parents=True, exist_ok=True)
@@ -134,7 +186,7 @@ def main():
                     p.chmod(0o755 if item['mode'] == '100755' else 0o644)
     if errors:
         raise ValueError('\n'.join(errors))
-    print(json.dumps({'status': 'passed', 'copied_files': len(manifest['copied_files']), 'patches': len(manifest['integration_patches']), 'python_syntax_files': syntax_count, 'source_paths_verified': source_verified, 'sigma_base_check': sigma_checked, 'restored_to': str(args.restore_to) if args.restore_to else None}, ensure_ascii=False))
+    print(json.dumps({'status': 'passed', 'copied_files': len(manifest['copied_files']), 'patches': len(manifest['integration_patches']), 'python_syntax_files': syntax_count, 'source_paths_verified': source_verified, 'excluded_paths_verified': len(manifest['excluded']) if args.source_repo else 0, 'sigma_base_check': sigma_checked, 'restored_to': str(args.restore_to) if args.restore_to else None}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

@@ -1,5 +1,5 @@
 diff --git a/agent/run.py b/agent/run.py
-index 4e3a0ca..854eb4e 100644
+index 4e3a0ca..8a2bb89 100644
 --- a/agent/run.py
 +++ b/agent/run.py
 @@ -5,6 +5,13 @@
@@ -50,33 +50,51 @@ index 4e3a0ca..854eb4e 100644
 +PROPOSAL_TOOLS = ["mcp__kiwoom__get_proposal_context", "mcp__kiwoom__get_proposal_cases",
 +                  "mcp__kiwoom__record_learning_proposals", "mcp__kiwoom__get_learning_proposals"]
 +DETAIL_TOOL = 'mcp__kiwoom__get_evidence_detail'
-+TOOLS_ALLOW += [DETAIL_TOOL]
++TOOLS_ALLOW += [DETAIL_TOOL, 'mcp__kiwoom__get_semantic_context', 'mcp__kiwoom__submit_semantic_stage', 'mcp__kiwoom__get_semantic_trace']
 +CASE_REVIEW_TOOLS += [DETAIL_TOOL]
 +PROPOSAL_TOOLS += [DETAIL_TOOL]
  
  PROMPTS = {
      "decide": "정기 판단 실행입니다 ({time}). CLAUDE.md 의 'A. 정기 판단' 순서대로 진행하세요.",
-@@ -112,6 +139,8 @@ def summary_line(text):
+@@ -111,48 +138,401 @@ def summary_line(text):
+     return re.sub(r"^[\s>*#\-⚠]+|\*\*", "", first).strip()[:120]
  
  
- def claude(kind, prompt, dry=False):
+-def claude(kind, prompt, dry=False):
+-    run_id = f"{C.now().strftime('%Y%m%d-%H%M')}-{kind}"
++def claude(kind, prompt, dry=False, semantic_state=None, semantic_role=None):
++    if kind in ('decide', 'view') and semantic_state is None and os.environ.get('SION_SEMANTIC_MODE') != 'legacy':
++        import semantic_runner
++        return semantic_runner.run(kind, prompt, claude, dry=dry)
++    phase_tools = TOOLS_ALLOW
++    phase_deny = TOOLS_DENY
++    if semantic_role:
++        import semantic_runner
++        phase_tools = semantic_runner.tools_for(semantic_role, kind)
++        phase_deny = [*TOOLS_DENY, 'Agent', 'Task', 'Read'] + [t for t in TOOLS_ALLOW if t not in phase_tools]
 +    wire_format = W.selected_format()
 +    prompt += W.instructions(wire_format)
-     run_id = f"{C.now().strftime('%Y%m%d-%H%M')}-{kind}"
++    run_id = (semantic_state['attempt']['run_id'] if semantic_state
++              else f"{C.now().strftime('%Y%m%d-%H%M')}-{kind}")
      exe = shutil.which("claude")
      cmd = [exe or "claude", "-p", prompt, "--output-format", "json",
-@@ -121,38 +150,358 @@ def claude(kind, prompt, dry=False):
+            "--mcp-config", mcp_config(), "--strict-mcp-config",
+-           "--allowedTools", *TOOLS_ALLOW, "--disallowedTools", *TOOLS_DENY,
+-           "--max-budget-usd", os.environ.get("MAX_BUDGET_USD", "5")]
++           "--allowedTools", *phase_tools, "--disallowedTools", *phase_deny,
++           "--max-budget-usd", str(max(0.01,semantic_state['budget']-semantic_state['cost'])) if semantic_state else os.environ.get("MAX_BUDGET_USD", "5")]
      if dry:
          log("DRY: " + " ".join(cmd[:4]) + " ...")
          return True
 -    env = {**os.environ, "RUN_ID": run_id, "RUN_MODE": kind}
 +    # Snapshot the denominator before starting the model. No fresh broker call here.
 +    try:
-+        attempt = JC.start_attempt(run_id, kind, C.load_briefing(), C.read_json(C.ACCOUNT))
++        attempt = semantic_state["attempt"] if semantic_state else JC.start_attempt(run_id, kind, C.load_briefing(), C.read_json(C.ACCOUNT))
 +    except Exception as exc:
 +        attempt = {"run_attempt_id": "attempt-" + uuid.uuid4().hex,
 +                   "recording_status": "recording_error", "error": str(exc)}
 +    attempt_id = attempt["run_attempt_id"]
++    call_id = attempt_id + "-" + semantic_role if semantic_role else attempt_id
 +    try:
 +        import validation_holdout
 +        holdout_record = validation_holdout.enroll_attempt(attempt, C.load_briefing(), C.read_json(C.ACCOUNT))
@@ -91,17 +109,24 @@ index 4e3a0ca..854eb4e 100644
 +    rec = {"time": C.stamp(), "run_id": run_id, "run_attempt_id": attempt_id, "kind": kind, "ok": False, "tokens": 0}
 +    rec['holdout_registration'] = holdout_record
 +    import runtime_inputs
-+    rec['input_snapshot'] = runtime_inputs.capture_attempt(attempt_id, kind, prompt, TOOLS_ALLOW,
-+                           {'strict_mcp_config': True, 'disallowed_tools': TOOLS_DENY, 'wire_format': wire_format})
++    rec['input_snapshot'] = runtime_inputs.capture_attempt(call_id, kind, prompt, phase_tools,
++                           {'strict_mcp_config': True, 'disallowed_tools': phase_deny, 'wire_format': wire_format, 'semantic_role':semantic_role, 'parent_attempt_id':attempt_id})
++    if semantic_state is not None and rec['input_snapshot'].get('recording_status') != 'recorded':
++        rec.update(sec=0, note='단계 입력을 보존하지 못해 모델 호출을 시작하지 않습니다.')
++        semantic_state['calls'].append({'role':semantic_role,'call_id':call_id,'ok':False,
++                                       'cost_usd':0,'error':'SEMANTIC_INPUT_RECORDING_FAILED'})
++        C.append_jsonl(C.RUNS, rec)
++        return False
 +    from process_spool import Spool
-+    spool = Spool(attempt_id)
++    spool = Spool(call_id)
      try:
 -        p = subprocess.Popen(cmd, cwd=HERE, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
 -                             stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
 +        p = subprocess.Popen(cmd, cwd=HERE, env=env, stdin=subprocess.DEVNULL, stdout=spool.stdout,
 +                             stderr=spool.stderr, encoding="utf-8", errors="replace", start_new_session=os.name != "nt")
          try:
-             out, err = p.communicate(timeout=25 * 60)
+-            out, err = p.communicate(timeout=25 * 60)
++            out, err = p.communicate(timeout=max(1, semantic_state["deadline"]-time.monotonic()) if semantic_state else 25 * 60)
          except subprocess.TimeoutExpired:
 +            terminal = "timeout"
              # 자식(MCP 서버, 서브에이전트)까지 통째로 종료. 안 그러면 파이프가 안 닫혀 계속 기다림
@@ -119,7 +144,8 @@ index 4e3a0ca..854eb4e 100644
 +        res = spool.result()
 +        raw_result = res
          u = res.get("usage") or {}
-         rec.update(ok=p.returncode == 0 and not res.get("is_error") and did_work(kind, run_id),
+-        rec.update(ok=p.returncode == 0 and not res.get("is_error") and did_work(kind, run_id),
++        rec.update(ok=p.returncode == 0 and not res.get("is_error") and (bool(semantic_role) or did_work(kind, run_id)),
                     tokens=sum(u.get(k, 0) for k in ("input_tokens", "output_tokens", "cache_creation_input_tokens")),
                     cost_usd=res.get("total_cost_usd"), note=summary_line(res.get("result")))
 +        terminal = "normal" if p.returncode == 0 and not res.get("is_error") else "error"
@@ -127,7 +153,7 @@ index 4e3a0ca..854eb4e 100644
              rec["note"] = ("기록 없음: " if p.returncode == 0 else "") + rec["note"]
 -        C.write_json(os.path.join(C.WORK, "runs", run_id + ".json"), {"cmd_prompt": prompt, "result": res, "stderr": p.stderr[-2000:]})
 +        import record_store
-+        record_store.publish(C.ontology_root().parent / "runs" / (attempt_id + ".json"), {"cmd_prompt": prompt, "result": res, "stderr": spool.tail()}, kind="cli_result")
++        record_store.publish(C.ontology_root().parent / "runs" / (call_id + ".json"), {"cmd_prompt": prompt, "result": res, "stderr": spool.tail()}, kind="cli_result")
      except subprocess.TimeoutExpired:
 +        terminal = "timeout"
          rec["note"] = "시간 초과 (25분)"
@@ -139,14 +165,28 @@ index 4e3a0ca..854eb4e 100644
 +    rec['usage_observation'] = runtime_inputs.usage_observation(raw_result)
 +    rec['tokens_definition'] = 'legacy_sum_input_output_cache_creation; excludes_cache_read; not_account_usage'
 +    rec['wire_format'] = wire_format
-+    rec['result_snapshot'] = runtime_inputs.record_result(attempt_id, terminal, raw_result, rec.get('note') if terminal != 'normal' else None)
++    rec['result_snapshot'] = runtime_inputs.record_result(call_id, terminal, raw_result, rec.get('note') if terminal != 'normal' else None)
++    if semantic_state is not None and rec['result_snapshot'].get('recording_status') != 'recorded':
++        rec['ok'] = False
++        rec['note'] = '단계 결과를 보존하지 못해 다음 단계로 진행하지 않습니다.'
 +    try:
-+        JC.finish_attempt(attempt_id, terminal)
++        if not semantic_state:
++            JC.finish_attempt(attempt_id, terminal)
 +        rec["judgment_coverage"] = JC.get_coverage(attempt_id, summary=True)
 +        if attempt.get("recording_status") == "recording_error":
 +            rec["judgment_coverage"].update(recording_status="recording_error", linked_rate=None)
 +    except Exception as exc:
 +        rec["judgment_coverage"] = {"recording_status": "recording_error", "linked_rate": None, "error": str(exc)}
++    if semantic_state is not None:
++        rec['semantic_role'] = semantic_role
++        rec['call_id'] = call_id
++        cost = rec.get('cost_usd')
++        if not isinstance(cost, (int,float)):
++            rec['ok'] = False
++            rec['note'] = '실제 호출 비용을 확인할 수 없어 남은 예산을 임의 추정하지 않습니다.'
++        else:
++            semantic_state['cost'] += cost
++        semantic_state['calls'].append({'role':semantic_role,'call_id':call_id,'ok':rec['ok'],'cost_usd':cost})
      rec["sec"] = round(time.time() - t0)
      C.append_jsonl(C.RUNS, rec)
      log(f"{kind} {'완료' if rec['ok'] else '실패'} · {rec['sec']}초 · {rec['tokens'] / 1000:.0f}k 토큰 · {rec.get('note', '')}")
@@ -433,7 +473,7 @@ index 4e3a0ca..854eb4e 100644
  def publish(msg):
      """docs/data 를 갱신하고, GIT_PUSH=1 이면 커밋·푸시해서 대시보드에 반영."""
      py("logger.py")
-@@ -168,7 +517,7 @@ def publish(msg):
+@@ -168,7 +548,7 @@ def publish(msg):
  
  
  def briefing_fresh():
@@ -442,7 +482,7 @@ index 4e3a0ca..854eb4e 100644
      return b.get("created", "").startswith(C.today().isoformat())
  
  
-@@ -178,10 +527,135 @@ def main():
+@@ -178,10 +558,135 @@ def main():
      ap.add_argument("kind")
      ap.add_argument("--codes", default="")
      ap.add_argument("--why", default="")
@@ -579,7 +619,7 @@ index 4e3a0ca..854eb4e 100644
      if kind == "monitor":
          import monitor
          monitor.loop()
-@@ -191,14 +665,23 @@ def main():
+@@ -191,14 +696,23 @@ def main():
              pass
          return
      if kind == "prep":
@@ -609,7 +649,7 @@ index 4e3a0ca..854eb4e 100644
          return
      if kind not in PROMPTS:
          sys.exit(f"알 수 없는 실행: {kind}\n{__doc__}")
-@@ -244,7 +727,11 @@ def main():
+@@ -244,7 +758,11 @@ def main():
          prompt = PROMPTS[kind].format(time=C.stamp(), codes=a.codes, why=a.why, next_trade=C.next_trade_time() or "내일",
                                        week=C.competition_week(p=p),
                                        period=("이번 주 월~수 (수요일 중간 회고)" if C.now().weekday() == 2 else f"{start} 이후 이번 주 (금요일 주간 회고)"))   # 11-06 S.Lee: 수·금 두 번

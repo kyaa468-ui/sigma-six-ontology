@@ -1,5 +1,5 @@
 diff --git a/agent/.claude/hooks/risk_check.py b/agent/.claude/hooks/risk_check.py
-index d2c47c2..b48ec66 100644
+index d2c47c2..066a903 100644
 --- a/agent/.claude/hooks/risk_check.py
 +++ b/agent/.claude/hooks/risk_check.py
 @@ -4,6 +4,7 @@
@@ -10,7 +10,7 @@ index d2c47c2..b48ec66 100644
  import json
  import os
  import sys
-@@ -21,30 +22,116 @@ def deny(reason):
+@@ -21,30 +22,122 @@ def deny(reason):
      sys.exit(0)
  
  
@@ -97,6 +97,12 @@ index d2c47c2..b48ec66 100644
 +            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow",
 +                                                       "updatedInput": o}}, ensure_ascii=False))
 +            return
++        import semantic_layer as SL
++        try:
++            SL.consume(order['code'], order['side'], order['confidence'], o.get('judgment_id'),
++                       rule_exit=order['rule_exit'], stage='hook')
++        except SL.SemanticError as exc:
++            deny(str(exc))
 +        import policy_registry as PR
 +        stale = None if not o.get('plan_id') and (order['rule_exit'] or os.environ.get('RUN_MODE')=='exit') else PR.check_plan_revision(o.get("plan_id"))
 +        if stale:
