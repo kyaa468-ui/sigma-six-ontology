@@ -1,5 +1,5 @@
 diff --git a/agent/src/logger.py b/agent/src/logger.py
-index 3353fd9..0f539c2 100644
+index 3353fd9..e905457 100644
 --- a/agent/src/logger.py
 +++ b/agent/src/logger.py
 @@ -8,20 +8,145 @@
@@ -207,16 +207,31 @@ index 3353fd9..0f539c2 100644
  def risks(rows, nm):
      seen, res = set(), []
      for r in rows:
-@@ -103,7 +256,7 @@ def holdings():
+@@ -103,11 +256,22 @@ def holdings():
  
  def system():
      by = {}
 -    for r in C.read_jsonl(C.RUNS):
-+    for r in log_store.iter_rows(C.RUNS, fields=('time','ok','tokens')):
++    usage_fields = ('input_tokens', 'output_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens')
++    for r in log_store.iter_rows(C.RUNS, fields=('time','ok','tokens','usage','cost_usd')):
          d = by.setdefault(r["time"][:10], {"date": r["time"][:10], "runs": 0, "failures": 0, "tokens_k": 0.0})
          d["runs"] += 1
          d["failures"] += 0 if r.get("ok") else 1
-@@ -152,7 +305,7 @@ def next_run(now=None):
+         d["tokens_k"] = round(d["tokens_k"] + r.get("tokens", 0) / 1000, 1)
++        d['tokens_definition'] = 'legacy_sum_excludes_cache_read; not_account_usage'
++        totals = d.setdefault('provider_usage_totals', {})
++        for key in (*usage_fields, 'total_cost_usd'):
++            value = r.get('cost_usd') if key == 'total_cost_usd' else (r.get('usage') or {}).get(key)
++            stat = totals.setdefault(key, {'measured_total': None, 'reported_runs': 0, 'unreported_runs': 0})
++            if type(value) in (int, float):
++                stat['measured_total'] = (stat['measured_total'] or 0) + value
++                stat['reported_runs'] += 1
++            else:
++                stat['unreported_runs'] += 1
+     return sorted(by.values(), key=lambda x: x["date"])
+ 
+ 
+@@ -152,7 +316,7 @@ def next_run(now=None):
  
  
  def status(note=""):
@@ -225,7 +240,7 @@ index 3353fd9..0f539c2 100644
      t = C.today().isoformat()
      todays = [r for r in runs if r["time"].startswith(t)]
      last = runs[-1] if runs else None
-@@ -164,7 +317,7 @@ def status(note=""):
+@@ -164,7 +328,7 @@ def status(note=""):
  
  def briefing():
      """08:30 데이터 준비 결과 요약 (시장 지표 + 후보 종목). 판단 전에 '현재 판단' 카드에 보여줌."""
@@ -234,7 +249,7 @@ index 3353fd9..0f539c2 100644
      if not b:
          return {}
      m = b.get("market", {})
-@@ -184,10 +337,10 @@ def run_items(run, nm):
+@@ -184,10 +348,10 @@ def run_items(run, nm):
      for r in run:
          if r["kind"] == "decision":
              items[r["code"]] = {"code": r["code"], "name": nm.get(r["code"], r.get("name")), "action": r["action"],
@@ -247,7 +262,7 @@ index 3353fd9..0f539c2 100644
      for r in run:
          if r["kind"] == "block" and r["code"] in items and "blocked" not in items[r["code"]]:
              items[r["code"]]["blocked"] = f'{r["rule"]}: {r["detail"]}'
-@@ -201,7 +354,7 @@ def decision(rows, nm):
+@@ -201,7 +365,7 @@ def decision(rows, nm):
      if not reg:
          return {}
      items = run_items([r for r in rows if r.get("run") == reg["run"]], nm)
@@ -256,7 +271,7 @@ index 3353fd9..0f539c2 100644
      mk = C.read_json(C.MARKETS, {}) or {}
      for it in items:   # 20일 변동성 (연율화) · 시장. 대시보드가 종목명 옆·아래에 표시
          row = C.briefing_row(it["code"], b) or {}
-@@ -254,7 +407,7 @@ def equity_close():
+@@ -254,7 +418,7 @@ def equity_close():
          return
      path = os.path.join(C.DOCS_DATA, "equity.json")
      rows = [r for r in (C.read_json(path, []) or []) if r["date"] != C.today().isoformat()]
@@ -265,7 +280,7 @@ index 3353fd9..0f539c2 100644
      m = b.get("market", {})
      reg = C.latest_regime() or {}
      rows.append({"date": C.today().isoformat(), "total": acc["total"],
-@@ -263,7 +416,7 @@ def equity_close():
+@@ -263,7 +427,7 @@ def equity_close():
      out("equity", sorted(rows, key=lambda r: r["date"]))
  
  
@@ -274,7 +289,7 @@ index 3353fd9..0f539c2 100644
      rows = C.read_jsonl(C.JOURNAL)
      nm = names()
      out("trades", trades(rows))
-@@ -278,6 +431,33 @@ def write_all(note=""):
+@@ -278,6 +442,33 @@ def write_all(note=""):
      out("status", status(note))
  
  

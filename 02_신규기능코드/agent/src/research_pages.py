@@ -22,8 +22,13 @@ def detail(kind,identifier,index,field=None,offset=0):
     else:raise ValueError('UNKNOWN_RESEARCH_SCOPE')
     if index>=len(cases):return {'schema_version':2,'status':'not_found'}
     value=cases[index];key=str(index)
+    import evidence_wire
+    if evidence_wire.enabled():
+        value = evidence_wire.concise(value)
     loaded={'view_id':kind+':'+identifier,'projection':{'traces':{key:value}}}
     result=trace_pages.chunk(loaded,'trace',key,field,offset) if field else trace_pages.detail(loaded,'trace',key)
+    if kind == 'review' and evidence_wire.enabled():
+        result['source_application_id'] = value.get('application_id')
     if not field:
         for info in result.get('item',{}).get('_detail_links',{}).values():
             info['detail_ref']={'scope':kind+':'+identifier,'index':index,'field':info['detail_ref']['field']}

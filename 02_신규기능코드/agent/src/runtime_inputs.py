@@ -57,6 +57,8 @@ def capture_attempt(attempt_id, kind, prompt, allowed_tools, options=None):
                 'allowed_tools':list(allowed_tools),'options':options or {},
                 'known_model_setting':{k:os.environ[k] for k in ('ANTHROPIC_MODEL','CLAUDE_MODEL') if os.environ.get(k)},
                 'provider_internal_state':'not_captured','model_default':'unspecified_unless_explicitly_configured'}
+        import evidence_wire
+        body['wire_format'] = (options or {}).get('wire_format', evidence_wire.selected_format())
         path = C.ontology_root()/'runtime_inputs'/f'{attempt_id}.json'
         path.parent.mkdir(parents=True,exist_ok=True)
         envelope={'record':body,'sha256':_digest(body)}
@@ -90,6 +92,7 @@ def record_result(attempt_id, terminal, result=None, error=None):
         import execution_trace as E
         E._id(attempt_id)
         body={'run_attempt_id':attempt_id,'terminal':terminal,'result':result,'error':error,
+              'usage_observation': usage_observation(result),
               'created_at':C.now().isoformat()}
         path=C.ontology_root()/'runtime_inputs'/f'{attempt_id}.result.json'
         path.parent.mkdir(parents=True,exist_ok=True)
@@ -110,7 +113,7 @@ def record_tool_call(name, arguments, result=None, error=None):
     # Historical inspection APIs retain their read-only contract. Capture the
     # tools that supply or consume an actual trading decision, not later queries.
     if name not in {'get_briefing','get_account','set_regime','record_ai_judgments',
-                    'record_external_evidence','plan_order','place_order','record_decision'}:
+                    'record_external_evidence','plan_order','place_order','record_decision','get_evidence_detail'}:
         return {'recording_status':'not_applicable'}
     attempt=os.environ.get('RUN_ATTEMPT_ID')
     if not attempt or os.environ.get('RUN_MODE') in ('case_review','proposal_review','validation_review','prompt_validation'):
@@ -120,6 +123,8 @@ def record_tool_call(name, arguments, result=None, error=None):
         E._id(attempt)
         body={'run_attempt_id':attempt,'tool':name,'arguments':arguments,'result':result,'error':error,
               'recorded_at':C.now().isoformat(),'scope':'server_visible_interaction'}
+        body['response_utf8_bytes'] = len(result.encode('utf-8')) if isinstance(result, str) else objects.fingerprint(result)[1]
+        body['response_tokens'] = None
         path=C.ontology_root()/'runtime_inputs'/attempt/'tools'/f'tool-{uuid.uuid4().hex}.json'
         path.parent.mkdir(parents=True,exist_ok=True)
         envelope={'record':body,'sha256':_digest(body)}
@@ -131,6 +136,17 @@ def record_tool_call(name, arguments, result=None, error=None):
 
 
 from contextlib import contextmanager
+
+
+def usage_observation(result):
+    result = result or {}
+    usage = result.get('usage') or {}
+    return {'provider_usage': dict(usage), 'total_cost_usd': result.get('total_cost_usd'),
+            'missing_fields': [k for k in ('input_tokens', 'output_tokens',
+                'cache_creation_input_tokens', 'cache_read_input_tokens') if k not in usage],
+            'scope': 'provider_reported_total; subcalls_not_added_again',
+            'provider_model_usage': result.get('modelUsage'), 'role_usage': 'not_reported',
+            'subagent_transcripts': 'not_captured', 'account_limit_conversion': 'not_measured'}
 
 @contextmanager
 def operation(kind):

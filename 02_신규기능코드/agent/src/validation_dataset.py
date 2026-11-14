@@ -364,9 +364,21 @@ def build_inputs(validation_id, refresh_key=None):
         gaps.extend(context.get('errors',[]))
         receipts,errors=JC._records('deliveries');gaps.extend(errors)
         deliveries=[r for r in _bounded(receipts,cutoff,gaps,'deliveries') if r.get('run_attempt_id') in attempt_ids]
+        import evidence_wire
+        frozen_deliveries = []
+        for receipt in deliveries:
+            try:
+                frozen_deliveries.append(evidence_wire.freeze_receipt(receipt, cutoff))
+            except (OSError, ValueError) as exc:
+                gaps.append({'delivery_id': receipt.get('delivery_id'), 'reason': 'wire_bundle_unavailable:' + str(exc)})
+        deliveries = frozen_deliveries
         selection_ids=set()
         for delivery in deliveries:
-            sources.append({'kind':'deliveries','id':delivery.get('delivery_id'),'sha256':S.digest(delivery)})
+            canonical = {k: v for k, v in delivery.items() if k not in ('_wire_bundle', '_wire_details')}
+            sources.append({'kind':'deliveries','id':delivery.get('delivery_id'),'sha256':S.digest(canonical)})
+            if delivery.get('_wire_bundle'):
+                sources.append({'kind': 'evidence_wire', 'id': delivery['delivery_id'],
+                                'sha256': S.digest(delivery['_wire_bundle'])})
             b=delivery.get('briefing_snapshot') or {}
             if (b.get('ontology') or {}).get('selection_run_id'): selection_ids.add(b['ontology']['selection_run_id'])
             for key in ('candidates','holdings'):

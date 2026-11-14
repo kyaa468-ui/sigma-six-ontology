@@ -1,8 +1,8 @@
 diff --git a/docs/index.html b/docs/index.html
-index a6376ba..a0b7c66 100644
+index a6376ba..b780f52 100644
 --- a/docs/index.html
 +++ b/docs/index.html
-@@ -464,7 +464,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex="0"]:foc
+@@ -464,11 +464,11 @@ button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex="0"]:foc
      <div class="more-body">
        <div class="grid">
          <section class="card c6 m-hide">
@@ -11,6 +11,11 @@ index a6376ba..a0b7c66 100644
            <div class="chart" id="ch-scatter" style="min-height:240px"></div>
          </section>
          <section class="card c6 m-hide">
+-          <div class="hd"><h2 class="eyebrow">토큰 사용량</h2><span class="sub">천 토큰 / 일, 빨간 점 = 실행 실패</span></div>
++          <div class="hd"><h2 class="eyebrow">기록된 토큰 합</h2><span class="sub">입력·출력·캐시 생성 합 / 일 · 캐시 읽기는 별도 · 빨간 점 = 실행 실패</span></div>
+           <div class="chart" id="ch-tokens" style="min-height:160px"></div>
+         </section>
+       </div>
 @@ -494,6 +494,7 @@ button:focus-visible, summary:focus-visible, a:focus-visible, [tabindex="0"]:foc
  <script id="sample-data" type="application/json">{}</script>
  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -81,6 +86,15 @@ index a6376ba..a0b7c66 100644
    }
  
    function tokens() {
+@@ -1442,7 +1449,7 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
+     svg.append('g').selectAll('line').data(y.ticks(3)).join('line').attr('x1', m.l).attr('x2', W).attr('y1', y).attr('y2', y).attr('stroke', C.grid);
+     svg.append('g').selectAll('text').data(y.ticks(3)).join('text').attr('x', m.l - 6).attr('y', y).attr('dy', '.32em').attr('text-anchor', 'end').attr('font-size', 11).attr('fill', C.muted).text(won);
+     svg.append('g').selectAll('rect').data(rows).join('rect').attr('x', r => x(r.date) + (x.bandwidth() - Math.min(32, x.bandwidth())) / 2).attr('width', Math.min(32, x.bandwidth())).attr('rx', 3).attr('y', r => y(r.tokens)).attr('height', r => y(0) - y(r.tokens)).attr('fill', GR.grey)
+-      .call(tipMark, r => `<div class="t">${md(r.d)}</div>${row('토큰', won(r.tokens) + '천')}${row('실행', r.runs + '회')}${row('실패', r.fail + '회', r.fail ? 'up' : '')}`);
++      .call(tipMark, r => `<div class="t">${md(r.d)}</div>${row('입력·출력·캐시 생성', won(r.tokens) + '천')}${row('캐시 읽기', r.provider_usage_totals?.cache_read_input_tokens?.measured_total == null ? '미측정' : won(r.provider_usage_totals.cache_read_input_tokens.measured_total) + ' (보고된 실행만)')}${row('실행', r.runs + '회')}${row('실패', r.fail + '회', r.fail ? 'up' : '')}`);
+     svg.append('line').attr('x1', m.l).attr('x2', W).attr('y1', y(avg)).attr('y2', y(avg)).attr('stroke', '#bdbdbd').attr('stroke-dasharray', '4 4').attr('pointer-events', 'none');
+     svg.append('text').attr('x', W).attr('y', y(avg) - 6).attr('text-anchor', 'end').attr('font-size', 11).attr('fill', C.body).text('평균 ' + won(Math.round(avg)) + '천');
+     svg.append('g').selectAll('circle').data(rows.filter(r => r.fail)).join('circle').attr('cx', r => x(r.date) + x.bandwidth() / 2).attr('cy', r => y(r.tokens) - 8).attr('r', 3).attr('fill', C.red);
 @@ -1496,9 +1503,10 @@ window.TRADE_TIMES = ['09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:
      const tb = $('log-body'); tb.textContent = '';
      D.trades.forEach(t => {

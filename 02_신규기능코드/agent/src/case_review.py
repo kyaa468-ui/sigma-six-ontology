@@ -381,10 +381,12 @@ def _validate_finding(finding, metrics):
             'server_summary': f"{source['path']}: {source['display_value']} ({source['unit']}); 검증된 계산값, 인과 판단 아님"}
 
 
-def _rejected_attempt(review_id, request_key, findings, hypotheses, errors):
+def _rejected_attempt(review_id, request_key, findings, hypotheses, errors, wire_format=None, bundle_refs=None):
     """Even schema rejection is an observed submission, not an omission."""
     try:
         raw = {'request_key': request_key, 'findings': findings, 'hypotheses': hypotheses}
+        if wire_format is not None:
+            raw.update(wire_format=wire_format, bundle_refs=bundle_refs)
         try:
             S.canonical(raw)
         except (ValueError, TypeError):
@@ -394,22 +396,27 @@ def _rejected_attempt(review_id, request_key, findings, hypotheses, errors):
             return {'status': 'rejected', 'errors': errors}
         record = {'review_id': review_id, 'submission_id': attempt_id, 'created_at': instant().isoformat(),
                   'status': 'rejected', 'errors': errors, 'raw_submission': raw, 'findings': [], 'hypotheses': []}
+        if wire_format is not None:
+            record.update(wire_format=wire_format, original_hash=S.digest(raw), normalized_hash=None)
         S.archive('review_submissions', attempt_id, record)
         return record
     except Exception as exc:
         return {'status': 'recording_error', 'errors': [S.record_error(review_id, 'rejected_submission', exc)]}
 
 
-def record_case_review(review_id, request_key, findings, hypotheses):
+def record_case_review(review_id, request_key, findings, hypotheses, wire_format=None, bundle_refs=None):
     """Item-level validation, immutable request replay, unverified hypotheses."""
     if not isinstance(request_key, str) or not request_key.strip() or len(request_key) > 200:
-        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'request_key', 'code': 'SCHEMA_ERROR'}])
+        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'request_key', 'code': 'SCHEMA_ERROR'}], wire_format, bundle_refs)
     if not isinstance(findings, list) or not isinstance(hypotheses, list):
-        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'submission', 'code': 'SCHEMA_ERROR'}])
+        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'submission', 'code': 'SCHEMA_ERROR'}], wire_format, bundle_refs)
     try:
-        payload_hash = S.digest({'findings': findings, 'hypotheses': hypotheses})
+        raw_submission = {'findings': findings, 'hypotheses': hypotheses}
+        if wire_format is not None:
+            raw_submission.update(wire_format=wire_format, bundle_refs=bundle_refs)
+        payload_hash = S.digest(raw_submission)
     except (TypeError, ValueError):
-        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'submission', 'code': 'SCHEMA_ERROR'}])
+        return _rejected_attempt(review_id, request_key, findings, hypotheses, [{'path': 'submission', 'code': 'SCHEMA_ERROR'}], wire_format, bundle_refs)
     key = 'review-request-' + S.digest([review_id, request_key])
     try:
         with S.locked(key):
@@ -422,7 +429,20 @@ def record_case_review(review_id, request_key, findings, hypotheses):
                 return {'status': 'rejected', 'errors': [{'code': 'UNKNOWN_REVIEW'}]}
             metrics = {x['metric_id']: x for x in result['metric_catalog']}
             good, proposed, errors, seen = [], [], [], set()
-            for index, finding in enumerate(findings):
+            normalized = findings
+            normalization_failed = False
+            import evidence_wire as W
+            if W.enabled() and wire_format is None:
+                errors.append({'path': 'wire_format', 'code': 'WIRE_FORMAT_REQUIRED'})
+                normalized = []
+            if wire_format is not None:
+                try:
+                    normalized = W.normalize_findings(wire_format, bundle_refs, findings, hypotheses)
+                except (ValueError, TypeError, KeyError) as exc:
+                    errors.append(getattr(exc, 'error', {'path': 'findings', 'code': 'SCHEMA_ERROR'}))
+                    normalized = []
+                    normalization_failed = True
+            for index, finding in enumerate(normalized):
                 try:
                     item = _validate_finding(finding, metrics)
                     if item['id'] in seen:
@@ -456,7 +476,10 @@ def record_case_review(review_id, request_key, findings, hypotheses):
                       'status': 'accepted' if not errors else 'rejected', 'findings': good,
                       'hypotheses': proposed, 'errors': errors,
                       'item_results': [{'id': x['id'], 'status': 'accepted'} for x in good] + errors,
-                      'raw_submission': {'findings': findings, 'hypotheses': hypotheses}}
+                      'raw_submission': raw_submission}
+            if wire_format is not None:
+                record.update(wire_format=wire_format, original_hash=payload_hash,
+                              normalized_hash=None if normalization_failed else S.digest({'findings': normalized, 'hypotheses': hypotheses}))
             S.archive('review_submissions', key, record)
             return record
     except Exception as exc:

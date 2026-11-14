@@ -335,6 +335,96 @@
             "id": "evidence_catalog",
             "name": "evidence_catalog",
             "type": "object"
+          },
+          {
+            "id": "wire_format",
+            "name": "wire_format",
+            "type": "string"
+          },
+          {
+            "id": "bundle_alias",
+            "name": "bundle_alias",
+            "type": "string"
+          },
+          {
+            "id": "wire_scope",
+            "name": "wire_scope",
+            "type": "object"
+          }
+        ],
+        "interfaces": []
+      },
+      {
+        "id": "evidence_wire",
+        "label": "AI 표시 자료와 짧은 참조",
+        "status": "reviewed",
+        "primaryKey": "id",
+        "titleKey": "name",
+        "properties": [
+          {
+            "id": "id",
+            "name": "id",
+            "type": "string"
+          },
+          {
+            "id": "name",
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "id": "wire_format",
+            "name": "wire_format",
+            "type": "string"
+          },
+          {
+            "id": "renderer_version",
+            "name": "renderer_version",
+            "type": "string"
+          },
+          {
+            "id": "field_dictionary_version",
+            "name": "field_dictionary_version",
+            "type": "string"
+          },
+          {
+            "id": "scope",
+            "name": "scope",
+            "type": "object"
+          },
+          {
+            "id": "bundle_alias",
+            "name": "bundle_alias",
+            "type": "string"
+          },
+          {
+            "id": "canonical_receipt_ref",
+            "name": "canonical_receipt_ref",
+            "type": "object"
+          },
+          {
+            "id": "visible_payload_ref",
+            "name": "visible_payload_ref",
+            "type": "object"
+          },
+          {
+            "id": "visible_payload_hash",
+            "name": "visible_payload_hash",
+            "type": "string"
+          },
+          {
+            "id": "alias_map_hash",
+            "name": "alias_map_hash",
+            "type": "string"
+          },
+          {
+            "id": "entries",
+            "name": "entries",
+            "type": "object"
+          },
+          {
+            "id": "status",
+            "name": "status",
+            "type": "string"
           }
         ],
         "interfaces": []
@@ -1595,6 +1685,21 @@
             "id": "created_at",
             "name": "created_at",
             "type": "timestamp"
+          },
+          {
+            "id": "wire_format",
+            "name": "wire_format",
+            "type": "string"
+          },
+          {
+            "id": "bundle_alias",
+            "name": "bundle_alias",
+            "type": "string"
+          },
+          {
+            "id": "wire_scope",
+            "name": "wire_scope",
+            "type": "object"
           }
         ],
         "interfaces": []
@@ -2286,6 +2391,22 @@
         "id": "criterion-criterion_version",
         "source": "criterion",
         "target": "criterion_version",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "delivery-evidence_wire",
+        "source": "delivery",
+        "target": "evidence_wire",
+        "label": "참조",
+        "inverse": "참조됨",
+        "cardinality": "1:N"
+      },
+      {
+        "id": "proposal_delivery-evidence_wire",
+        "source": "proposal_delivery",
+        "target": "evidence_wire",
         "label": "참조",
         "inverse": "참조됨",
         "cardinality": "1:N"
@@ -3295,7 +3416,7 @@
     }
   },
   "metrics": {
-    "objectTypes": 54,
+    "objectTypes": 55,
     "functions": 10,
     "actions": 0,
     "guardedActions": 0

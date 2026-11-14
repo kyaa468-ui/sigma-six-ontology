@@ -1,11 +1,25 @@
 diff --git a/agent/README.md b/agent/README.md
-index 70f2635..6f801c3 100644
+index 70f2635..e84228c 100644
 --- a/agent/README.md
 +++ b/agent/README.md
-@@ -2,6 +2,142 @@
+@@ -2,6 +2,159 @@
  
  The trading agent. **The agent proposes, the rules decide**: Claude Code reads the market and debates each stock; Python code computes indicators and order sizes; a Claude Code hook blocks any order that breaks a risk limit.
  
++## AI 근거 전달 형식 (수정계획 2)
++
++새 실행의 기본값은 `COMPACT_EVIDENCE@v1`입니다. 실행기가 형식을 자식 프로세스에 고정해 전달하고 첫 전달 시 서버도 실행 범위에 저장합니다. 다음 실행부터 예전 표현을 사용하려면 `SION_EVIDENCE_WIRE_FORMAT=legacy`로 시작합니다. 실행 도중 형식 변경은 거절하며, 기존 compact 기록과 판독기는 남습니다.
++
++`groups[].common`은 해당 그룹의 모든 `rows`에 적용됩니다. 값·단위·측정 종류·원천/수신 시각·결측·대체값·주의 문구를 함께 읽고, 근거 `B1:E1`, 관측 `B1:O1`, 연구 지표 `B1:M1`을 구분합니다. 총괄과 bull/bear/regime 사이에도 값과 머리말 및 참조를 함께 전달합니다. 실제 받은 묶음만 `bundle_refs`에 선언합니다. 번호는 실행 시도·도구 모드·연구 ID 안에서만 유효합니다.
++
++`get_evidence_detail(ref, fields)`는 최상위 필드 이름 목록을 받아 서버 실행 범위 안에서 추가 자료를 전달하고 새 참조를 발급합니다. 원래 대응표의 표시 범위를 확대하지 않습니다. 동일 자료는 받은 응답을 재사용하고, `get_briefing`/`get_account`의 새 호출은 새 관측·전달로 취급합니다. 원본 저장 파일을 직접 읽어 인용 범위를 우회하지 않습니다.
++
++짧은 참조는 저장 전에 canonical 참조로 복원됩니다. 원래 제출·정규화 결과 해시는 각각 남고, 기존 검증기와 주문/전제/정책 계산은 canonical 기록을 사용합니다. 예약 번호는 프로세스 간 잠금과 영속 예약 파일로 발급되며, 실패한 번호를 재사용하지 않습니다. 불변 대응표에는 원본 영수증·실제 전달 전문의 저장소 참조, 버전, 해시, 표시 필드가 연결됩니다. `response_attempted`는 응답을 기록했다는 뜻이며 모델이 읽었다는 증거가 아닙니다.
++
++복기/개선안의 순수 조회는 읽기 전용이고 MCP 전달 계층에서 실제 페이지 노출을 예약·확정합니다. 과거 재현은 당시 전달한 전문과 대응표만 사용합니다. 감사 화면은 실제 전달 내용, 제출한 짧은 참조, canonical 원본, 서버 전용 상세를 구분합니다. 공개 요약에는 원본 대응표와 계좌 상세를 포함하지 않습니다.
++
++검증 명령과 표현 비교 자료는 `reports/compact-evidence-20261114-final/`에 설명합니다. 기존 테스트는 보존된 legacy 계약으로, `compact_wire` 표시 테스트와 격리 리허설은 새 계약으로 실행합니다. provider가 보고한 `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`, `total_cost_usd`는 이름과 결측 여부를 유지합니다. UTF-8 전달량은 토큰·비용·Claude 계정 한도 사용량과 다릅니다. 실제 하위 에이전트 transcript와 계정 한도는 이번 오프라인 검증에서 측정하지 않았습니다.
++
 +## Candidate evidence (ontology v1)
 +
 +`get_briefing()` now separates the candidate-selection snapshot from quotes fetched when the briefing is called. A price comparison links “above MA20” and its percentage gap to the same observation. Daily accumulated flows and intraday quantity × selection-price estimates remain separate. Missing flow is shown as unknown even where the unchanged engine used zero; the positive-only ranking ratio is not the signed sum of foreign and institutional flow.
@@ -32,9 +46,9 @@ index 70f2635..6f801c3 100644
 +
 +## AI judgments and coverage (ontology step 2)
 +
-+The four MCP tools are `record_ai_judgments(items)`, `get_ai_judgments(run_attempt_id?, code?, delivery_id?)`, `record_external_evidence(items)`, and `get_judgment_coverage(run_attempt_id?)`. Briefing text and account responses now include an explicit evidence catalog. Only those returned catalog entries are citeable; stored internal fields are not. Evidence includes candidates, holdings, RSI inputs, market classifications, news titles, account values, configuration and lessons. Source classifications/reporting remain distinct from observed market values.
++The MCP tools include `record_ai_judgments(items)`, `get_ai_judgments(run_attempt_id?, code?, delivery_id?)`, `record_external_evidence(items)`, `get_judgment_coverage(run_attempt_id?)`, and `get_evidence_detail(ref, fields)`. Briefing and account responses contain values with short references; the full canonical catalog stays on the server. Only returned entries and displayed fields are citeable. Evidence includes candidates, holdings, RSI inputs, market classifications, news titles, account values, configuration and lessons. Source classifications/reporting remain distinct from observed market values.
 +
-+Example **synthetic** submission after reading an actual delivery (replace both IDs with returned IDs):
++Example **synthetic** compact submission after reading an actual delivery (replace the bundle and reference with returned ones):
 +
 +```json
 +{
@@ -44,12 +58,13 @@ index 70f2635..6f801c3 100644
 +  "confidence_for": "매수",
 +  "confidence_raw": 0.5,
 +  "decision": "기관 매도 압력을 고려해 관망한다. 이 문장 전체는 미검증 AI 해석이다.",
-+  "delivery_ids": ["delivery-RETURNED_ID"],
++  "wire_format": "COMPACT_EVIDENCE@v1",
++  "bundle_refs": ["B1"],
 +  "arguments": [
 +    {
 +      "id": "institution-sale", "kind": "fact_claim", "proposer": "bear",
 +      "stance": "support", "adoption": "adopted",
-+      "evidence": {"delivery_id": "delivery-RETURNED_ID", "evidence_id": "RETURNED_EVIDENCE_ID"},
++      "evidence": "B1:E1",
 +      "measurement_kind": "intraday_estimate",
 +      "assertion": {"op": "sign", "direction": "sell"}
 +    }
@@ -57,6 +72,8 @@ index 70f2635..6f801c3 100644
 +  "premises": []
 +}
 +```
++
++For `legacy` runs, retain `delivery_ids` and `{delivery_id, evidence_id}` instead of the compact header and short reference. Comparison `right` accepts an E reference; `comparison_context` accepts an O reference. Research `metric_id`/`right_metric_id` and proposal `reference`/`right_reference` accept M references with the same compact declaration.
 +
 +`fact_claim` accepts structured `value`/`unit`, actor-flow `sign`, same-observation `compare` (`operator`, `right` reference, boolean `result`), or `unknown`. The server produces factual summaries and rejects contradictory signs, units, values, measurement kinds and hidden references per item. `hypothesis` stores `text` and `claim_ids` as `submitted_unverified`. `source_quote` checks only whether `quote` occurs in the stored source text; it does not authenticate reporting. External evidence accepts `request_key`, `subject`, `url`, `text`, optional `title`; no URL is fetched. Numeric precision never changes actor sign checks. Received-value arithmetic sums retain their time-alignment limitation.
 +
@@ -145,7 +162,7 @@ index 70f2635..6f801c3 100644
  ## Daily schedule (weekdays, KST)
  
  | Time | Run | LLM |
-@@ -11,7 +147,8 @@ The trading agent. **The agent proposes, the rules decide**: Claude Code reads t
+@@ -11,7 +164,8 @@ The trading agent. **The agent proposes, the rules decide**: Claude Code reads t
  | 09:30–15:15, every 15 min | `decide` — intraday re-screen → regime → bull ⇄ bear debate → lead agent decides → orders in every slot since 11-05 (`params.schedule.trade_times` lists all 24); a stock sold today is not bought back the same day | yes |
  | 15:45 | `close` — record today's equity, publish to dashboard | no |
  | 16:00 | `tune` — agent proposes 0–2 threshold changes; `src/tuning.py` applies only those inside `config/tuning.json` and commits | yes |
@@ -155,7 +172,7 @@ index 70f2635..6f801c3 100644
  | always (from logon) | `sync` — every minute, pulls pushed code, checks it, restarts `monitor` / the balance loop if their code changed | no |
  
  Register them with `setup_tasks.ps1` (Windows Task Scheduler). The agent runs on an always-on PC and is edited from a laptop; see [MOVE_PC.md](MOVE_PC.md) (Korean) for moving it between machines.
-@@ -62,3 +199,258 @@ copy .env.example .env      :: fill KRX_ID / KRX_PW / NAVER_CLIENT_ID / NAVER_CL
+@@ -62,3 +216,258 @@ copy .env.example .env      :: fill KRX_ID / KRX_PW / NAVER_CLIENT_ID / NAVER_CL
  - Without `KRX_ID` / `KRX_PW`, data prep falls back to a fixed large-cap list without investor flow data.
  
  > Kiwoom App Key / Secret and any `.env` file are never committed (excluded via `.gitignore`).

@@ -1,8 +1,8 @@
 diff --git a/agent/src/mcp_server.py b/agent/src/mcp_server.py
-index 4d7480b..14bac4a 100644
+index 4d7480b..4ffe8d2 100644
 --- a/agent/src/mcp_server.py
 +++ b/agent/src/mcp_server.py
-@@ -13,10 +13,17 @@
+@@ -13,10 +13,18 @@
  
  stdout 은 MCP 통신용이라, pykrx 등이 찍는 메시지는 전부 stderr 로 돌립니다.
  """
@@ -16,11 +16,12 @@ index 4d7480b..14bac4a 100644
 +import storage_objects
 +import log_store
 +import record_store
++import evidence_wire as W
 +from datetime import datetime
  
  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
  
-@@ -25,6 +32,12 @@ with contextlib.redirect_stdout(sys.stderr):
+@@ -25,6 +33,12 @@ with contextlib.redirect_stdout(sys.stderr):
      C.load_env()
      import broker as B
      import data_prep
@@ -33,7 +34,7 @@ index 4d7480b..14bac4a 100644
      import risk
      import sizing
      import tuning
-@@ -33,6 +46,50 @@ with contextlib.redirect_stdout(sys.stderr):
+@@ -33,6 +47,58 @@ with contextlib.redirect_stdout(sys.stderr):
  mcp = FastMCP("kiwoom")
  _broker = None
  
@@ -47,6 +48,14 @@ index 4d7480b..14bac4a 100644
 +def tool_access_error(fn, args, kwargs):
 +    """Check before tool/audit code: a comparison run only sees its frozen bundle."""
 +    mode, name = os.environ.get("RUN_MODE"), fn.__name__
++    if name == 'get_evidence_detail':
++        if mode not in {'decide', 'view', 'exit', 'case_review', 'proposal_review', 'validation_review'}:
++            return {'ok': False, 'error_code': 'WIRE_TOOL_FORBIDDEN'}
++        try:
++            W.scope()
++        except W.WireError as exc:
++            return {'ok': False, 'error_code': exc.error['code']}
++        return None  # resolver enforces the assigned attempt AND research scope
 +    if mode in {"validation_review", "prompt_validation"}:
 +        if mode == "prompt_validation" or name not in VALIDATION_TOOLS:
 +            return {"ok": False, "error_code": "VALIDATION_TOOL_FORBIDDEN"}
@@ -84,7 +93,7 @@ index 4d7480b..14bac4a 100644
  
  def brk():
      global _broker
-@@ -45,16 +102,130 @@ def brk():
+@@ -45,16 +111,136 @@ def brk():
  def quiet(fn):
      @functools.wraps(fn)
      def wrap(*a, **k):
@@ -96,6 +105,11 @@ index 4d7480b..14bac4a 100644
 +                if denied is not None:
 +                    return denied
 +                result = fn(*a, **k)
++                if W.enabled() and fn.__name__ in {'set_regime', 'record_case_review', 'record_learning_proposals',
++                        'get_learning_proposals', 'get_ai_judgments', 'get_judgment_coverage',
++                        'get_execution_trace', 'get_judgment_detail', 'get_coverage_detail',
++                        'get_policy_validation', 'get_validation_cases', 'get_tuning_context'}:
++                    result = W.concise(result)
 +                # Recording is independent of trading acceptance and never causes
 +                # a second invocation if publication fails.
 +                try:
@@ -107,11 +121,12 @@ index 4d7480b..14bac4a 100644
 +                return result
              except Exception as e:  # noqa: BLE001  에이전트가 읽을 수 있게 오류를 결과로 돌려줌
 -                return {"error": f"{type(e).__name__}: {e}"}
-+                result = {"error": f"{type(e).__name__}: {e}"}
++                result = ({'status': 'rejected', 'errors': [e.error]} if isinstance(e, W.WireError)
++                          else {"error": f"{type(e).__name__}: {e}"})
 +                try:
 +                    import runtime_inputs
 +                    bound = inspect.signature(fn).bind(*a, **k)
-+                    runtime_inputs.record_tool_call(fn.__name__, dict(bound.arguments), result=result, error=result['error'])
++                    runtime_inputs.record_tool_call(fn.__name__, dict(bound.arguments), result=result, error=result.get('error', result))
 +                except Exception:
 +                    pass
 +                return result
@@ -219,7 +234,7 @@ index 4d7480b..14bac4a 100644
      acc = C.read_json(C.ACCOUNT, {}) or {}
      for r in b.get("candidates", []) + b.get("holdings", []) + acc.get("holdings", []):
          if r["code"] == code:
-@@ -63,11 +234,12 @@ def name_of(code):
+@@ -63,11 +249,12 @@ def name_of(code):
  
  
  def positions_view(acc):
@@ -233,7 +248,7 @@ index 4d7480b..14bac4a 100644
                      "stop": m.get("stop"), "take": m.get("take"),
                      "held_days": C.business_days(m["entry_date"], C.today()) if m.get("entry_date") else None,
                      "max_days": m.get("max_days")})
-@@ -78,9 +250,14 @@ def positions_view(acc):
+@@ -78,9 +265,14 @@ def positions_view(acc):
  @quiet
  def get_briefing() -> str:
      """오늘 브리핑: 시장 지표, 후보 종목, 보유 종목 지표(숫자 요약)와 오늘 적용되는 기준값. 판단은 반드시 이 숫자에 근거할 것."""
@@ -249,9 +264,12 @@ index 4d7480b..14bac4a 100644
      p, r = C.params(), C.risk_limits()
      ctx = [
          "", "## 오늘 기준값 (코드가 강제함)",
-@@ -136,13 +313,46 @@ def get_briefing() -> str:
+@@ -135,14 +327,50 @@ def get_briefing() -> str:
+     if mb := p.get("market_boost"):
          ctx.append(f"- 시장 하락 보정 (코드가 적용): set_regime 으로 기록한 국면이 {'·'.join(mb['regimes'])} 이면 "
                     f"신규 매수 확신도 +{mb['add']:.2f} (악재 뉴스 ⚠ 제외). 국면을 이유로 스스로 확신도를 올리거나 내리지 않음")
++    policy_instructions = list(ctx)
++    policy_instructions.append(f"호출 시 오늘 등락이 +{r.get('max_buy_day_change', 0.10):.0%} 이상이면 추격 매수 금지.")
      b["market"]["live"] = data_prep.live_market(b)   # 장중이면 지금 KOSPI 반영 힌트도 같이
 -    ls = (C.read_json(tuning.LESSONS, {}) or {}).get("lessons") or []
 +    legacy_lessons = C.read_json(tuning.LESSONS, {}) or {}
@@ -286,7 +304,8 @@ index 4d7480b..14bac4a 100644
 +    prior = C.prior_judgments()
 +    text = data_prep.to_text(b) + "\n".join(ctx) + intraday(b, r, observations=quotes) + prior
 +    audit_call(JC.observe_targets, briefing=b)
-+    return O.deliver(text, b, quotes, p, r, context={"lessons": ls,
++    return O.deliver(text, b, quotes, p, r, context={"lessons": ls, "policy_instructions": policy_instructions,
++                                             "news_window_days": data_prep.NEWS_DAYS,
 +        "lessons_available_at": legacy_available_at, "legacy_lessons_time_raw": legacy_lessons.get("time"),
 +        "adopted_lessons": adopted.get("lessons", []), "lesson_selection_status": adopted.get("recording_status"),
 +        "lesson_selection_state": adopted.get("status"), "lesson_selected_at": lesson_selected_at,
@@ -301,7 +320,7 @@ index 4d7480b..14bac4a 100644
      """후보·보유 종목의 지금 가격과 오늘 등락률. 지표는 전일 종가 기준이라 오늘 급등·급락을 여기서 봄."""
      rows, seen = [], set()
      for x in b.get("candidates", []) + (C.read_json(C.ACCOUNT, {}) or {}).get("holdings", []):
-@@ -151,16 +361,24 @@ def intraday(b, r):
+@@ -151,16 +379,24 @@ def intraday(b, r):
          seen.add(x["code"])
          try:
              q = brk().quote_info(x["code"])
@@ -331,7 +350,7 @@ index 4d7480b..14bac4a 100644
  
  
  
-@@ -170,102 +388,439 @@ def get_account() -> dict:
+@@ -170,102 +406,458 @@ def get_account() -> dict:
      """계좌 총자산·현금·보유 종목(평단, 현재가, 수익률, 비중, 손절가, 익절가, 보유일)과 오늘 손익, 지금 주식 비중 상한."""
      acc = brk().account()
      cap, regime = sizing.equity_cap(C.params(), C.risk_limits(), acc)
@@ -346,7 +365,7 @@ index 4d7480b..14bac4a 100644
  @mcp.tool()
  @quiet
 -def set_regime(regime: str, reason: str) -> dict:
-+def set_regime(regime: str, reason: str, evidence_refs: list[dict] | None = None) -> dict:
++def set_regime(regime: str, reason: str, evidence_refs: list[dict | str] | None = None) -> dict:
      """시장 국면을 기록합니다. regime 은 '상승' | '횡보' | '하락'. 이후 매수 수량은 이 국면의 비중 상한을 따릅니다."""
      p = C.params()
      if regime not in p["regime_cap"]:
@@ -366,6 +385,9 @@ index 4d7480b..14bac4a 100644
 +        # or turn a research recording problem into an AI coverage failure.
 +        snapshot = {"recording_status": "recording_error", "error": str(exc)}
 +        print(f"국면 참조 기록 실패: {exc}", file=sys.stderr)
++    if W.enabled() and isinstance(reference_validation, dict):
++        reference_validation = {k: v for k, v in reference_validation.items() if k != 'evidence'}
++        reference_validation['references'] = evidence_refs or []
 +    return {"regime": regime, "equity_cap": cap, "reference_validation": reference_validation,
 +            "regime_event_id": snapshot.get("regime_event_id"),
 +            "regime_recording_status": snapshot.get("recording_status", "recording_error")}
@@ -584,7 +606,9 @@ index 4d7480b..14bac4a 100644
 +@mcp.tool()
 +@quiet
 +def record_ai_judgments(items: list[dict]) -> list[dict]:
-+    """구조화 사실·가설·전제를 항목별 검증해 저장. 각 항목에 request_key, code, confidence_for, confidence_raw, arguments 필요."""
++    """구조화 사실·가설·전제를 항목별 검증해 저장. 각 항목에 request_key, code, confidence_for, confidence_raw, arguments 필요.
++    COMPACT_EVIDENCE@v1: wire_format과 bundle_refs를 명시. evidence/assertion.right는 B1:E1, comparison_context는 B1:O1.
++    실행기가 legacy를 명시한 경우만 기존 delivery_ids와 canonical 참조를 사용합니다."""
 +    return J.record_ai_judgments(items)
 +
 +
@@ -654,8 +678,10 @@ index 4d7480b..14bac4a 100644
 +            import trace_pages
 +            row=next(records,None)
 +            if row is None:return {'schema_version':2,'status':'not_found','recording_errors':errors}
++            if W.enabled(): row = W.concise(row)
 +            loaded={'view_id':str(filters),'projection':{'traces':{detail_id:row}}}
-+            return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++            result = trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++            return W.history_delivery(result, detail_id, row.get('created_at')) if W.enabled() else result
 +        fields=('event_id','plan_id','judgment_id','order_attempt_id','code','kind','created_at','status','run_attempt_id')
 +        rows=({'id':row['event_id'],**{k:row[k] for k in fields if k in row},
 +               '_record_order':getattr(row,'_record_order',0),'detail_ref':{'section':section,'detail_id':row['event_id']}}
@@ -676,8 +702,10 @@ index 4d7480b..14bac4a 100644
 +        import trace_pages
 +        row=next((row for index,row in enumerate(result.get(section,[])) if identifier(row,index)==detail_id),None)
 +        if row is None:return {'schema_version':2,'status':'not_found'}
++        if W.enabled(): row = W.concise(row)
 +        loaded={'view_id':scope,'projection':{'traces':{detail_id:row}}}
-+        return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++        result = trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
++        return W.history_delivery(result, detail_id, row.get('created_at')) if W.enabled() else result
 +    summary_fields=('event_id','plan_id','judgment_id','order_attempt_id','code','kind','created_at','status','run_attempt_id')
 +    rows=({'id':identifier(row,i),**{k:row[k] for k in summary_fields if k in row},
 +           'detail_ref':{'section':section,'detail_id':identifier(row,i)},'_record_order':getattr(row,'_record_order',0)} for i,row in enumerate(result.get(section,[])))
@@ -706,7 +734,8 @@ index 4d7480b..14bac4a 100644
 +        import trace_pages
 +        result=close_evaluation.get_close_evaluations(scoring_job_id,market_as_of,1)
 +        if not result.get('jobs'):return {'schema_version':2,'status':'not_found'}
-+        loaded={'view_id':scoring_job_id,'projection':{'traces':{scoring_job_id:result['jobs'][0]}}}
++        selected = W.concise(result['jobs'][0]) if W.enabled() else result['jobs'][0]
++        loaded={'view_id':scoring_job_id,'projection':{'traces':{scoring_job_id:selected}}}
 +        return trace_pages.chunk(loaded,'trace',scoring_job_id,field,offset) if field else trace_pages.detail(loaded,'trace',scoring_job_id)
 +    return close_evaluation.get_close_evaluations(scoring_job_id, market_as_of, limit, cursor=cursor, paged=True)
 +
@@ -727,7 +756,8 @@ index 4d7480b..14bac4a 100644
 +def get_case_review(review_id: str) -> dict:
 +    """이번 복기의 고정 비교표·통계·예측 검증 상태 조회. 신규 수집·주문 없음."""
 +    import case_review
-+    return case_review.get_case_review(review_id)
++    result = case_review.get_case_review(review_id)
++    return W.review_delivery(review_id, result) if W.enabled() else result
 +
 +
 +@mcp.tool()
@@ -736,29 +766,35 @@ index 4d7480b..14bac4a 100644
 +    """고정된 복기 사례와 당시 근거·전제·사후 평가 연결을 페이지별 조회."""
 +    if detail_index is not None:
 +        import research_pages
-+        return research_pages.detail('review',review_id,detail_index,field,byte_offset)
++        result = research_pages.detail('review',review_id,detail_index,field,byte_offset)
++        return W.review_delivery(review_id, result, cases=True) if W.enabled() else result
 +    import case_review
-+    return case_review.get_review_cases(review_id, offset, limit, cursor=cursor) if cursor else case_review.get_review_cases(review_id, offset, limit)
++    result = case_review.get_review_cases(review_id, offset, limit, cursor=cursor) if cursor else case_review.get_review_cases(review_id, offset, limit)
++    return W.review_delivery(review_id, result, cases=True) if W.enabled() else result
 +
 +
 +@mcp.tool()
 +@quiet
-+def record_case_review(review_id: str, request_key: str, findings: list[dict], hypotheses: list[dict]) -> dict:
++def record_case_review(review_id: str, request_key: str, findings: list[dict], hypotheses: list[dict],
++                       wire_format: str | None = None, bundle_refs: list[str] | None = None) -> dict:
 +    """비교 결과의 구조화 사실과 사후 가설 제출. 기존 교훈·튜닝·주간 회고에는 반영하지 않음.
-+    findings는 get_case_review의 metric_catalog를 인용:
++    COMPACT_EVIDENCE@v1에서는 wire_format과 bundle_refs를 명시하고 metric_id/right_metric_id에 B1:M1을 사용합니다.
++    legacy 실행에서만 findings는 get_case_review의 metric_catalog를 인용:
 +    {id, metric_id, op:'value', value, unit} 또는 {id, metric_id, op:'direction', direction:'positive'|'negative'|'zero'}.
 +    비교는 {id, metric_id, op:'compare', right_metric_id, operator:'gt'|'gte'|'lt'|'lte'|'eq', result:bool}.
 +    hypotheses는 {id, text, finding_ids:[...], case_ids:[...]}이며 사후 가설·미검증으로 보관.
 +    사실은 자유 설명문을 받지 않으며 서버가 검증된 요약 문장을 생성. 재시도는 같은 request_key·내용,
 +    수정 제출은 새 키를 사용. 하나라도 틀리면 제출 상태는 rejected이며 항목별 결과와 오류 위치를 반환."""
 +    import case_review
++    if wire_format is not None:
++        return case_review.record_case_review(review_id, request_key, findings, hypotheses, wire_format, bundle_refs)
 +    return case_review.record_case_review(review_id, request_key, findings, hypotheses)
 +
 +
 +@mcp.tool()
 +@quiet
 +def get_proposal_context(proposal_run_id: str) -> dict:
-+    """6번 실행의 고정 자료·변경 대상·제출 계약. 반환한 근거의 전달 ID를 함께 보관합니다."""
++    """6번 실행의 고정 자료·변경 대상·제출 계약. 반환한 근거의 묶음과 짧은 참조를 함께 보관합니다."""
 +    import learning_proposals
 +    return learning_proposals.get_proposal_context(proposal_run_id)
 +
@@ -777,7 +813,8 @@ index 4d7480b..14bac4a 100644
 +@mcp.tool()
 +@quiet
 +def record_learning_proposals(proposal_run_id: str, request_key: str, items: list[dict]) -> dict:
-+    """교훈 후보·설정/조건부 변경안·현행 유지를 항목별 검사해 보관합니다. 매매·교훈 활성화는 하지 않습니다."""
++    """교훈 후보·설정/조건부 변경안·현행 유지를 항목별 검사해 보관합니다. 매매·교훈 활성화는 하지 않습니다.
++    compact 항목에는 wire_format, bundle_refs를 명시하고 reference/right_reference는 B1:M1 같은 전달 지표 참조를 사용합니다."""
 +    import learning_proposals
 +    return learning_proposals.record_learning_proposals(proposal_run_id, request_key, items)
 +
@@ -799,6 +836,7 @@ index 4d7480b..14bac4a 100644
 +        import trace_pages
 +        selected=next((row for row in rows if key(row)==detail_id),None)
 +        if selected is None:return {'schema_version':2,'status':'not_found'}
++        if W.enabled(): selected = W.concise(selected)
 +        loaded={'view_id':scope,'projection':{'traces':{detail_id:selected}}}
 +        return trace_pages.chunk(loaded,'trace',detail_id,field,offset) if field else trace_pages.detail(loaded,'trace',detail_id)
 +    page=record_store.versioned_page(rows,key=key,scope=scope,cursor=cursor,limit=limit)
@@ -812,7 +850,7 @@ index 4d7480b..14bac4a 100644
  @mcp.tool()
  @quiet
  def submit_review(week: int, period: str, suggestion: str, report_markdown: str) -> dict:
-@@ -295,10 +850,38 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
+@@ -295,10 +887,48 @@ def apply_tuning(changes: list[dict], summary: str, lessons: list[str] = None) -
      lessons = decision_outcomes 점검에서 얻은 교훈 2~5줄 (예: "외국인 3일 연속 순매수 종목을 관망했다가 +4% 놓침 → 이런 경우 확신도를 낮추지 말 것").
      다음 판단부터 브리핑에 실려 총괄·bull·bear 가 참고함 (기준값과 따로, 판단 자체를 고치는 용도).
      서버가 허용 키·범위·변경폭·개수·쿨다운·기준값 일관성을 검사해 통과한 것만 반영하고, 거절 사유를 돌려줍니다."""
@@ -832,8 +870,10 @@ index 4d7480b..14bac4a 100644
 +    import trace_pages
 +    row=J.load_judgment(judgment_id)
 +    if row is None:return {'schema_version':2,'status':'not_found'}
++    if W.enabled(): row = W.concise(row)
 +    loaded={'view_id':judgment_id,'projection':{'traces':{judgment_id:row}}}
-+    return trace_pages.chunk(loaded,'trace',judgment_id,field,offset) if field else trace_pages.detail(loaded,'trace',judgment_id)
++    result = trace_pages.chunk(loaded,'trace',judgment_id,field,offset) if field else trace_pages.detail(loaded,'trace',judgment_id)
++    return W.history_delivery(result, judgment_id, row.get('created_at')) if W.enabled() else result
 +
 +
 +@mcp.tool()
@@ -847,11 +887,19 @@ index 4d7480b..14bac4a 100644
 +        import trace_pages
 +        selected=next(rows,None)
 +        if selected is None:return {'schema_version':2,'status':'not_found'}
++        if W.enabled(): selected = W.concise(selected)
 +        loaded={'view_id':run_attempt_id,'projection':{'traces':{run_attempt_id:selected}}}
 +        return trace_pages.chunk(loaded,'trace',run_attempt_id,field,offset)
 +    page=record_store.page(rows,cursor=cursor,limit=limit,scope=str((run_attempt_id,code,confidence_for)),
 +                          key=lambda r:str((r.get('code'),r.get('confidence_for'))))
 +    return {**page,'run_attempt_id':run_attempt_id,'recording_status':detail.get('recording_status')}
++
++
++@mcp.tool()
++@quiet
++def get_evidence_detail(ref: str, fields: list[str]) -> dict:
++    """이번 실행에서 받은 E/M 참조의 지정 필드만 추가 전달. 새 묶음으로 인용하며 원래 대응표는 불변입니다."""
++    return W.detail(ref, fields)
  
  
  if __name__ == "__main__":

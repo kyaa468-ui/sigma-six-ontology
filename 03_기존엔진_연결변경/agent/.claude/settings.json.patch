@@ -1,8 +1,8 @@
 diff --git a/agent/.claude/settings.json b/agent/.claude/settings.json
-index c8a2a86..833b5e1 100644
+index c8a2a86..aa416c1 100644
 --- a/agent/.claude/settings.json
 +++ b/agent/.claude/settings.json
-@@ -10,9 +10,24 @@
+@@ -10,9 +10,25 @@
        "mcp__kiwoom__submit_review",
        "mcp__kiwoom__get_tuning_context",
        "mcp__kiwoom__apply_tuning",
@@ -24,11 +24,12 @@ index c8a2a86..833b5e1 100644
 +      "mcp__kiwoom__record_learning_proposals",
 +      "mcp__kiwoom__get_learning_proposals",
 +      "mcp__kiwoom__get_judgment_detail",
-+      "mcp__kiwoom__get_coverage_detail"
++      "mcp__kiwoom__get_coverage_detail",
++      "mcp__kiwoom__get_evidence_detail"
      ],
      "deny": [
        "Bash",
-@@ -21,7 +36,18 @@
+@@ -21,7 +37,22 @@
        "Write",
        "NotebookEdit",
        "Read(./.env)",
@@ -44,7 +45,11 @@ index c8a2a86..833b5e1 100644
 +      "Read(./work/ontology/snapshots/**)",
 +      "Read(./work/ontology/runtime_inputs/**)",
 +      "Read(./work/ontology/spool/**)",
-+      "Read(./work/ontology/storage_index*)"
++      "Read(./work/ontology/storage_index*)",
++      "Read(./work/ontology/**)",
++      "Read(./work/briefing.json)",
++      "Read(./work/prep_rows.json)",
++      "Read(./work/runs/**)"
      ]
    },
    "hooks": {

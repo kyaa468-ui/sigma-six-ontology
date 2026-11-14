@@ -4,6 +4,7 @@ import ast
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -18,6 +19,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source-repo', type=Path, help='기준·추출 커밋 Git 객체가 있는 로컬 SION 저장소')
     parser.add_argument('--restore-to', type=Path, help='아직 존재하지 않는 별도 복원 폴더')
+    parser.add_argument('--sigma-dir', type=Path, help='운영자가 준비한 Sigma 사본의 기준 해시·패치 적용 가능성을 읽기 전용 점검')
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     manifest = json.loads((root / '분리내역.json').read_text())
@@ -68,6 +70,30 @@ def main():
         parser.error('--restore-to에는 --source-repo가 필요합니다')
     if errors:
         raise ValueError('\n'.join(errors))
+    sigma_checked = False
+    if args.sigma_dir:
+        sigma = args.sigma_dir.resolve(strict=True)
+        if not sigma.is_dir():
+            raise ValueError('Sigma 사본 폴더가 필요합니다')
+        for item in manifest['integration_patches']:
+            p = (sigma / item['source']).resolve()
+            require(p.is_relative_to(sigma) and p.is_file()
+                    and digest(p.read_bytes()) == item['baseline_sha256'],
+                    'Sigma 기준 불일치: ' + item['source'])
+            if p.is_file() and item.get('baseline_mode'):
+                mode = '100755' if p.stat().st_mode & 0o100 else '100644'
+                require(mode == item['baseline_mode'], 'Sigma 파일 권한 불일치: ' + item['source'])
+        for item in manifest['copied_files']:
+            p = (sigma / item['source']).resolve()
+            require(p.is_relative_to(sigma), 'Sigma 밖 배치 경로: ' + item['source'])
+            if p.exists():
+                require(p.is_file() and digest(p.read_bytes()) == item['sha256'],
+                        '추가 파일 충돌: ' + item['source'])
+        if errors:
+            raise ValueError('\n'.join(errors))
+        subprocess.run(['git', 'apply', '--check', *[str(local(x['path']))
+                       for x in manifest['integration_patches']]], cwd=sigma, check=True)
+        sigma_checked = True
     source_verified = 0
     if args.source_repo:
         def git(*params):
@@ -104,9 +130,11 @@ def main():
                 p = destination / item['source']
                 p.parent.mkdir(parents=True, exist_ok=True)
                 p.write_bytes(local(item['path']).read_bytes())
+                if item.get('mode'):
+                    p.chmod(0o755 if item['mode'] == '100755' else 0o644)
     if errors:
         raise ValueError('\n'.join(errors))
-    print(json.dumps({'status': 'passed', 'copied_files': len(manifest['copied_files']), 'patches': len(manifest['integration_patches']), 'python_syntax_files': syntax_count, 'source_paths_verified': source_verified, 'restored_to': str(args.restore_to) if args.restore_to else None}, ensure_ascii=False))
+    print(json.dumps({'status': 'passed', 'copied_files': len(manifest['copied_files']), 'patches': len(manifest['integration_patches']), 'python_syntax_files': syntax_count, 'source_paths_verified': source_verified, 'sigma_base_check': sigma_checked, 'restored_to': str(args.restore_to) if args.restore_to else None}, ensure_ascii=False))
 
 
 if __name__ == '__main__':

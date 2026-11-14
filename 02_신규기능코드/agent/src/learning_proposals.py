@@ -195,17 +195,29 @@ SUBMISSION_SCHEMA = {
 
 def _deliver(context, payload, *, catalog=None, case_ids=None):
     import research_evidence as E
+    import evidence_wire as W
+    W.pin_format()
     run_id=context['proposal_run_id']; did='proposal-delivery-'+uuid.uuid4().hex
     ids=list(case_ids or [])
     E.reserve_usage(run_id,ids,source_refs=context['source_refs'],purpose='step6_delivery_reservation')
+    prepared = None
+    if W.enabled():
+        prepared, catalog = W.prepare_research(payload, catalog or [])
+        payload = prepared['payload']
     body={**copy.deepcopy(payload),'proposal_run_id':run_id,'delivery_id':did,'created_at':now()}
+    if prepared:
+        body.pop('delivery_id')
     receipt={'delivery_id':did,'proposal_run_id':run_id,'created_at':body['created_at'],
              'body':body,'body_hash':S.digest(body),'catalog':copy.deepcopy(catalog or []),'case_ids':ids,
              'source_refs':context['source_refs']}
+    if prepared:
+        receipt.update(W.receipt_fields(prepared))
     S.archive('deliveries',did,receipt)
     E.record_usage(run_id,ids,'step6_delivered',source_refs=[*context['source_refs'],{'delivery_id':did,'body_hash':receipt['body_hash']}])
     S.archive('delivery_commits',did,{'delivery_id':did,'proposal_run_id':run_id,
                                     'receipt_hash':S.digest(receipt),'created_at':now()})
+    if prepared:
+        return W.commit(prepared, S.load('deliveries', did), catalog_key='catalog', output=body, case_ids=ids)
     return body
 
 
@@ -456,6 +468,7 @@ def _schema_rejection(run_id,key,items,code):
 
 def record_learning_proposals(proposal_run_id,request_key,items):
     import research_evidence as E
+    import evidence_wire as W
     if not isinstance(request_key,str) or not request_key.strip() or len(request_key)>200 or not isinstance(items,list) or not items:
         return _schema_rejection(proposal_run_id,request_key,items,'SCHEMA_ERROR')
     try: request_hash=S.digest(items)
@@ -484,13 +497,17 @@ def record_learning_proposals(proposal_run_id,request_key,items):
                 try:
                     if isinstance(item,dict) and item.get('item_id') in seen: raise ValueError('DUPLICATE_ITEM_ID')
                     if isinstance(item,dict): seen.add(item.get('item_id'))
-                    validated=validate_proposal(item,context)
+                    normalized = W.normalize_proposal(item)
+                    validated=validate_proposal(normalized,context)
                     pid='learning-proposal-'+S.digest([sid,index,validated])[:40]
                     row={**validated,'proposal_id':pid,'series_id':validated['series_id'] or pid,
                          'proposal_run_id':proposal_run_id,'submission_id':sid,'created_at':reservation['created_at'],
                          'base_definition_hash':context['base']['definition_hash'],'base_settings_hash':context['base']['settings_hash'],
                          'base_policy_ref':copy.deepcopy(context['base'].get('policy_base_ref')),
                          'base_context_ref':{'proposal_run_id':proposal_run_id,'context_hash':S.digest(context)}}
+                    if item.get('wire_format'):
+                        row['wire_submission'] = {'wire_format': item['wire_format'], 'original': item,
+                            'original_hash': S.digest(item), 'normalized_hash': S.digest(normalized)}
                     S.archive('proposals',pid,row)
                     results.append({'index':index,'item_id':item['item_id'],'status':'accepted','proposal_id':pid,
                                     'version':row['version'],'readiness':row['readiness']})

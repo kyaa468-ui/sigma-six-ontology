@@ -28,7 +28,8 @@ NODES = [
     node('criterion_evaluation', '기준 평가', [('status','string'), ('inputs','object'), ('result','object')]),
     node('rule_version', '판정 규칙 버전', [('version','string'), ('definition','object')]),
     node('rule_evaluation', '규칙 평가', [('use','string'), ('status','string'), ('inputs','object')]),
-    node('delivery', '브리핑 전달 기록', [('ai_run_id','string'), ('run_attempt_id','string'), ('text','string'), ('sha256','string'), ('evidence_catalog','object')]),
+    node('delivery', '브리핑 전달 기록', [('ai_run_id','string'), ('run_attempt_id','string'), ('text','string'), ('sha256','string'), ('evidence_catalog','object'), ('wire_format','string'), ('bundle_alias','string'), ('wire_scope','object')]),
+    node('evidence_wire', 'AI 표시 자료와 짧은 참조', [('wire_format','string'), ('renderer_version','string'), ('field_dictionary_version','string'), ('scope','object'), ('bundle_alias','string'), ('canonical_receipt_ref','object'), ('visible_payload_ref','object'), ('visible_payload_hash','string'), ('alias_map_hash','string'), ('entries','object'), ('status','string')]),
     node('ai_judgment', 'AI 판단', [('code','string'), ('confidence_for','string'), 'confidence_raw', ('recommended_action','string'), ('decision_validation','string'), ('comparison_snapshot','object'), ('decision_regime_snapshot','object')]),
     node('argument', 'AI 주장', [('kind','string'), ('assertion','object'), ('reference_validation','string'), ('fact_validation','string'), ('hypothesis_status','string'), ('adoption','string')]),
     node('premise_definition', '전제 정의', [('version','string'), ('definition','object')]),
@@ -58,7 +59,7 @@ NODES = [
     node('retrospective_hypothesis', 'AI 사후 가설', [('text','string'), ('hypothesis_status','string'), ('validated_findings','object')]),
     node('research_usage', '분석 사용 이력', [('purpose','string'), ('used_at','timestamp'), ('application_ids','object')]),
     node('proposal_run', '교훈·변경안 제안 실행', [('review_id','string'), ('context_hash','string'), ('base_snapshot','object'), ('submission_status','string'), ('ai_execution_status','string')]),
-    node('proposal_delivery', '제안 자료 전달', [('body_hash','string'), ('catalog','object'), ('case_ids','object'), ('created_at','timestamp')]),
+    node('proposal_delivery', '제안 자료 전달', [('body_hash','string'), ('catalog','object'), ('case_ids','object'), ('created_at','timestamp'), ('wire_format','string'), ('bundle_alias','string'), ('wire_scope','object')]),
     node('learning_proposal', '교훈·변경안 버전', [('kind','string'), ('version','integer'), ('target_ref','object'), ('condition','object'), ('effect','object'), ('server_cohort','object'), ('reason_status','string'), ('active','boolean')]),
     node('validation_contract', '후속 검증 입력 계약', [('validation_kind','string'), ('readiness','object'), ('base_status','string'), ('bundle_hash','string'), ('stage7_completed','boolean')]),
     node('lesson_version', '검증·채택 교훈 버전', [('proposal_id','string'), ('validation_id','string'), ('adoption_id','string'), ('effective_from','timestamp'), ('effective_until','timestamp'), ('applicability','object'), ('verification_status','string')]),
@@ -77,6 +78,7 @@ NODES = [
 ]
 EDGES = []
 for src,dst,card in [('instrument','observation','1:N'),('run','observation','1:N'),('criterion','criterion_version','1:N'),
+                     ('delivery','evidence_wire','1:N'),('proposal_delivery','evidence_wire','1:N'),
                      ('criterion_version','criterion_evaluation','1:N'),('observation','criterion_evaluation','1:N'),
                      ('rule_version','criterion_version','N:N'),('observation','rule_evaluation','1:N'),
                      ('rule_version','rule_evaluation','1:N'),('rule_evaluation','criterion_evaluation','N:N'),

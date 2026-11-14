@@ -73,6 +73,12 @@ def _trace_preview(value,field,budget):
         result['arguments']=[{**_small(arg,('kind','fact_validation','quote_validation','server_summary','text','quote','proposer','adoption','evidence','assertion','references','claim_ids')),
              'evidence_snapshots':[_small(item,('kind','value','unit','period','observed_at','available_at','source','observation_id','evidence_id')) for item in arg.get('evidence_snapshots',[])[:30]]} for arg in row.get('arguments',[])[:30]]
         result['unmentioned_evidence_count']=len(row.get('unmentioned_evidence',[]))
+        if row.get('wire_submission'):
+            original = row['wire_submission']['original']
+            result['wire_submission'] = {'original': {
+                'wire_format': original.get('wire_format'), 'bundle_refs': original.get('bundle_refs'),
+                'arguments': [{k: a[k] for k in ('id','kind','evidence') if k in a}
+                              for a in original.get('arguments', [])[:30]]}}
         return result
     def evaluation(row):
         row=row.get('evaluation',row)
@@ -82,7 +88,11 @@ def _trace_preview(value,field,budget):
         result['comparisons']=[_small(item,('date','close','ma20','status','confirmation','reason')) for item in row.get('comparisons',[])[:30]]
         return result
     makers={'observations':observation,'judgments':judgment,'evaluations':evaluation,
-            'deliveries':lambda row:{**_small(row,('delivery_id','delivered_at','tool')),
+            'deliveries':lambda row:{**_small(row,('delivery_id','delivered_at','tool','wire_format','bundle_alias')),
+                **({'wire_view': {**_small(row['wire_view'], ('wire_format','bundle_alias','renderer_version','display_status','visibility_note')),
+                                  'payload_available_in_delivery_detail': True}} if row.get('wire_view') else {}),
+                'additional_wire_views': [{**_small(w, ('wire_format','bundle_alias','renderer_version','display_status','visibility_note','detail_request')),
+                                           'payload_available_in_delivery_detail': True} for w in row.get('additional_wire_views', [])],
                 'quotes':[_small(item,('instrument_id','price','kind','observed_at','available_at','observation_id')) for item in row.get('quotes',[])[:30]]}}
     if field=='execution_context':
         rows=value.get('orders',[])

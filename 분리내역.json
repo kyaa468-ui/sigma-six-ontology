@@ -1,10 +1,10 @@
 {
   "format": "SIGMA_SIX_STRUCTURE_EXTRACT@v2",
   "created_at": "2026-11-07T15:08:16.196530+09:00",
-  "updated_at": "2026-11-14T16:41:46.262334+09:00",
+  "updated_at": "2026-11-14T17:27:12.379437+09:00",
   "source_repository": "https://github.com/kyaa468-ui/SION",
-  "source_commit": "c7379d6efbbb9d41313383f0508a23de2a170221",
-  "previous_source_commit": "70f941da896f13398ce1816b81ced70cf9958a2d",
+  "source_commit": "9332219befde5e580089d44fb35e89961f308433",
+  "previous_source_commit": "c7379d6efbbb9d41313383f0508a23de2a170221",
   "baseline_commit": "25f7da455f025720564ccd56ced36df4ea3ece1b",
   "baseline_repository": "original Sigma baseline Git object",
   "destination": ".",
@@ -14,794 +14,961 @@
     {
       "source": "agent/.claude/agents/case_review.md",
       "path": "02_신규기능코드/agent/.claude/agents/case_review.md",
-      "sha256": "cfc7f8492212a1c05176fd9fcdd2083a8892950e8a788b1a15bad24164ae5c8f",
-      "bytes": 1912
+      "sha256": "e72121ce0cde75eaa3a7ee302b4855618156cf36c8dc6e09dac12e42cd3c404e",
+      "bytes": 2438,
+      "mode": "100644"
     },
     {
       "source": "agent/.claude/agents/proposal_review.md",
       "path": "02_신규기능코드/agent/.claude/agents/proposal_review.md",
-      "sha256": "a7a7a16a90eef4be5401c2d587a254476ecf4140eda097ec1caa5f14e8767202",
-      "bytes": 2421
+      "sha256": "a73e8acc2f3024a8b923edbc055cb8cee776b7d41f4bdfd83dad46369599c52f",
+      "bytes": 2816,
+      "mode": "100644"
     },
     {
       "source": "agent/config/ontology/bindings.json",
       "path": "01_모델정의/bindings.json",
       "sha256": "9ba85723ebdabd39fbbe0b5189a3fd7324bb2523172b2c66ce1a9f4518b627fc",
-      "bytes": 4671
+      "bytes": 4671,
+      "mode": "100644"
     },
     {
       "source": "agent/config/ontology/proposal_targets.json",
       "path": "01_모델정의/proposal_targets.json",
       "sha256": "69fc2db559f16d0dbe1eed42d9410c6440b6354620e026f8b194de225e644b5e",
-      "bytes": 11037
+      "bytes": 11037,
+      "mode": "100644"
     },
     {
       "source": "agent/config/ontology/sigma-six.ir.json",
       "path": "01_모델정의/sigma-six.ir.json",
-      "sha256": "7722afc925f07fe2669ad821d44910403b36e4ac8e8a5b86ea5742593ddfd5ab",
-      "bytes": 81106
+      "sha256": "5aa0015c3be5697b1c42ed38a361cf9fe922129f213bf1f4621a3c1f6a251d29",
+      "bytes": 84145,
+      "mode": "100644"
     },
     {
       "source": "agent/requirements-storage.lock",
       "path": "02_신규기능코드/agent/requirements-storage.lock",
       "sha256": "7cb424080b30cf0c14d65d86cb2f45d276466eb284cb4a1869b27cc4cef5c24c",
-      "bytes": 1602
+      "bytes": 1602,
+      "mode": "100644"
     },
     {
       "source": "agent/review/index.html",
       "path": "02_신규기능코드/agent/review/index.html",
       "sha256": "2af286e116d7a8a15e1023013d8e67de16de0a1a11528df7001f22fab1fa0d16",
-      "bytes": 1623
+      "bytes": 1623,
+      "mode": "100644"
     },
     {
       "source": "agent/review/trace.css",
       "path": "02_신규기능코드/agent/review/trace.css",
       "sha256": "43b5c59dfcb5de35ce581f3325a3dc7ef762ed44b95804adb01836ba6d28c5be",
-      "bytes": 7475
+      "bytes": 7475,
+      "mode": "100644"
     },
     {
       "source": "agent/review/trace.js",
       "path": "02_신규기능코드/agent/review/trace.js",
-      "sha256": "4e2d295ec448309382af014885e385c2b2399ad353a82def03cb089dfc23117f",
-      "bytes": 36739
+      "sha256": "42d3f83560ce235d16a4f59a08a97a623251ddc020f8ec26a7777de2383236ba",
+      "bytes": 38289,
+      "mode": "100644"
     },
     {
       "source": "agent/src/ai_judgment.py",
       "path": "02_신규기능코드/agent/src/ai_judgment.py",
-      "sha256": "67e08a9c1686bc78bac7d327d529318c18c9ffe44fe92cd88a60b288a8a3967d",
-      "bytes": 53537
+      "sha256": "f001ab01463ca1707b494a322c153a316c0958037201443d1758104ee52d9087",
+      "bytes": 58758,
+      "mode": "100644"
     },
     {
       "source": "agent/src/audit_inputs.py",
       "path": "02_신규기능코드/agent/src/audit_inputs.py",
       "sha256": "4680f1d216595cae5f2d62789d2b6505f2ae5df8ba6c3654020d2872d7a17678",
-      "bytes": 2824
+      "bytes": 2824,
+      "mode": "100644"
     },
     {
       "source": "agent/src/case_dataset.py",
       "path": "02_신규기능코드/agent/src/case_dataset.py",
       "sha256": "46a74994d858edd3b7ecd4572b9946702fea083a0f1aca6ac983b35881f80646",
-      "bytes": 35669
+      "bytes": 35669,
+      "mode": "100644"
     },
     {
       "source": "agent/src/case_prediction.py",
       "path": "02_신규기능코드/agent/src/case_prediction.py",
       "sha256": "17165c3b0b419a2297cae62c03a0338e00745f84fc7e86a39de2662d7156c175",
-      "bytes": 22536
+      "bytes": 22536,
+      "mode": "100644"
     },
     {
       "source": "agent/src/case_review.py",
       "path": "02_신규기능코드/agent/src/case_review.py",
-      "sha256": "41b607eeda86960cab92ca1384018ffa1738ae9491e1aacb0fe46ff997e5ba15",
-      "bytes": 28296
+      "sha256": "2018d6100caac32e337b3cf804e6d61e25bbd6fa5cb5c1b6e660077dd4ca450a",
+      "bytes": 29785,
+      "mode": "100644"
     },
     {
       "source": "agent/src/case_statistics.py",
       "path": "02_신규기능코드/agent/src/case_statistics.py",
       "sha256": "ae5cc0d59f24434a38c491abdc72d746f3d5726d2f2dfe31bcbb78a20f561d71",
-      "bytes": 21835
+      "bytes": 21835,
+      "mode": "100644"
     },
     {
       "source": "agent/src/case_store.py",
       "path": "02_신규기능코드/agent/src/case_store.py",
       "sha256": "11760b50c143ada6061c027ed9153b6e373a430c49ebbd86cef59af52bbee519",
-      "bytes": 5587
+      "bytes": 5587,
+      "mode": "100644"
     },
     {
       "source": "agent/src/close_evaluation.py",
       "path": "02_신규기능코드/agent/src/close_evaluation.py",
       "sha256": "d212b1a6af510af63716cf2779cf86b2175c6f7316fa265cee14509e443f11ed",
-      "bytes": 18528
+      "bytes": 18528,
+      "mode": "100644"
     },
     {
       "source": "agent/src/condition_contract.py",
       "path": "02_신규기능코드/agent/src/condition_contract.py",
       "sha256": "c81750e3abd56562748dd461e5bde44c0171397433dd9107f947680c48b48129",
-      "bytes": 4717
+      "bytes": 4717,
+      "mode": "100644"
     },
     {
       "source": "agent/src/daily_observations.py",
       "path": "02_신규기능코드/agent/src/daily_observations.py",
       "sha256": "f70583869d5f5bfe5916f69dfd3d653f0b1520c96c7d2534186e132aedd144be",
-      "bytes": 13818
+      "bytes": 13818,
+      "mode": "100644"
     },
     {
       "source": "agent/src/evaluation_context.py",
       "path": "02_신규기능코드/agent/src/evaluation_context.py",
       "sha256": "a899e5518f68af759d3b84014888a3a953e0b94edb68fd5f80ef6fe15786836d",
-      "bytes": 22118
+      "bytes": 22118,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/src/evidence_wire.py",
+      "path": "02_신규기능코드/agent/src/evidence_wire.py",
+      "sha256": "b7e9c5b17e3db02f7cddd2706fbcf4909a653f8583f1aa50d550d4acc9cefa54",
+      "bytes": 32721,
+      "mode": "100644"
     },
     {
       "source": "agent/src/execution_reader.py",
       "path": "02_신규기능코드/agent/src/execution_reader.py",
       "sha256": "c782caa8658d6ec6cfc4062c290e00cfff1bc31dcc442b5aa96452a09ed42304",
-      "bytes": 2759
+      "bytes": 2759,
+      "mode": "100644"
     },
     {
       "source": "agent/src/execution_reconcile.py",
       "path": "02_신규기능코드/agent/src/execution_reconcile.py",
       "sha256": "9afea3d9135e158a63d2d930a87623180d8d0aa9287b116cbe8416f309c93c95",
-      "bytes": 12635
+      "bytes": 12635,
+      "mode": "100644"
     },
     {
       "source": "agent/src/execution_trace.py",
       "path": "02_신규기능코드/agent/src/execution_trace.py",
       "sha256": "70191aaca8762a8189ed4c52da9fbe146dc532e24109739bac47911240e6e2e1",
-      "bytes": 46201
+      "bytes": 46201,
+      "mode": "100644"
     },
     {
       "source": "agent/src/judgment_context.py",
       "path": "02_신규기능코드/agent/src/judgment_context.py",
       "sha256": "faf8579b19916d7bb94a5db9af03af1884081e4c3cd8c63b2b3d2ae96d2db5f6",
-      "bytes": 4653
+      "bytes": 4653,
+      "mode": "100644"
     },
     {
       "source": "agent/src/judgment_coverage.py",
       "path": "02_신규기능코드/agent/src/judgment_coverage.py",
       "sha256": "46f954c6ee9a78d58dceee8a7d286b4e271f540302b2e117bf744ea7a7a8419b",
-      "bytes": 22182
+      "bytes": 22182,
+      "mode": "100644"
     },
     {
       "source": "agent/src/learning_proposals.py",
       "path": "02_신규기능코드/agent/src/learning_proposals.py",
-      "sha256": "1366ef7d3fda3114cf5fc6a71f596ee17925964575246549de49ff0b1d8842b8",
-      "bytes": 37492
+      "sha256": "b94990640685aa654240b945b0eb373078446cefc6983bd25e2e73de252390a3",
+      "bytes": 38285,
+      "mode": "100644"
     },
     {
       "source": "agent/src/lesson_registry.py",
       "path": "02_신규기능코드/agent/src/lesson_registry.py",
       "sha256": "feabf44ec3ec01be427c53d790bee6ca331813e246f6700abae7e95922346d86",
-      "bytes": 18105
+      "bytes": 18105,
+      "mode": "100644"
     },
     {
       "source": "agent/src/log_store.py",
       "path": "02_신규기능코드/agent/src/log_store.py",
       "sha256": "7260dae74db81b1489e4cbe08b5522bd4ab9b3ad64c2e190eeb8814da3e93838",
-      "bytes": 14405
+      "bytes": 14405,
+      "mode": "100644"
     },
     {
       "source": "agent/src/market_calendar.py",
       "path": "02_신규기능코드/agent/src/market_calendar.py",
       "sha256": "bba66d8216deb623641231fffab0b7f4566f9cbda1a7c930881f005709f667e8",
-      "bytes": 18711
+      "bytes": 18711,
+      "mode": "100644"
     },
     {
       "source": "agent/src/ontology.py",
       "path": "02_신규기능코드/agent/src/ontology.py",
-      "sha256": "a6ad1720eafb702d94a89663e14b2260d7f99d8aa30a6da4aac044b72a64b1c4",
-      "bytes": 43810
+      "sha256": "879ff8e84d50a8bf74c4716d7abe02fbe467ee616af7c16c8d450cacdf6533b1",
+      "bytes": 48632,
+      "mode": "100644"
     },
     {
       "source": "agent/src/ontology_adapter.py",
       "path": "02_신규기능코드/agent/src/ontology_adapter.py",
       "sha256": "ddcb553d5735c3a4456c67ed5cb29e8ca77a390ca983303fd4bfdb68bd6e4dae",
-      "bytes": 4383
+      "bytes": 4383,
+      "mode": "100644"
     },
     {
       "source": "agent/src/policy_adoption.py",
       "path": "02_신규기능코드/agent/src/policy_adoption.py",
       "sha256": "0822116a994bf7592614db51a5464627936a0bdbe30b234cc27d207a2ea92851",
-      "bytes": 19274
+      "bytes": 19274,
+      "mode": "100644"
     },
     {
       "source": "agent/src/policy_registry.py",
       "path": "02_신규기능코드/agent/src/policy_registry.py",
       "sha256": "377dac1272022c349a124755f7806ad865114718ff7504e0f93c39609fa98f38",
-      "bytes": 18392
+      "bytes": 18392,
+      "mode": "100644"
     },
     {
       "source": "agent/src/policy_validation.py",
       "path": "02_신규기능코드/agent/src/policy_validation.py",
       "sha256": "c88ebc253ef500edf2d4e78b4038c334cbd5573b8fba3c9117681153132d1543",
-      "bytes": 24488
+      "bytes": 24488,
+      "mode": "100644"
     },
     {
       "source": "agent/src/portfolio_capture.py",
       "path": "02_신규기능코드/agent/src/portfolio_capture.py",
       "sha256": "906cf03292b96558346d34989a35f783e6ec82f45acc9e50cb62c54c60af9285",
-      "bytes": 14515
+      "bytes": 14515,
+      "mode": "100644"
     },
     {
       "source": "agent/src/position_episodes.py",
       "path": "02_신규기능코드/agent/src/position_episodes.py",
       "sha256": "9b8bef9e90e88ab49f6e63119b61abda22273022546bc81185e7464054af6281",
-      "bytes": 6145
+      "bytes": 6145,
+      "mode": "100644"
     },
     {
       "source": "agent/src/premise_evaluation.py",
       "path": "02_신규기능코드/agent/src/premise_evaluation.py",
       "sha256": "49627728796b079e90111062d6628dd634a59d137550f7d1e762fe9e37edbc2e",
-      "bytes": 15207
+      "bytes": 15207,
+      "mode": "100644"
     },
     {
       "source": "agent/src/process_spool.py",
       "path": "02_신규기능코드/agent/src/process_spool.py",
       "sha256": "4359919fd767badafe896415d333ce390b76b8d25cd5415f07f43ff95303dc13",
-      "bytes": 2769
+      "bytes": 2769,
+      "mode": "100644"
     },
     {
       "source": "agent/src/prompt_validation.py",
       "path": "02_신규기능코드/agent/src/prompt_validation.py",
-      "sha256": "29b23f1fbae579cbdb8093a5e8b2b5cfdcb6c1b963a19a3ec53669e35b8f2afb",
-      "bytes": 21568
+      "sha256": "bb19c6757059c9efde8501bf257d4ce544176891d9fc735de790b5a7ac8e6b7c",
+      "bytes": 23739,
+      "mode": "100644"
     },
     {
       "source": "agent/src/proposal_store.py",
       "path": "02_신규기능코드/agent/src/proposal_store.py",
       "sha256": "fd6ccd2ddbaff6fddd98eb82339abced351ce7fa9c5905b889021842432bda2f",
-      "bytes": 5654
+      "bytes": 5654,
+      "mode": "100644"
     },
     {
       "source": "agent/src/record_store.py",
       "path": "02_신규기능코드/agent/src/record_store.py",
       "sha256": "108699a3a7b034c81a1722d3e7d38523b4003275fdc65d2820cbdd1493a9ad4f",
-      "bytes": 15542
+      "bytes": 15542,
+      "mode": "100644"
     },
     {
       "source": "agent/src/replay_context.py",
       "path": "02_신규기능코드/agent/src/replay_context.py",
       "sha256": "3ae910cd7f8477358e358cb06ee7e1debeb1abf226efb1311da8b4af9d2e7c23",
-      "bytes": 27588
+      "bytes": 27588,
+      "mode": "100644"
     },
     {
       "source": "agent/src/research_evidence.py",
       "path": "02_신규기능코드/agent/src/research_evidence.py",
       "sha256": "8c5e8bfb73ec4640313a84da431600997aa118ba2dc5041334103ec0eac644eb",
-      "bytes": 16306
+      "bytes": 16306,
+      "mode": "100644"
     },
     {
       "source": "agent/src/research_pages.py",
       "path": "02_신규기능코드/agent/src/research_pages.py",
-      "sha256": "4ad32d20b427fc02199b7e82f5d1e842c0b9df1dc5e8d6b5e6978ab04176a3e9",
-      "bytes": 1791
+      "sha256": "d5cb28289a04249f00dd797b8332b798194b30038fd79b8dfb0c6fc6b16b8315",
+      "bytes": 2016,
+      "mode": "100644"
     },
     {
       "source": "agent/src/runtime_inputs.py",
       "path": "02_신규기능코드/agent/src/runtime_inputs.py",
-      "sha256": "119b739ef0ecb0f95da5ca793372eb9511d096a3aa497ae3d92f936491ecc7b5",
-      "bytes": 7703
+      "sha256": "91c7640e6f49e8c2b245baeeefe8409ac3ed0c4066d3fc2b5f647a7878f6638b",
+      "bytes": 8702,
+      "mode": "100644"
     },
     {
       "source": "agent/src/scoring_store.py",
       "path": "02_신규기능코드/agent/src/scoring_store.py",
       "sha256": "54cf3d5fd9a5ac3ccddb7929ea0ad8033893f76da724599e1c0e079b75db7161",
-      "bytes": 5299
+      "bytes": 5299,
+      "mode": "100644"
     },
     {
       "source": "agent/src/simulation.py",
       "path": "02_신규기능코드/agent/src/simulation.py",
       "sha256": "e96c9a99ad53a6c0934c83d3fcb1ee72bf1b93e89b4013ddb9e6a390675130de",
-      "bytes": 23147
+      "bytes": 23147,
+      "mode": "100644"
     },
     {
       "source": "agent/src/simulation_market.py",
       "path": "02_신규기능코드/agent/src/simulation_market.py",
       "sha256": "c49d3a2fad41af1c5b5fd9cce26ebd58260a0259410f8d5a8d451f9c7129d0de",
-      "bytes": 4760
+      "bytes": 4760,
+      "mode": "100644"
     },
     {
       "source": "agent/src/snapshot_store.py",
       "path": "02_신규기능코드/agent/src/snapshot_store.py",
       "sha256": "33a6e0a8f1eb3736cc3b6b3050e609fcaa71dc6386b681b376e6c448883986f5",
-      "bytes": 11812
+      "bytes": 11812,
+      "mode": "100644"
     },
     {
       "source": "agent/src/storage_errors.py",
       "path": "02_신규기능코드/agent/src/storage_errors.py",
       "sha256": "1b01ff6c1f1236489a3e542abb6ed7454549b7ff2bc5263efa81f2c07b329a24",
-      "bytes": 1796
+      "bytes": 1796,
+      "mode": "100644"
     },
     {
       "source": "agent/src/storage_index.py",
       "path": "02_신규기능코드/agent/src/storage_index.py",
       "sha256": "281456d38834634bf86dcf0f3721add98ee34a951e01c9044b991bc4007b7110",
-      "bytes": 4542
+      "bytes": 4542,
+      "mode": "100644"
     },
     {
       "source": "agent/src/storage_objects.py",
       "path": "02_신규기능코드/agent/src/storage_objects.py",
       "sha256": "e17cedbe1e70e0fd12e8ca6a6b93aba93b30748db9e903f4c79899e25dfbbce4",
-      "bytes": 30619
+      "bytes": 30619,
+      "mode": "100644"
     },
     {
       "source": "agent/src/trace_export.py",
       "path": "02_신규기능코드/agent/src/trace_export.py",
       "sha256": "0fe2368faea8bba06768090355ce277cda5df912b57df2fce586530d887220c6",
-      "bytes": 13650
+      "bytes": 13650,
+      "mode": "100644"
     },
     {
       "source": "agent/src/trace_pages.py",
       "path": "02_신규기능코드/agent/src/trace_pages.py",
-      "sha256": "074af0f83333c50f739933f36f4158adabd0095b9889e60cafa80c12cfcd0eeb",
-      "bytes": 12206
+      "sha256": "dd4cf546e5f71623db2b05078751e9bcbe000672057d7467763f112cb4da499e",
+      "bytes": 13211,
+      "mode": "100644"
     },
     {
       "source": "agent/src/trace_query.py",
       "path": "02_신규기능코드/agent/src/trace_query.py",
-      "sha256": "7d93b6ef0b0df2588989a390a75c2797fa02e6fab12083477efa0e5e6a966204",
-      "bytes": 41064
+      "sha256": "f47bb05bcbdb3abd03eccc85576ec3cd2c07cdbe6e0195d9ccd2cb85ede1b822",
+      "bytes": 44377,
+      "mode": "100644"
     },
     {
       "source": "agent/src/trace_snapshot.py",
       "path": "02_신규기능코드/agent/src/trace_snapshot.py",
       "sha256": "09b09c3768831235a7c9afc0568e8a5e27c9879ddf0424478789856a41d00fa0",
-      "bytes": 11618
+      "bytes": 11618,
+      "mode": "100644"
     },
     {
       "source": "agent/src/trace_view.py",
       "path": "02_신규기능코드/agent/src/trace_view.py",
       "sha256": "dedd422cc69dfd4685faf38104059712bc772526c13410fffd153966bc98dc34",
-      "bytes": 7278
+      "bytes": 7278,
+      "mode": "100644"
     },
     {
       "source": "agent/src/validation_dataset.py",
       "path": "02_신규기능코드/agent/src/validation_dataset.py",
-      "sha256": "da18f8eae3c98e803002152c270d4b01c51bf0e759d05f807e521d085456f7a3",
-      "bytes": 31638
+      "sha256": "118349eee2defb25f228d990ca7605e39ff7798950256d797aa52a26c53df930",
+      "bytes": 32367,
+      "mode": "100644"
     },
     {
       "source": "agent/src/validation_holdout.py",
       "path": "02_신규기능코드/agent/src/validation_holdout.py",
       "sha256": "c886549f3fa2e2cb48fe71ca9d57c4f7b5a39d11c98b6e1262eafe4070859466",
-      "bytes": 11760
+      "bytes": 11760,
+      "mode": "100644"
     },
     {
       "source": "agent/src/validation_mcp.py",
       "path": "02_신규기능코드/agent/src/validation_mcp.py",
-      "sha256": "85f5285a5e788f61ffb892a4ea2d8761b284f93b78ede666613f76ed1edc955b",
-      "bytes": 1151
+      "sha256": "58fb4055576b0bb07eb50ab53362f0e5650aa9d2313d9551b91306ec5d1c5511",
+      "bytes": 1316,
+      "mode": "100644"
     },
     {
       "source": "agent/src/validation_spec.py",
       "path": "02_신규기능코드/agent/src/validation_spec.py",
       "sha256": "bac851c7fc63e552acb758e73c9d09361ae84b60082eae077d05f3608a4e1901",
-      "bytes": 11306
+      "bytes": 11306,
+      "mode": "100644"
     },
     {
       "source": "agent/src/validation_store.py",
       "path": "02_신규기능코드/agent/src/validation_store.py",
       "sha256": "f325b66375c76a661c595c4909ab7f084955f276f790c0f91baa18bbcf1e0bc8",
-      "bytes": 5647
+      "bytes": 5647,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tests/conftest.py",
+      "path": "04_검사코드/agent/tests/conftest.py",
+      "sha256": "10fe8d292897b03f182b9a78f95818db2dedb779d078b319657a730cd2e76663",
+      "bytes": 606,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/baseline_conf_boost.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/baseline_conf_boost.json",
       "sha256": "0de906f9180d808910d52235b21b6d997a44ecdefd1ca89ad881807fad047f85",
-      "bytes": 2427
+      "bytes": 2427,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/baseline_source.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/baseline_source.json",
       "sha256": "e1b2f5e77cb312dd3a06114d3393abc7cc70e6fe05620585b56f05c06d9ed953",
-      "bytes": 16151
+      "bytes": 16151,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/cases.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/cases.json",
       "sha256": "0b3b3dd412852cb5c3532b9c5bcc3d232daf48ef1c4fe2b338267edc7b6a766e",
-      "bytes": 14274
+      "bytes": 14274,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/execution_baseline_source.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/execution_baseline_source.json",
       "sha256": "a0a5858e840f00c21bda6c41d831830185c819fa8cff254b44b3c52327282b02",
-      "bytes": 19463
+      "bytes": 19463,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/params.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/params.json",
       "sha256": "4d26f3e09c57deffd2a2693365120f2b5855c2c981affe309a99f3275efc897b",
-      "bytes": 12960
+      "bytes": 12960,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/risk_limits.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/risk_limits.json",
       "sha256": "921c2443b49d8bb68813f6733237cb6e0529bd33ce3af4336e628eeb42030587",
-      "bytes": 560
+      "bytes": 560,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/fixtures/ontology/step4/baseline.json",
       "path": "04_검사코드/agent/tests/fixtures/ontology/step4/baseline.json",
       "sha256": "ccb7d58b29055fba87bea88d5fb2dc385f10035bfe7c8dd9cf857d984ff02d90",
-      "bytes": 17561
+      "bytes": 17561,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/storage_fixture_helpers.py",
       "path": "04_검사코드/agent/tests/storage_fixture_helpers.py",
       "sha256": "5ba7f5b222b6028cf066e695a62f61a4dbbd9535c9276bc21d191b2d078e46f2",
-      "bytes": 650
+      "bytes": 650,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_ai_judgment.py",
       "path": "04_검사코드/agent/tests/test_ai_judgment.py",
       "sha256": "f3e70365ee898c4b1af5b18ec7ed841ad5dee8e7de3e54aa803533613aba733e",
-      "bytes": 17936
+      "bytes": 17936,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_calendar_extension.py",
       "path": "04_검사코드/agent/tests/test_calendar_extension.py",
       "sha256": "f2fea98d6651b73265b685ab473e7bfcb4c923ac57302c1ba67e2147008ede25",
-      "bytes": 8912
+      "bytes": 8912,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_case_dataset.py",
       "path": "04_검사코드/agent/tests/test_case_dataset.py",
       "sha256": "5c1a7c7a9f9162f28bb218d96dbeef2deaea8746613cea7d5a23cc043ea9ffda",
-      "bytes": 19722
+      "bytes": 19722,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_case_prediction.py",
       "path": "04_검사코드/agent/tests/test_case_prediction.py",
       "sha256": "1dfc0dc32b7a8bb917007d6ce66398da426ac9df112bc223c7f9886a4d4e7d6c",
-      "bytes": 16108
+      "bytes": 16108,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_case_review.py",
       "path": "04_검사코드/agent/tests/test_case_review.py",
       "sha256": "d16bb48efc3940099c0f7069e0e6da950961bbe7ea1e5bdf2d86e20a46b7f29c",
-      "bytes": 14604
+      "bytes": 14604,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_case_review_tools.py",
       "path": "04_검사코드/agent/tests/test_case_review_tools.py",
-      "sha256": "0de161ac8dbd5905dfc3b2fe6d2c9d5c3891fdf84cc52cfdd217ffd50d003eb8",
-      "bytes": 16237
+      "sha256": "2ed0c5de2bfb6e60ebf317ec7de62348c79ad7b4fa7e13c27f91f5ad0626bcf3",
+      "bytes": 16263,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_case_statistics.py",
       "path": "04_검사코드/agent/tests/test_case_statistics.py",
       "sha256": "56e3bba44c694a0924c5444f9ceb4b59dcd4ce56d786bc61d35a05e323582755",
-      "bytes": 8840
+      "bytes": 8840,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_close_evaluation.py",
       "path": "04_검사코드/agent/tests/test_close_evaluation.py",
       "sha256": "1d6f260cc0f2edf590fe7508c7d71dccc8ac7ae2639e04dc1ec000a3f9f8b76c",
-      "bytes": 16195
+      "bytes": 16195,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tests/test_compact_evidence.py",
+      "path": "04_검사코드/agent/tests/test_compact_evidence.py",
+      "sha256": "bae147294e7bc2fa543949a8ab357c478c91d1163680c54df8d9624194fe32ac",
+      "bytes": 17660,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tests/test_compact_integration.py",
+      "path": "04_검사코드/agent/tests/test_compact_integration.py",
+      "sha256": "b3438d390ef3ecab223114a991c8b39f64e25f652282918e384bd786732f78c6",
+      "bytes": 12252,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_condition_contract.py",
       "path": "04_검사코드/agent/tests/test_condition_contract.py",
       "sha256": "8b0cb0a201c33139dd31000376641ada2a8b4b9fbf6d47ef7fc75ebd5b1945fa",
-      "bytes": 2147
+      "bytes": 2147,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_daily_observations.py",
       "path": "04_검사코드/agent/tests/test_daily_observations.py",
       "sha256": "b2bc372fd658964c3ea937a956cd0f68e0b4c5145b5b106d29c04157a1afddb2",
-      "bytes": 16425
+      "bytes": 16425,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_evaluation_context.py",
       "path": "04_검사코드/agent/tests/test_evaluation_context.py",
       "sha256": "f7e466cab57cff69e6b4518402c33289feb5d06a31469264ceead7d71b22e819",
-      "bytes": 11727
+      "bytes": 11727,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_evidence_v2.py",
       "path": "04_검사코드/agent/tests/test_evidence_v2.py",
       "sha256": "d63fd188925b770de4a5035bb425e1d6caa7ecd44dbd29757e740a9db54d661d",
-      "bytes": 10567
+      "bytes": 10567,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_execution_broker.py",
       "path": "04_검사코드/agent/tests/test_execution_broker.py",
       "sha256": "a26c0a5de2d9c13c9e97aa790a8e886d1a0d2412564a28fa5d4a9440355af6cc",
-      "bytes": 18127
+      "bytes": 18127,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_execution_context_v2.py",
       "path": "04_검사코드/agent/tests/test_execution_context_v2.py",
       "sha256": "dc83f101770f955d5db5b42fe770e8455493f9a4619c58fa61ae3935e188982e",
-      "bytes": 9948
+      "bytes": 9948,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_execution_inputs.py",
       "path": "04_검사코드/agent/tests/test_execution_inputs.py",
       "sha256": "d125a5a11bec7db3f37322352dbd1b8657181ebb3fefd69dca3f0ea78566d4b7",
-      "bytes": 12846
+      "bytes": 12846,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_execution_integration.py",
       "path": "04_검사코드/agent/tests/test_execution_integration.py",
       "sha256": "94263a8ea57d78cbf649a2cb7e3cfeee9322bc950196530961da5bc0a46598a0",
-      "bytes": 13620
+      "bytes": 13620,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_execution_trace.py",
       "path": "04_검사코드/agent/tests/test_execution_trace.py",
       "sha256": "a825ad660d5b6ad4d92ef42f4180fe9f31e04fc80d8e4e49215c93d0a53cd585",
-      "bytes": 16127
+      "bytes": 16127,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_judgment_coverage.py",
       "path": "04_검사코드/agent/tests/test_judgment_coverage.py",
       "sha256": "0449f04d566cd4e8695cf5d4516ff6f2b4b05230635f5417d73047c5c92e077b",
-      "bytes": 15992
+      "bytes": 15992,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_judgment_integration.py",
       "path": "04_검사코드/agent/tests/test_judgment_integration.py",
       "sha256": "58212e651364508edc41ec27a3d6c1dad9e0b52d7e66d23ef43aa95106aa0b5c",
-      "bytes": 13020
+      "bytes": 13020,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_learning_proposals.py",
       "path": "04_검사코드/agent/tests/test_learning_proposals.py",
       "sha256": "7cb136225772dc29940a4316ddf5313b3ae2f2882f2d26efb5059fdb0a955384",
-      "bytes": 27687
+      "bytes": 27687,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_lesson_registry.py",
       "path": "04_검사코드/agent/tests/test_lesson_registry.py",
       "sha256": "4dc82a219bdaef1bad262317ebaaa10f73298ecaa03ecab9e338c330d6428527",
-      "bytes": 17064
+      "bytes": 17064,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_logger_execution.py",
       "path": "04_검사코드/agent/tests/test_logger_execution.py",
       "sha256": "4c8dd0c44f9ecef9857fda666da4507dcf7b3c4affda5af93fc0ba92b26235e5",
-      "bytes": 5886
+      "bytes": 5886,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_ontology.py",
       "path": "04_검사코드/agent/tests/test_ontology.py",
       "sha256": "33e45c935ce70b2d3f6355e24f421013a9ce7d2bc1c68579e24b66830b23b25a",
-      "bytes": 21940
+      "bytes": 21940,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_policy_adoption.py",
       "path": "04_검사코드/agent/tests/test_policy_adoption.py",
       "sha256": "50dcade593ff12f9892183080c1cdb96223bb063100dc96b3aff61097d97f6bf",
-      "bytes": 16830
+      "bytes": 16830,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_policy_runtime_integration.py",
       "path": "04_검사코드/agent/tests/test_policy_runtime_integration.py",
       "sha256": "e4e20f716b6514272e95a3e4e5c8c89fb2b5ad3d4f9f443cdefebcb8471a7d8b",
-      "bytes": 4114
+      "bytes": 4114,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_policy_runtime_race.py",
       "path": "04_검사코드/agent/tests/test_policy_runtime_race.py",
       "sha256": "eea5f374ca9b1ec72d09af2dc0d5f65be87f7baa5167da028381846ac725e8e9",
-      "bytes": 6314
+      "bytes": 6314,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_policy_validation.py",
       "path": "04_검사코드/agent/tests/test_policy_validation.py",
       "sha256": "8f447ab24e8bd57d2df274c20a2d8b171de1f45d6a9e6b99d81dab3868d8680f",
-      "bytes": 19703
+      "bytes": 19703,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_portfolio_capture.py",
       "path": "04_검사코드/agent/tests/test_portfolio_capture.py",
       "sha256": "988151ab5e9884c436082f67017e3029e6aab714e9adfd40a63eaf94e048a607",
-      "bytes": 12892
+      "bytes": 12892,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_premise_evaluation.py",
       "path": "04_검사코드/agent/tests/test_premise_evaluation.py",
       "sha256": "3aa2864150fbf85d6c38879cff663d8b9c3c206c84941d8441cd6a4761b8cf75",
-      "bytes": 16898
+      "bytes": 16898,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_prompt_validation.py",
       "path": "04_검사코드/agent/tests/test_prompt_validation.py",
       "sha256": "0fb63e0b294d6ae1852dfe0ae4d7e4d5d7011f7e621085271a032283a8c24331",
-      "bytes": 10590
+      "bytes": 10590,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_proposal_integration.py",
       "path": "04_검사코드/agent/tests/test_proposal_integration.py",
       "sha256": "72ca85068fc89e67a5ef4355efe544bf3ca91e687e618190a357aee04853b9d4",
-      "bytes": 12952
+      "bytes": 12952,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_rehearsal_execution.py",
       "path": "04_검사코드/agent/tests/test_rehearsal_execution.py",
       "sha256": "0ae8c9fca6f810dee876294c86dc3690a1107fb85c02e29e30dcf49fcf801233",
-      "bytes": 2516
+      "bytes": 2516,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_rehearsal_research.py",
       "path": "04_검사코드/agent/tests/test_rehearsal_research.py",
       "sha256": "71ec460976ea6bcda60adc7ee777970c94f9fdc3eb7a66f1d8cd5af9a1fcd1ea",
-      "bytes": 1721
+      "bytes": 1721,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_rehearsal_runtime.py",
       "path": "04_검사코드/agent/tests/test_rehearsal_runtime.py",
       "sha256": "00bb5c812dd420cf3325a0b5c4b85ee1321f5895deafd935b56bbeff8db99860",
-      "bytes": 2308
+      "bytes": 2308,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_rehearsal_storage.py",
       "path": "04_검사코드/agent/tests/test_rehearsal_storage.py",
       "sha256": "a461ed1ab3e504ee99dab8a6cf0e292079d87b3a25816e2c8beb9750afa35621",
-      "bytes": 2727
+      "bytes": 2727,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_research_evidence.py",
       "path": "04_검사코드/agent/tests/test_research_evidence.py",
       "sha256": "1858e8e9bd0d725aa1c1f3d2b1c6d2d26f06be1d6183b37502251ee1cd493d1d",
-      "bytes": 10201
+      "bytes": 10201,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_simulation.py",
       "path": "04_검사코드/agent/tests/test_simulation.py",
       "sha256": "3299f5d4703a0eb37fd16259ba2fc1b16685fafcdf9f16d36857acf28ffb5415",
-      "bytes": 8608
+      "bytes": 8608,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_snapshot_readers.py",
       "path": "04_검사코드/agent/tests/test_snapshot_readers.py",
       "sha256": "4e5b855039486bd03a260b3d6f93484ee6be2a56f46b88df884fca39c03728db",
-      "bytes": 4110
+      "bytes": 4110,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_snapshot_store.py",
       "path": "04_검사코드/agent/tests/test_snapshot_store.py",
       "sha256": "9c83a6f46e4d32bba5510dc9f51a8157ad18f5a1f28b84ad7c91a16058fbe7cf",
-      "bytes": 8799
+      "bytes": 8799,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_storage_v2.py",
       "path": "04_검사코드/agent/tests/test_storage_v2.py",
       "sha256": "fce703bf00327d920b7c8d113b0e103a86d287e25816f42f1ed56e463fd6b363",
-      "bytes": 4639
+      "bytes": 4639,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_storage_v2_extended.py",
       "path": "04_검사코드/agent/tests/test_storage_v2_extended.py",
       "sha256": "b7bc37b8c0880cb7c364a83990e38d6ddd21ceb52175b110a7ce95c7a58b0d5d",
-      "bytes": 9977
+      "bytes": 9977,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_storage_v2_operations.py",
       "path": "04_검사코드/agent/tests/test_storage_v2_operations.py",
       "sha256": "21cdf4b09208779c0ce1d21a807d72ccaa571960587653e9de03955ed8407df7",
-      "bytes": 11145
+      "bytes": 11145,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_browser_contract.py",
       "path": "04_검사코드/agent/tests/test_trace_browser_contract.py",
       "sha256": "07510b8135f84eb3818e4b37d4d3bd0f5bf46c94736ea12c294630fa9337fb8a",
-      "bytes": 18932
+      "bytes": 18932,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_export.py",
       "path": "04_검사코드/agent/tests/test_trace_export.py",
       "sha256": "b076248372b7020b47f0a298feb409365965adbefcc9dc6cdec24fefc9318af4",
-      "bytes": 7709
+      "bytes": 7709,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_integration.py",
       "path": "04_검사코드/agent/tests/test_trace_integration.py",
       "sha256": "666721b519d121361e7e6b1f172c24a56e1fc04b1a9bd31d11fc1499c5a49267",
-      "bytes": 6449
+      "bytes": 6449,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_query.py",
       "path": "04_검사코드/agent/tests/test_trace_query.py",
       "sha256": "575dbde65588b905050a8a2598f9dc75dd8c73629e57523299b445b4ea9931cc",
-      "bytes": 15279
+      "bytes": 15279,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_snapshot.py",
       "path": "04_검사코드/agent/tests/test_trace_snapshot.py",
       "sha256": "fb354a79f95b3a431674b84b32344c17ba2459b3109c69b7e99644acffad1995",
-      "bytes": 13461
+      "bytes": 13461,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_trace_view.py",
       "path": "04_검사코드/agent/tests/test_trace_view.py",
       "sha256": "8130e75c4ea07c961d3d3bce261edb752440b3f2d84536a16f9d11b2fa7e1d83",
-      "bytes": 10064
+      "bytes": 10064,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_validation_data.py",
       "path": "04_검사코드/agent/tests/test_validation_data.py",
       "sha256": "c241ee1f55778309950d6f173850c7d12366ac1761bde071f876667f1ba8488c",
-      "bytes": 10711
+      "bytes": 10711,
+      "mode": "100644"
     },
     {
       "source": "agent/tests/test_validation_holdout.py",
       "path": "04_검사코드/agent/tests/test_validation_holdout.py",
       "sha256": "9c6096cb60a65a6970b8e441fe9a6ff72066dddc1e18f24732f094bc9582953f",
-      "bytes": 5804
+      "bytes": 5804,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/build_ontology_definition.py",
       "path": "02_신규기능코드/agent/tools/build_ontology_definition.py",
-      "sha256": "9f383d8d4394c3f9bf1c954b72a52acef3c76b3f5425e5c21c170705d3045048",
-      "bytes": 18788
+      "sha256": "dd54ef00e1df102fd14dfc3e2ff2ec1a2d677434b9d2b3f18cdd2633d175155c",
+      "bytes": 19431,
+      "mode": "100644"
+    },
+    {
+      "source": "agent/tools/compare_evidence_wire.py",
+      "path": "04_검사코드/agent/tools/compare_evidence_wire.py",
+      "sha256": "3c91bd485c954ba48f40886ed8675a1993ba277c702eb9075dbd2f65a44fdda9",
+      "bytes": 11666,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/migrate_storage_v2.py",
       "path": "02_신규기능코드/agent/tools/migrate_storage_v2.py",
       "sha256": "219ade4d7502a5cd038e33ad31a430736436126b7d20a400ddd4807e9730b996",
-      "bytes": 13140
+      "bytes": 13140,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/rehearsal_execution.py",
       "path": "04_검사코드/agent/tools/rehearsal_execution.py",
-      "sha256": "a92560a77634aaf977d49e87e39dc01781e70e16f52dd1576e05e168967ad476",
-      "bytes": 23419
+      "sha256": "f0efb3c01e9e0659e7b2fd3b68a1ca278dd1b161919bf8ad81675abcaf6189fd",
+      "bytes": 24356,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/rehearsal_faults.py",
       "path": "04_검사코드/agent/tools/rehearsal_faults.py",
       "sha256": "39bd9b8a2f32f3fc2f665a22210e6d50784cc87f22509d89946979ce7db63d7b",
-      "bytes": 10814
+      "bytes": 10814,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/rehearsal_research.py",
       "path": "04_검사코드/agent/tools/rehearsal_research.py",
-      "sha256": "8da3ff2923600f412cb531a087ae2ef4502edb7490bcc390d4c329f940879cbc",
-      "bytes": 24258
+      "sha256": "bd9092b81ecc94ab076015e459eb50c3d4aefe8bca828c670ab3005a53f2c865",
+      "bytes": 25144,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/rehearsal_storage.py",
       "path": "04_검사코드/agent/tools/rehearsal_storage.py",
       "sha256": "0176828c5c822960a4ae3e8790b644d85befa6939fb2ea55a28098a2875c6aeb",
-      "bytes": 10633
+      "bytes": 10633,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/resume_storage_view_rehearsal.py",
       "path": "04_검사코드/agent/tools/resume_storage_view_rehearsal.py",
       "sha256": "28c264055a31777829a356a3a1bf401bd0a9d2335b7c41a7e1404c0aff76cfa7",
-      "bytes": 7609
+      "bytes": 7609,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/run_ontology_rehearsal.py",
       "path": "04_검사코드/agent/tools/run_ontology_rehearsal.py",
-      "sha256": "4ca188dfe408af7c57c6067a34984a9cf11a9aae5025a57e4e13ae4bf0393e4b",
-      "bytes": 19195
+      "sha256": "1d79a5afff994958f95d777cc990f2111f671f800b93568408b26fe4b14707f6",
+      "bytes": 19473,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/run_storage_v2_benchmarks.py",
       "path": "04_검사코드/agent/tools/run_storage_v2_benchmarks.py",
       "sha256": "380f91a7d1ae1611e8755d37d4d319eea96d6b9f547cbea3afff987870b2e126",
-      "bytes": 5492
+      "bytes": 5492,
+      "mode": "100644"
     },
     {
       "source": "agent/tools/verify_ontology_workbench.py",
       "path": "02_신규기능코드/agent/tools/verify_ontology_workbench.py",
       "sha256": "140a68e009e2571aa918f2648bd0c965e23b5253b517e7b4a785a6c48ced023b",
-      "bytes": 2226
+      "bytes": 2226,
+      "mode": "100644"
     },
     {
       "source": "docs/STORAGE_V2.md",
       "path": "05_설계검토문서/docs/STORAGE_V2.md",
       "sha256": "818c202fa1d36a8486d5f952d594529589a3c5fec82cd97a9b70586289a4b4d3",
-      "bytes": 8471
+      "bytes": 8471,
+      "mode": "100644"
     },
     {
       "source": "docs/trace-summary.js",
       "path": "02_신규기능코드/docs/trace-summary.js",
       "sha256": "7415422a8e2297ab311823852a33d99dc907d7e17c88b5ba3896303dc7feef59",
-      "bytes": 5668
+      "bytes": 5668,
+      "mode": "100644"
     }
   ],
   "integration_patches": [
@@ -809,162 +976,231 @@
       "source": "agent/.claude/agents/bear.md",
       "path": "03_기존엔진_연결변경/agent/.claude/agents/bear.md.patch",
       "baseline_sha256": "2bad335c8d4b0690183176df9a7e20dbb67b77cbd95eed4413e96bfe520e2cf3",
-      "current_sha256": "819c3981d013e6760f1e94ed89299d24503d97acca9841dbc7f3857b625c91dc",
-      "patch_sha256": "ca082b6febb7e5b10087e8690f50446737fc53a73d24afe44498d9af6fe84a0b"
+      "current_sha256": "52caccd7d2fb8ddd8a82bef6a002c2935f7b073ef808eba5e9fdf4e80009aa03",
+      "patch_sha256": "56092fc7cb267f397c9622f971840e10a4911067b2e247c58fd395d13357969c",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/.claude/agents/bull.md",
       "path": "03_기존엔진_연결변경/agent/.claude/agents/bull.md.patch",
       "baseline_sha256": "be320490bed29296754453c684909f536b2ef85371289a24405b210bab6ebd02",
-      "current_sha256": "bf1299ca25352fb978a8932c59d85b12c55d6c5055828d6f6cec97d12c5e40b9",
-      "patch_sha256": "4970b6e1cb8269882c79c9ea29fd09e96a415998a05535101aecbf8cdf954c66"
+      "current_sha256": "c9ece0430fafd1aef7e40f09b1bc6abe1998c69bbafdbd539beed19b0b852d9b",
+      "patch_sha256": "98303c0cb5a850298b6a4806335f61e9e0d8950e5e6140487e31016270e4fc08",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/.claude/agents/regime.md",
       "path": "03_기존엔진_연결변경/agent/.claude/agents/regime.md.patch",
       "baseline_sha256": "3f676352e04b65223d4bc7d398d057fac97819a1f2845446cf3b25bc0484750b",
-      "current_sha256": "1190ec2ae871b6a3e5aa133a044fafa1d645c7a1962a8a10c9a32ab1c78b8d53",
-      "patch_sha256": "4166b4f0264b7982f76d518ef9752c8df7b36eec8aa4d399355fd2e147fb4128"
+      "current_sha256": "50ec87526a8a5e6f85ac97de1420499d807607f5317d721616bccbe999d688b2",
+      "patch_sha256": "dfc9f0f33d78d5772362cdde3be327ab6288c2d6ab4cf3479a664da5f88dfa0e",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/.claude/hooks/risk_check.py",
       "path": "03_기존엔진_연결변경/agent/.claude/hooks/risk_check.py.patch",
       "baseline_sha256": "8c17ccc99da9e6dce8020372b8e224072e13bda8fc175f57d072142eef512df0",
       "current_sha256": "580a115ad4ef5720eaab3109f44c6b5cd20329c502bc72f23605bb58c40b4bfb",
-      "patch_sha256": "17b41b99294e01abdd2775123c93df4286880979c9b666b7aa21ca1a1d6bbe2e"
+      "patch_sha256": "17b41b99294e01abdd2775123c93df4286880979c9b666b7aa21ca1a1d6bbe2e",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/.claude/settings.json",
       "path": "03_기존엔진_연결변경/agent/.claude/settings.json.patch",
       "baseline_sha256": "0dc93770e04059c322f3f6636ac050c15562ee032ed6d1f0618cf2c308a427fa",
-      "current_sha256": "15ffbf75d0b234dccee6c8367168a5001a9ebaa38884e38f2bf42055fd9df3fd",
-      "patch_sha256": "051deb22accca176cbf2551a2841857af3da45e83b60ac72fe73b9a4275f83e0"
+      "current_sha256": "0b440732da625196906b2fb3f87fb6fda69bd8dfc601c93aba47251ae88d8249",
+      "patch_sha256": "5a009cf01184c1c13ffdf77c08abf46396d53e8a8c517d8877a92a8029ed63e1",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/CLAUDE.md",
       "path": "03_기존엔진_연결변경/agent/CLAUDE.md.patch",
       "baseline_sha256": "1ccc5e827dc5ddf6bcf0b6ea44173b6ec1f3e9820c001359248c917b22243ce0",
-      "current_sha256": "bbcc8d868684c232443db772c986de1f7fbfc9de89ee6d4f3b4d9c48a5a0dbc0",
-      "patch_sha256": "20930ecb101a5e8b6212ce5f50c8d11cc573125f9c3eeeb9aff44f5ef6ff1397"
+      "current_sha256": "939dae83f35451b8b1f37d919825c6848c76ec3e9664bc1df95de389bb0dadb5",
+      "patch_sha256": "6afd3bf7e6677ee392de5ef7a882d1c59a06193d12e4c9790a7b55760647e391",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/README.md",
       "path": "03_기존엔진_연결변경/agent/README.md.patch",
       "baseline_sha256": "2f9100bb0e6602eb7ef3b2011e030766f67cd15357628bd5f4879284129f292c",
-      "current_sha256": "937a3fe58c2760a9862cba0a5f3d853d7a73ebefd9f212f039b66c792608e55f",
-      "patch_sha256": "2f6257d056f70d6d5256ee70937e75ba35e1b9093ed6460844c8e771722f2d59"
+      "current_sha256": "7365b3ac8fb9564c6fbd965e7d07f2c7e761ee7d6f3ea5435b8d7837a552c30a",
+      "patch_sha256": "a56e3ad2583dfd367b7d56a2e187437089949a4660a43749c804aa34606e9487",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/requirements.txt",
       "path": "03_기존엔진_연결변경/agent/requirements.txt.patch",
       "baseline_sha256": "c9bbec3c149c76674a5de4f530556c3d30cfc48d9993baf1626017d34520e1e8",
       "current_sha256": "599f39cf4624c4f88e5ff492b9730a8022e2b3d8dcb7f71ade299a3f43be797a",
-      "patch_sha256": "d5145a2fbb79eb9e7efd912c89c000066c3a4844eee880719ec5c95d627aee96"
+      "patch_sha256": "d5145a2fbb79eb9e7efd912c89c000066c3a4844eee880719ec5c95d627aee96",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/run.py",
       "path": "03_기존엔진_연결변경/agent/run.py.patch",
       "baseline_sha256": "2bb1b4a1575fb879b626ce653b8d430a7276aa1046423f521e97bbe6ee47ec16",
-      "current_sha256": "569b6ca79a72110368a50a6c45c156ede46a4de922ebacdbe55eff5086424ab5",
-      "patch_sha256": "3b3a5d5928030972c8417cb07b5d68303ed0f79251260aea803151bf1838bbc7"
+      "current_sha256": "edf566eddd77b6ae4330e78e0f212f3049fea0817f6626e41eaa3920cf3948b7",
+      "patch_sha256": "800a0b28049ea1365f7c0d3163e5e214ba14c07426e21e83a41e7d9bba1d2056",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/setup_tasks.ps1",
       "path": "03_기존엔진_연결변경/agent/setup_tasks.ps1.patch",
       "baseline_sha256": "b7bf395e101bf67eaeb16ae1b50939ed4910813a17fa69c1ed35dbc4b4228bcc",
       "current_sha256": "a733a5b07b73d6da66725d374621ec3093e7977c7153f0354d68ed00f40b2631",
-      "patch_sha256": "d1c9f2c9d44899d7db73ac05d24f88077c9e5866c6cf46b038fb50ad2c7b4959"
+      "patch_sha256": "d1c9f2c9d44899d7db73ac05d24f88077c9e5866c6cf46b038fb50ad2c7b4959",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/broker.py",
       "path": "03_기존엔진_연결변경/agent/src/broker.py.patch",
       "baseline_sha256": "c959b8d8bfe4a2bf019515f1c3f19cb89d23d3edb9c433fa1b2da6e139c21b9e",
       "current_sha256": "801f453c7c468df11cca9244513f2eb14c0d8b62b9b760d578a9b4dbe7045213",
-      "patch_sha256": "c60d9d2a926c8b5aa20d7307e3049d72d68ec30a6e109f97272870751992c1e5"
+      "patch_sha256": "c60d9d2a926c8b5aa20d7307e3049d72d68ec30a6e109f97272870751992c1e5",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/common.py",
       "path": "03_기존엔진_연결변경/agent/src/common.py.patch",
       "baseline_sha256": "efb78761c9b7585deb20face1ff58316d472eba0adb7b401fd55b2219e00048d",
       "current_sha256": "40ef4942bf81d77b06ff03da809ec6db590b7b86d28b307648ef97acff0cb5d2",
-      "patch_sha256": "bc94b0a8cdd5dad2e1a36cf2f75580c8cc1f4518be6bab3a95e254f8e23375a1"
+      "patch_sha256": "bc94b0a8cdd5dad2e1a36cf2f75580c8cc1f4518be6bab3a95e254f8e23375a1",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/data_prep.py",
       "path": "03_기존엔진_연결변경/agent/src/data_prep.py.patch",
       "baseline_sha256": "c3c2d11db112451865c562e0e7c8aeca6ed47c1c5603f35c6a4c5deec7a47ae1",
       "current_sha256": "a15432f23a8f6e1e78af83cdd14803a8bef2f58cf376adf328306afe942443b2",
-      "patch_sha256": "c1256dda8b0775dd56234481c1370da02c4fdb42690501970751178011288931"
+      "patch_sha256": "c1256dda8b0775dd56234481c1370da02c4fdb42690501970751178011288931",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/intraday.py",
       "path": "03_기존엔진_연결변경/agent/src/intraday.py.patch",
       "baseline_sha256": "4b33d02793be65c81ac5e8bc9e583677df1a5fbd1cf985ab9fb539e6b7288610",
       "current_sha256": "f1e1cbad2702c4a51b51435fd3d03751d9c924e0a3825bc5544ac7ae3089196d",
-      "patch_sha256": "7487ce5eb1e88b2f96c0175aa3a1cd42a339b795cb10ba3b7c2a95f08bd44bfb"
+      "patch_sha256": "7487ce5eb1e88b2f96c0175aa3a1cd42a339b795cb10ba3b7c2a95f08bd44bfb",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/logger.py",
       "path": "03_기존엔진_연결변경/agent/src/logger.py.patch",
       "baseline_sha256": "69cfe76ac9f00a0d505a787f6797082871577d0e195d340849e40e3d6cc58610",
-      "current_sha256": "fa3b11f1b59bc6fc3b12b7566aeab0214168179130af3762889033dba1e983fb",
-      "patch_sha256": "ef602d91218ea0f74c813e990f092d94812a52bcae3a3f02d7994d3cdd7908ae"
+      "current_sha256": "f7530378447aef4e876106f8cc5372e7b083ac71a5c62648241db5b119e5ff6e",
+      "patch_sha256": "280774c5ea03959d4a3cafd99267939c687b230bdaeb0f2eaeb83bbb6f901cae",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/mcp_server.py",
       "path": "03_기존엔진_연결변경/agent/src/mcp_server.py.patch",
       "baseline_sha256": "d32bc881e8fb7a337c566c53cae93352037d85d2d387e55f207ee89768534c57",
-      "current_sha256": "c2e8e64b322933a10f793498e4401199c8ca048e00f4e2db44917f592257e2a0",
-      "patch_sha256": "ed3eb592bd887f9fb60549661b71d5a8f886777654102a6623d20589feccccd6"
+      "current_sha256": "05be4560cecd894fe37adb36860b3009e685095ba2725734fc3c150a4f5b98dc",
+      "patch_sha256": "66ce7712e2969b4bd4e860951e4525476ea419e7315cc6fb65da5490fe733566",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/monitor.py",
       "path": "03_기존엔진_연결변경/agent/src/monitor.py.patch",
       "baseline_sha256": "720df8bb6b0ceeff31c642d9c370ed3642e14fd7c6692f1a9e4c80265a379e44",
       "current_sha256": "f6b877356db9114eeb8f65f8ec54cfb66eb9c5952c4ec6f2f14e349dab7aa2a5",
-      "patch_sha256": "3f0721baf0c3157ab0aa9029c174afa33ce464b9675478ce5e1881aeddf73fe2"
+      "patch_sha256": "3f0721baf0c3157ab0aa9029c174afa33ce464b9675478ce5e1881aeddf73fe2",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/risk.py",
       "path": "03_기존엔진_연결변경/agent/src/risk.py.patch",
       "baseline_sha256": "3799dad08383881b123b5f0228961b7c2aebfa7bb5405fb9fa6d7e42af2e6fcf",
       "current_sha256": "0801a284f497b16758ae00caeb966649d17c1d8b7bc92c96be23dd54d9c8e6bd",
-      "patch_sha256": "30844e56f0949534a663be6ba71db9028e12e2c42f350078cb09dfaeff937d1b"
+      "patch_sha256": "30844e56f0949534a663be6ba71db9028e12e2c42f350078cb09dfaeff937d1b",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/sizing.py",
       "path": "03_기존엔진_연결변경/agent/src/sizing.py.patch",
       "baseline_sha256": "e3a8b37f959aa2842d333e45481608fb2bc323b6ac2b07d6e514431cdb985090",
       "current_sha256": "e55c83eab0358f136fda4d34fd99e38d3e1a1545e74b20a76ef34edbce8966c0",
-      "patch_sha256": "4df4f67e70765f3e029bead0958a4d45a19c8d4ef6a2767e4496b2cc9ea1be01"
+      "patch_sha256": "4df4f67e70765f3e029bead0958a4d45a19c8d4ef6a2767e4496b2cc9ea1be01",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "agent/src/tuning.py",
       "path": "03_기존엔진_연결변경/agent/src/tuning.py.patch",
       "baseline_sha256": "da6ea23d0b361687c7a2ce7935288e9f2c76765d9afca0cd62153c7ee39b804e",
       "current_sha256": "3797a306635906888bdf55452ed324c284fab7a7e68e05cdf91589bc3693082d",
-      "patch_sha256": "79758c2e97e2bca1de7625890439ea24332f58091a380549342d8aba5a3065bb"
+      "patch_sha256": "79758c2e97e2bca1de7625890439ea24332f58091a380549342d8aba5a3065bb",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "docs/DEPLOY.md",
       "path": "03_기존엔진_연결변경/docs/DEPLOY.md.patch",
       "baseline_sha256": "e73c1a7b2bed1b25a45020b2b6bd96fc2c9cfa46cc34b9f504c05f7173f69fd3",
       "current_sha256": "a2de588cce57e73703b326df6221657a716c8fb96bbaef0008e7575ee237d4ba",
-      "patch_sha256": "19fb2e119e6f50c1820e4892ba620c564e105f67fffcb0aedb9d26864af97ab3"
+      "patch_sha256": "19fb2e119e6f50c1820e4892ba620c564e105f67fffcb0aedb9d26864af97ab3",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "docs/index.html",
       "path": "03_기존엔진_연결변경/docs/index.html.patch",
       "baseline_sha256": "8bc6453fd7270fd08347e10112bf8d62440597ffcc653e3984b1d1e884b981ac",
-      "current_sha256": "13abe155c5ae18cd7e61d2f72e9eab5390f3f7638704cfe40402f008aabe6221",
-      "patch_sha256": "ccb46fddc70bbbd8e1388475f0b74d5ae689c38cf53178f90edb2206fc8f5e23"
+      "current_sha256": "685dbc5ebe1c2215cf9c0273d57cc5f6175aba85f0b81fc759ad17ff93924c75",
+      "patch_sha256": "e044db971e0c6b91c856293a2c90cc4ac3db6ff736f4a3c50926e206590900ad",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     },
     {
       "source": "live/snapshot.py",
       "path": "03_기존엔진_연결변경/live/snapshot.py.patch",
       "baseline_sha256": "d272e9699f4b661c6c835960f8ece71dcac2ceab01d38a997ea80cb03fb43220",
       "current_sha256": "bf24e3b32002a102b2d8d769aa64d000c10ecbbe2b4321a50fd5658bb62fc8c1",
-      "patch_sha256": "56777196e678b87dce3f14f9ff34eb075439ee8f9f974a8d04452cd026429c98"
+      "patch_sha256": "56777196e678b87dce3f14f9ff34eb075439ee8f9f974a8d04452cd026429c98",
+      "change": "modified",
+      "baseline_mode": "100644",
+      "current_mode": "100644"
     }
   ],
   "excluded": [
@@ -1035,7 +1271,7 @@
     },
     {
       "source": "docs/SION_수정계획1_핵심요약_2페이지.docx",
-      "sha256": "4580dcb03c9fd16c7903e625a9df9e6e1b9a600ec2cd8c04ee8e2149a991feb1",
+      "sha256": "e7d284d3556b45745137022a49040f682f959c1413e8b16bae2375b7c0e121c5",
       "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
     },
     {
@@ -1067,6 +1303,136 @@
       "source": "docs/수정계획리포트-온톨로지백서.md",
       "sha256": "3f337dabf0e7be64068c1672f3bcfc9722871aef99ba8a170fc0dea8a6a9666a",
       "reason": "공개 코드 검토에 중복되는 내부 계획·검토·성능 보고 및 요약 문서. 원본 저장소에서 확인 가능."
+    },
+    {
+      "source": "outputs/sion-plan1-dashboard/SION_수정계획1_성과대시보드.xlsx",
+      "sha256": "4f4e67933e8cf9e9d5e0ad44158f7ca2b5e7c6a26bd3c9cc77fb2a83a5befdd7",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "outputs/sion-plan1-dashboard/SION_수정계획1_성과대시보드.xlsx.inspect.ndjson",
+      "sha256": "815e9822ca00646470213f1f4a5f42799df962d95f7d6b4113b29f5c19dbf566",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/empty-compact.json",
+      "sha256": "381b13cd1e5ae9d44d5e8b2b72ad1fced9fcd2d6a0ae08a944566bf2efb8c2a0",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/empty-legacy.json",
+      "sha256": "9b48bc220b31c27df7417e2014563ba7320d9fdbb43ba30d1ce47ceafc507a76",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/external-compact.json",
+      "sha256": "8318667003f7e75fb17ded7806adceebe1be29c828d73e64228949a4cef87b3d",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/external-legacy.json",
+      "sha256": "2f849154fc82d69db2845526bde4aa6c27fa3bd24d7b8666d2efb05c82105d74",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/fixture-log.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/followup-source-files.json",
+      "sha256": "5ab7ca6e23b5c05afd6efb8204edcb5c7c3534fc576ba3fc14d5f6315260e0e8",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/frozen-compact.json",
+      "sha256": "2c6438bb333b3bd6b9909b6b88dc750485c35167ee1fa45a7b8d66b92b41a0bb",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/frozen-legacy.json",
+      "sha256": "0a08504b01963b42771d1d1f6f8487c26c1f16a85dce39fefe89a289e17eaf7b",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/holdings-compact.json",
+      "sha256": "2306fdd6772a561112b3887cd2b3a0bd82e8f176e90ccc8b1342b71f3547845b",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/holdings-legacy.json",
+      "sha256": "3816c4949f1297b7b7643bcde84baff978e9efb684c9b3615490e2b387d23783",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/proposal-compact.json",
+      "sha256": "6e50365fe62c196a4ecfd3a3c9eb2318bfeca46899608bb575423f50752405c1",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/proposal-legacy.json",
+      "sha256": "77afcd81d19b36c31a5eab203b8e8fd2327fa62246aaf33de0c866468469f55f",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/pytest-detail-followup.txt",
+      "sha256": "8da8898fab1cd239556f8812fbd6c41dd851bce720a82bc97ef6fdb4b512f7f6",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/pytest-final.txt",
+      "sha256": "ce60a1e1a14c0096c325b850613f5761afe9dc330d4780c4023ffb0f9db34f94",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/regular-compact.json",
+      "sha256": "978e4b25c5b52228ac76df129c18b6994e5fb58f68594106091459d4d7ac0ec2",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/regular-legacy.json",
+      "sha256": "379457311b34957eb85b98befb23f0c4b45499d5e48963b14c26244c889db059",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/rehearsal-parity.json",
+      "sha256": "4f5f6e2b9508c375a222843c5a2a129235f3e0adbd92c7f30a73ef88928d6ead",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/rehearsal-report.json",
+      "sha256": "d28d3fe423eb6e9f0509f58ed97009a42569bf1f9dabaeaac9964b7e1efe716f",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/review-compact.json",
+      "sha256": "7b09bd450fd554624715bd0613209847b6276b54f74cd1410fcc4c65b1f7761b",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/review-legacy.json",
+      "sha256": "61d98961a31a956ea75ce9878b5f776caef50fda48c71b7fd3ec552b71c11c4e",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/source-hashes.json",
+      "sha256": "249ad98c00f44bd162ce6d2fd6dfa659d0cc16e3a2789108e99cfe9e3a2f2ba5",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/summary.json",
+      "sha256": "f2161465d19b63467baf5aac2892572e01bcf96c321632a7c3d0df75d878f28a",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/verification.json",
+      "sha256": "cfc76b2747238d850258889f1c27d1c5b0d2c77a922cb0e6336042896409dfbc",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
+    },
+    {
+      "source": "reports/compact-evidence-20261114-final/검증보고서.md",
+      "sha256": "d9cf2ff119b4e80a302ac4b2e67aa8e559b93575bed2e8ffaa9acbb9af0f53d8",
+      "reason": "생성된 비교·리허설·성능 보고 및 대시보드; 공개 소스와 운영자 적용에는 불필요한 실행 산출물."
     }
   ],
   "excluded_scopes": [

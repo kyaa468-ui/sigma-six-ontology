@@ -312,6 +312,10 @@ def rehearse(output, baseline_report=None):
             print(report['failure']['traceback'], file=sys.stderr, flush=True)
         finally:
             guard['active'] = False
+            # Materialize lazy archive values while the copied runtime is still
+            # active; undoing MonkeyPatch restores the operating storage root.
+            save(output / 'report.json', report)
+            report = json.loads((output / 'report.json').read_text())
     after = digest_files(protected, output.parent if output.parent == AGENT / 'work/rehearsals' else output)
     report['isolation'] = {'forbidden_attempts': guard['attempts'], 'operating_files_unchanged': original == after,
                            'operating_file_count': len(original),

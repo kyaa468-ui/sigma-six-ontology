@@ -626,11 +626,56 @@ def deliver(text, b, quotes, params, risk, context=None):
                          selection_run_id=(b.get('ontology') or {}).get('selection_run_id'),
                          briefing_snapshot=b, quotes=quotes, params=params, risk=risk, context=context or {},
                          text=output, sha256=hashlib.sha256(output.encode()).hexdigest())
-        archive('deliveries', did, value)
+        import evidence_wire as W
+        W.pin_format()
+        prepared = None
+        if W.enabled():
+            prepared = W.prepare(catalog, metadata=compact_briefing_metadata(b, context))
+            output = '# 판단 자료\n' + json.dumps(prepared['payload'], ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+            value.update(W.receipt_fields(prepared), text=output, sha256=hashlib.sha256(output.encode()).hexdigest())
+        saved_path = archive('deliveries', did, value)
+        if prepared:
+            W.commit(prepared, record_store.load(saved_path), output=output)
     except Exception as exc:
         delivery_error(exc)
+        import evidence_wire as W
+        if W.enabled():
+            return f'브리핑 전달 기록 저장 실패 (인용 불가): {type(exc).__name__}. 다시 조회하세요.'
         return text + f'\n브리핑 전달 ID: {did}\n브리핑 전달 기록 저장 실패 (미보관): {type(exc).__name__}\n'
     return output
+
+
+def compact_briefing_metadata(b, context=None):
+    """Non-catalog content in the original human briefing, explicitly retained."""
+    context = context or {}
+    return {'asof': b.get('asof'), 'universe': '전 종목' if b.get('source') == 'krx' else '대형주 목록, 수급 없음',
+            'candidate_count': len(b.get('candidates', [])), 'holding_count': len(b.get('holdings', [])),
+            'news_window_days': context.get('news_window_days'),
+            'market_series': [{'symbol': row.get('symbol'), 'name': row.get('name')}
+                              for row in (b.get('market') or {}).get('us', [])],
+            'intraday_update': b.get('intraday'),
+            'selection_status': {k: v for k, v in (b.get('ontology') or {'status': 'unrecorded'}).items()
+                                 if k in ('status', 'errors')},
+            'selection_semantics': [
+                {'subject': row['code'], 'recording_status': 'recorded' if row.get('_ontology') else 'unrecorded',
+                 'cross_period': ((row.get('_ontology') or {}).get('observation') or {}).get('cross_period'),
+                 'today_close_cross': ((row.get('_ontology') or {}).get('observation') or {}).get('today_close_cross'),
+                 'rules': [{k: rule[k] for k in ('rule_version_id', 'use', 'status') if k in rule}
+                           for rule in ((row.get('_ontology') or {}).get('observation') or {}).get('rules', [])],
+                 'criteria_states': [{k: ev[k] for k in ('criterion_id', 'use', 'status') if k in ev}
+                                    for ev in ((row.get('_ontology') or {}).get('observation') or {}).get('criteria', [])]}
+                for row in b.get('candidates', []) + b.get('holdings', [])],
+            'policy_instructions': context.get('policy_instructions', []),
+            'lesson_selection_status': context.get('lesson_selection_status'),
+            'lesson_selection_error': context.get('lesson_selection_error'),
+            'notes': ['이동평균은 완료 일봉 기준. 장중 API 수신값은 동시점으로 보장되지 않음.',
+                      '활발도 = 오늘 거래대금 / 평소 같은 시각까지 거래대금. 1은 평소 수준.',
+                      '가격의 20일선 충족 여부와 이격률은 같은 비교이며 독립된 두 근거가 아님.',
+                      '20일선 5거래일 변화율은 가격 위치와 별개. 오늘 종가 돌파는 장중 미확정.',
+                      'flow_ratio는 양수 부분만 합산한 후보용 비율이며 순수 합계·동반 순매수가 아님.',
+                      '호출 시 가격은 후보 선별 가격과 별도 관측. 이 가격으로 후보 평가를 다시 계산하지 않음.',
+                      '뉴스 risk 표시는 제목의 악재 단어 포함 여부이며 진위 검증이 아님.',
+                      '가설과 자유문장 전체는 사실 검증 대상이 아님.']}
 
 
 def account_delivery(payload):
@@ -653,10 +698,28 @@ def account_delivery(payload):
                         available_at=received, observation_id=f'{did}:account:{h["code"]}')
     result = {**copy.deepcopy(payload), 'delivery_id': did, 'evidence_catalog': cat.items, 'recording_status': 'recorded'}
     try:
+        import evidence_wire as W
+        W.pin_format()
+        prepared = W.prepare(cat.items, metadata={'kind': 'account'}) if W.enabled() else None
+        if prepared:
+            # Preserve any new account fields not yet in the catalog as well.
+            represented = {e['field'] for e in cat.items if e['subject'] == 'account'}
+            extra = {k: v for k, v in payload.items() if k not in represented and k != 'holdings'}
+            holding_extra = [{k: v for k, v in h.items() if k == 'code' or k not in
+                             {e['field'] for e in cat.items if e['subject'] == h['code']}}
+                             for h in payload.get('holdings', [])]
+            prepared['payload']['metadata'].update(extra=extra, holding_links=holding_extra)
+            result = prepared['payload']
         body = json.dumps(clean(result), ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
-        archive('deliveries', did, _receipt(did, cat.items, kind='account', payload=result,
-                                            sha256=hashlib.sha256(body.encode()).hexdigest()))
+        receipt = _receipt(did, cat.items, kind='account', payload=result,
+                           sha256=hashlib.sha256(body.encode()).hexdigest(),
+                           **(W.receipt_fields(prepared) if prepared else {}))
+        saved_path = archive('deliveries', did, receipt)
+        if prepared:
+            W.commit(prepared, record_store.load(saved_path))
     except Exception as exc:
         delivery_error(exc)
+        if W.enabled():
+            return {'recording_status': 'error', 'error_code': 'WIRE_RECORDING_ERROR', 'citable': False}
         result.update(recording_status='error', recording_error={'code': 'RECORDING_ERROR', 'reason': type(exc).__name__})
     return result

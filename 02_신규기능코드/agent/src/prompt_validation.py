@@ -21,8 +21,10 @@ import record_store
 import storage_objects
 import log_store
 from process_spool import Spool, raw_text
+import evidence_wire as W
+from datetime import datetime
 
-TOOLS = ('get_briefing', 'get_account', 'record_ai_judgments')
+TOOLS = ('get_briefing', 'get_account', 'record_ai_judgments', 'get_evidence_detail')
 
 
 def experimental_receipts(receipts, arm):
@@ -35,10 +37,22 @@ def experimental_receipts(receipts, arm):
     if arm!='candidate':return rows
     import ontology as O
     import lesson_registry as L
-    for receipt in rows:
+    next_alias = max((int(r['bundle_alias'][1:]) for r in rows if r.get('bundle_alias')), default=0)
+    for index, receipt in enumerate(rows):
         lessons=(receipt.get('context') or {}).get('adopted_lessons') or []
         if not lessons:continue
         if receipt.get('kind')!='briefing':raise ValueError('UNSUPPORTED_PRIOR_LESSON_DELIVERY')
+        if receipt.get('wire_format') == W.FORMAT:
+            old_id = receipt['delivery_id']
+            new_id = 'experiment-' + S.digest([old_id, 'replace_prior_package'])[:40]
+            catalog = [copy.deepcopy(e) for e in receipt['evidence_catalog'] if e.get('kind') != 'adopted_lesson']
+            for evidence in catalog:
+                for key in ('evidence_id', 'observation_id'):
+                    if isinstance(evidence.get(key), str):
+                        evidence[key] = evidence[key].replace(old_id, new_id)
+            next_alias += 1
+            rows[index] = W.experimental_receipt(receipt, f'B{next_alias}', new_id, catalog)
+            continue
         text=receipt['text'];old_catalog=O.render_catalog(receipt['evidence_catalog'])
         block='\n'.join(L.render_for_briefing({'lessons':lessons}))
         if text.count(block)!=1 or text.count(old_catalog)!=1:
@@ -65,6 +79,7 @@ class FrozenTools:
         self.sink = sink
         self.read_counts = {}
         self.requests = {}
+        self.wire_bundles = {}
 
     def call(self, name, arguments=None):
         arguments = arguments or {}
@@ -83,9 +98,25 @@ class FrozenTools:
                     result = {'status': 'unavailable', 'reason': 'no_additional_archived_response'}
                 else:
                     receipt = receipts[index]
-                    self.read_counts[kind] = index + 1
-                    self.delivered[receipt['delivery_id']] = receipt
-                    result = {'frozen': True, 'delivery': receipt.get('text') if kind == 'briefing' else receipt.get('payload')}
+                    if receipt.get('wire_format') == W.FORMAT and not receipt.get('_wire_bundle'):
+                        result = {'status': 'unavailable', 'reason': 'original_wire_bundle_not_archived'}
+                    else:
+                        self.read_counts[kind] = index + 1
+                        self.delivered[receipt['delivery_id']] = receipt
+                        if receipt.get('_wire_bundle'):
+                            bundle = receipt['_wire_bundle']
+                            self.wire_bundles[bundle['bundle_alias']] = bundle
+                        result = {'frozen': True, 'delivery': receipt.get('text') if kind == 'briefing' else receipt.get('payload')}
+        elif name == 'get_evidence_detail':
+            details = [d for r in self.delivered.values() for d in r.get('_wire_details', [])]
+            try:
+                with W.frozen(self.wire_bundles.values(), datetime.fromisoformat(self.request['as_of']), details):
+                    result = W.detail(arguments.get('ref'), arguments.get('fields'))
+                if isinstance(result, dict) and result.get('bundle_alias'):
+                    match = next(d for d in details if d['bundle_alias'] == result['bundle_alias'])
+                    self.wire_bundles[match['bundle_alias']] = match
+            except W.WireError as exc:
+                result = {'status': 'rejected', 'errors': [exc.error]}
         else:
             import ai_judgment as J
             items = arguments.get('items', [])
@@ -100,7 +131,8 @@ class FrozenTools:
                     if old:
                         row=copy.deepcopy(old[1]) if old[0]==fingerprint else {'status':'rejected','errors':[{'code':'IDEMPOTENCY_CONFLICT'}]}
                     else:
-                        row=J.validate_frozen_submission(item,self.delivered,self.request['target'],self.request['as_of'])
+                        with W.frozen(self.wire_bundles.values(), datetime.fromisoformat(self.request['as_of'])):
+                            row=J.validate_frozen_submission(item,self.delivered,self.request['target'],self.request['as_of'])
                         if key:self.requests[key]=(fingerprint,copy.deepcopy(row))
                         self.submissions.append(row)
                     result.append(row)

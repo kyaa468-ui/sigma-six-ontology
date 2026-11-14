@@ -312,4 +312,4 @@ def test_prediction_path_and_case_review_agent_capabilities_are_isolated():
     prompt = (ROOT / '.claude/agents/case_review.md').read_text()
     tools_line = next(x for x in prompt.splitlines() if x.startswith('tools:'))
     assert {s.strip() for s in tools_line.removeprefix('tools:').split(',')} == {
-        'mcp__kiwoom__' + name for name in M.CASE_REVIEW_TOOLS}
+        'mcp__kiwoom__' + name for name in M.CASE_REVIEW_TOOLS | {'get_evidence_detail'}}

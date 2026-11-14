@@ -222,8 +222,15 @@ def _captured_input_controls(inputs, spec, proposal):
 
 
 def _proposal_items(context, page, application_id):
-    metric = next(x for x in context['catalog'] if x['value'] is not None)
-    common = {'delivery_ids': [context['delivery_id'], page['delivery_id']],
+    import evidence_wire as W
+    if context.get('wire_format') == W.FORMAT:
+        declaration = {'wire_format': W.FORMAT, 'bundle_refs': [context['bundle_alias'], page['bundle_alias']]}
+        context, page = W.public_document(context), W.public_document(page)
+        metric = next(x for x in context['metric_catalog'] if x['value'] is not None)
+    else:
+        declaration = {'delivery_ids': [context['delivery_id'], page['delivery_id']]}
+        metric = next(x for x in context['catalog'] if x['value'] is not None)
+    common = {**declaration,
         'fact_claims': [{'id': 'f1', 'reference': metric['reference'], 'op': 'value',
                          'value': metric['value'], 'unit': metric['unit']}],
         'stratum_ids': [c['stratum_id'] for c in page['cases'] if c['application_id'] == application_id],
@@ -283,8 +290,13 @@ def run_research(monkeypatch, execution_result, clock):
     review_id = review['review_id']
     monkeypatch.setenv('RUN_MODE', 'case_review')
     monkeypatch.setenv('CASE_REVIEW_ID', review_id)
+    monkeypatch.setenv('CASE_REVIEW_ATTEMPT_ID', 'rehearsal-case-review')
     before = M.get_case_review(review_id)
     page = M.get_review_cases(review_id)
+    import evidence_wire as W
+    review_wire = ({'wire_format': W.FORMAT, 'bundle_refs': [before['bundle_alias'], page['bundle_alias']]}
+                   if before.get('wire_format') == W.FORMAT else {})
+    before, page = W.public_document(before), W.public_document(page)
     case = next(c for c in page['cases'] if c['application_id'] == app_id)
     assert case['outcome_eligible'] is True, case
     metric = next(m for m in before['metric_catalog']
@@ -292,18 +304,18 @@ def run_research(monkeypatch, execution_result, clock):
     fact = {'id': 'refutation-rate', 'metric_id': metric['metric_id'], 'op': 'value',
             'value': metric['value'], 'unit': metric['unit']}
     rejected = M.record_case_review(review_id, 'fixture-wrong-rate',
-                                   [{**fact, 'value': 1-float(metric['value'])}], [])
+                                   [{**fact, 'value': 1-float(metric['value'])}], [], **review_wire)
     assert rejected['status'] == 'rejected', rejected
     accepted = M.record_case_review(review_id, 'fixture-corrected-rate', [fact], [{
         'id': 'fixture-hypothesis', 'text': '모의 사례의 기관 매도가 반증에 관련됐을 수 있다는 사후 가설',
-        'finding_ids': [fact['id']], 'case_ids': [app_id]}])
+        'finding_ids': [fact['id']], 'case_ids': [app_id]}], **review_wire)
     assert accepted['status'] == 'accepted', accepted
     assert accepted['hypotheses'][0]['hypothesis_status'] == 'submitted_unverified'
     repeated = M.record_case_review(review_id, 'fixture-corrected-rate', [fact], [{
         'id': 'fixture-hypothesis', 'text': '모의 사례의 기관 매도가 반증에 관련됐을 수 있다는 사후 가설',
-        'finding_ids': [fact['id']], 'case_ids': [app_id]}])
+        'finding_ids': [fact['id']], 'case_ids': [app_id]}], **review_wire)
     assert repeated['replayed'] is True
-    final_review = M.get_case_review(review_id)
+    final_review = W.public_document(M.get_case_review(review_id))
     assert final_review['ai_status'] == 'accepted'
     assert not final_review['statistics']['models'], 'A rehearsal case must not produce a real research model'
     stage5 = {'status': 'passed', 'review_id': review_id, 'expected_count': review['expected_count'],
@@ -318,6 +330,7 @@ def run_research(monkeypatch, execution_result, clock):
     proposal_run_id = context_run['proposal_run_id']
     monkeypatch.setenv('RUN_MODE', 'proposal_review')
     monkeypatch.setenv('PROPOSAL_RUN_ID', proposal_run_id)
+    monkeypatch.setenv('PROPOSAL_ATTEMPT_ID', 'rehearsal-proposal')
     context, proposal_cases = M.get_proposal_context(proposal_run_id), M.get_proposal_cases(proposal_run_id)
     keep, change = _proposal_items(context, proposal_cases, app_id)
     proposed = M.record_learning_proposals(proposal_run_id, 'fixture-proposals', [keep, change])

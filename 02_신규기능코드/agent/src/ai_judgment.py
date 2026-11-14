@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import common as C
 import record_store
 import storage_objects as objects
+import evidence_wire as W
 
 SCHEMA_VERSION = 'ai-judgment@v1'
 _FROZEN = contextvars.ContextVar('frozen_judgment_validation', default=None)
@@ -192,6 +193,13 @@ def _receipt(delivery_id, path, context):
     if receipt.get('delivery_id', delivery_id) != delivery_id:
         _fail('REFERENCE_MISMATCH', path, 'Receipt ID mismatch')
     _time_not_future(receipt.get('created_at'), path + '.created_at')
+    if receipt.get('wire_format') == W.FORMAT:
+        aliases = context.get('wire_bundles') or [receipt['bundle_alias']]
+        permitted = {e['target'] for alias in aliases for bundle in [W.load(alias)]
+                     if bundle['canonical_delivery_id'] == delivery_id
+                     for e in bundle['entries'].values() if e['type'] == 'evidence'}
+        receipt = {**receipt, 'evidence_catalog': [e for e in receipt.get('evidence_catalog', [])
+                                                 if e['evidence_id'] in permitted]}
     return receipt
 
 
@@ -213,6 +221,11 @@ def _evidence(ref, path, context):
     if len(matches) != 1:
         _fail('NOT_DELIVERED', path + '.evidence_id', 'Only a unique explicitly displayed catalog item can be cited')
     evidence = matches[0]
+    visible_fields = W.check_visible(receipt, evidence, context.get('wire_bundles'))
+    if visible_fields is not None:
+        for field in ('observed_at', 'available_at', 'subject', 'field'):
+            if field in ref and field not in visible_fields:
+                _fail('FIELD_NOT_DELIVERED', path + '.' + field, 'Field was not displayed')
     if evidence.get('subject') not in {context['code']} | SCOPE_SUBJECTS:
         _fail('SUBJECT_MISMATCH', path, 'Evidence belongs to another instrument')
     if evidence.get('kind') == 'adopted_lesson':
@@ -234,7 +247,10 @@ def _evidence(ref, path, context):
     for field in ('observation_id', 'subject', 'field'):
         if field in ref and ref[field] != evidence.get(field):
             _fail('REFERENCE_MISMATCH', path + '.' + field, 'Claimed reference metadata differs from receipt')
-    return copy.deepcopy(evidence)
+    result = copy.deepcopy(evidence)
+    if visible_fields is not None:
+        result['_wire_visible_fields'] = sorted(visible_fields)
+    return result
 
 
 def _value_matches(assertion, evidence, path):
@@ -371,7 +387,9 @@ def _argument(arg, path, context):
     if kind == 'source_quote':
         evidence = _evidence(arg.get('evidence'), path + '.evidence', context)
         quote = _required_text(arg.get('quote'), path + '.quote')
-        snippets = [evidence.get(key) for key in ('quote_text', 'text', 'title', 'snippet')]
+        visible_fields = evidence.get('_wire_visible_fields')
+        snippets = [evidence.get(key) for key in ('quote_text', 'text', 'title', 'snippet')
+                    if visible_fields is None or key in visible_fields]
         if evidence.get('unit') == 'text':
             snippets.append(evidence.get('value'))
         if not any(isinstance(x, str) and quote in x for x in snippets):
@@ -475,6 +493,8 @@ def _validate(item, content_hash, jid):
     if not isinstance(item, dict):
         _fail('SCHEMA_ERROR', '$', 'Judgment must be an object')
     context = {**_context(), 'code': _id(item.get('code'), 'code')}
+    if item.get('wire_submission'):
+        context['wire_bundles'] = item['wire_submission']['original']['bundle_refs']
     if not context['run_id'] or not context['run_attempt_id']:
         _fail('MISSING_RUN_CONTEXT', '$', 'RUN_ID and RUN_ATTEMPT_ID are required')
     _required_text(item.get('request_key'), 'request_key')
@@ -558,6 +578,23 @@ def _reserve_request(item, content_hash):
 
 
 def record_ai_judgments(items):
+    """Serialize each request through its acceptance event, across MCP processes."""
+    values = items if isinstance(items, list) else [items]
+    results = []
+    for value in values:
+        try:
+            if isinstance(value, dict) and isinstance(value.get('request_key'), str) and all(_context().values()):
+                key = _digest([_context()['run_attempt_id'], value['request_key']])
+                with W.locked(C.ontology_root() / 'locks' / ('judgment-' + key)):
+                    results.extend(_record_ai_judgments([value]))
+            else:
+                results.extend(_record_ai_judgments([value]))
+        except Exception as exc:
+            results.append(_recording_error(value, exc))
+    return results
+
+
+def _record_ai_judgments(items):
     """Accept/reject independently. Rejections never alter legacy trading decisions."""
     if not isinstance(items, list):
         items = [items]
@@ -568,7 +605,7 @@ def record_ai_judgments(items):
                 item = copy.deepcopy(item)
                 aliases = {'buy': '매수', 'sell': '매도', 'hold': '보유', 'watch': '관망'}
                 for field in ('confidence_for', 'recommended_action'):
-                    if isinstance(item.get(field), str):
+                    if 'wire_format' not in item and isinstance(item.get(field), str):
                         item[field] = aliases.get(item[field], item[field])
             content_hash = _digest(item)
             key = item.get('request_key') if isinstance(item, dict) else None
@@ -591,7 +628,8 @@ def record_ai_judgments(items):
                                 'premise_application_ids': [p['application_id'] for p in old['premise_applications']]})
                 continue
             _reserve_request(item, content_hash)
-            row = _validate(item, content_hash, jid)
+            normalized = W.normalize_judgment(item)
+            row = _validate(normalized, content_hash, jid)
             event_id = f'submission-{uuid.uuid4().hex}'
             row['acceptance_event_id'] = event_id
             for premise in row['premise_applications']:
@@ -629,7 +667,7 @@ def record_ai_judgments(items):
                     case_store.record_error(None, 'new_premise_prediction', exc)
                 except Exception:
                     print(f'case prediction recording_error: {type(exc).__name__}: {exc}', file=sys.stderr)
-        except InvalidSubmission as exc:
+        except (InvalidSubmission, W.WireError) as exc:
             try:
                 event = _event(item, 'rejected', [exc.error])
                 results.append({'status': 'rejected', 'errors': [exc.error], 'submission_id': event['event_id']})
@@ -820,7 +858,37 @@ def committed_premises(knowledge_as_of=None, market_as_of=None):
             'errors': errors, 'target_set_incomplete': bool(errors)}
 
 
+def _external_compact_response(existing):
+    try:
+        record = W.load(existing['bundle_alias'])
+        return objects.open_object(record['visible_payload_ref'])
+    except W.WireError as exc:
+        if exc.error['code'] != 'UNKNOWN_BUNDLE':
+            raise
+        # A canonical receipt committed before the process stopped. Complete
+        # its original reserved alias; do not issue a different identity.
+        payload, entries = W.render(existing['bundle_alias'], existing['evidence_catalog'],
+                                    metadata={'status': 'recorded_unverified'})
+        payload.update(status='recorded_unverified', evidence_ref=existing['bundle_alias'] + ':E1')
+        prepared = {'wire_format': W.FORMAT, 'renderer_version': W.RENDERER,
+                    'field_dictionary_version': W.DICTIONARY, 'scope': existing['wire_scope'],
+                    'bundle_alias': existing['bundle_alias'], 'entries': entries, 'payload': payload}
+        return W.commit(prepared, existing)
+
+
 def record_external_evidence(items):
+    values = items if isinstance(items, list) else [items]
+    results = []
+    for value in values:
+        if isinstance(value, dict) and isinstance(value.get('request_key'), str) and all(_context().values()):
+            with W.locked(C.ontology_root() / 'locks' / ('external-' + _digest([_context(), value['request_key']]))):
+                results.extend(_record_external_evidence([value]))
+        else:
+            results.extend(_record_external_evidence([value]))
+    return results
+
+
+def _record_external_evidence(items):
     """Store AI-provided text, explicitly without fetching or authenticating its URL."""
     if not isinstance(items, list):
         items = [items]
@@ -832,6 +900,7 @@ def record_external_evidence(items):
             context = _context()
             if not all(context.values()):
                 _fail('MISSING_RUN_CONTEXT', '$', 'RUN_ID and RUN_ATTEMPT_ID required')
+            W.pin_format()
             _required_text(item.get('request_key'), 'request_key')
             subject = _id(item.get('subject'), 'subject')
             content = _required_text(item.get('text'), 'text')
@@ -845,7 +914,10 @@ def record_external_evidence(items):
             if existing:
                 if existing.get('request_hash') != content_hash:
                     _fail('IDEMPOTENCY_CONFLICT', 'request_key', 'Changed external material requires a new key')
-                results.append({'status': 'recorded_unverified', 'delivery_id': did, 'evidence_id': did + ':text', 'idempotent': True})
+                if existing.get('wire_format') == W.FORMAT:
+                    results.append({**_external_compact_response(existing), 'idempotent': True})
+                else:
+                    results.append({'status': 'recorded_unverified', 'delivery_id': did, 'evidence_id': did + ':text', 'idempotent': True})
                 continue
             eid = did + ':text'
             catalog = [{'evidence_id': eid, 'subject': subject, 'field': 'external_text',
@@ -856,9 +928,16 @@ def record_external_evidence(items):
             row = {**context, 'ai_run_id': context['run_id'], 'delivery_id': did, 'created_at': _now(),
                    'request_hash': content_hash, 'source_verification': 'ai_submitted_unverified',
                    'original_submission': copy.deepcopy(item), 'evidence_catalog': catalog}
+            prepared = W.prepare(catalog, metadata={'status': 'recorded_unverified'}) if W.enabled() else None
+            if prepared:
+                row.update(W.receipt_fields(prepared))
             _archive('deliveries', did, row)
-            results.append({'status': 'recorded_unverified', 'delivery_id': did, 'evidence_id': eid, 'idempotent': False})
-        except InvalidSubmission as exc:
+            if prepared:
+                prepared['payload'].update(status='recorded_unverified', evidence_ref=prepared['bundle_alias'] + ':E1')
+                results.append(W.commit(prepared, _load('deliveries', did)))
+            else:
+                results.append({'status': 'recorded_unverified', 'delivery_id': did, 'evidence_id': eid, 'idempotent': False})
+        except (InvalidSubmission, W.WireError) as exc:
             results.append({'status': 'rejected', 'errors': [exc.error]})
         except Exception as exc:
             results.append(_recording_error(item, exc))
@@ -870,15 +949,26 @@ def validate_references(refs, code=None):
     try:
         if not isinstance(refs, list):
             _fail('SCHEMA_ERROR', 'references', 'Expected an array of evidence references')
-        context = {**_context(), 'code': code, 'delivery_ids': [r.get('delivery_id') for r in refs if isinstance(r, dict)]}
+        if W.enabled() and any(not isinstance(r, str) for r in refs):
+            _fail('SHORT_REFERENCE_REQUIRED', 'references', 'Use the displayed compact references')
+        aliases = [r.split(':')[0] for r in refs if isinstance(r, str)]
+        refs = [W.resolve(r, 'evidence')[0] if isinstance(r, str) else r for r in refs]
+        context = {**_context(), 'code': code, 'wire_bundles': aliases,
+                   'delivery_ids': [r.get('delivery_id') for r in refs if isinstance(r, dict)]}
         if not context['run_attempt_id'] or not context['run_id']:
             _fail('MISSING_RUN_CONTEXT', '$', 'RUN_ID and RUN_ATTEMPT_ID required')
         return {'status': 'valid', 'evidence': [_evidence(ref, f'references[{i}]', context) for i, ref in enumerate(refs)], 'errors': []}
-    except InvalidSubmission as exc:
+    except (InvalidSubmission, W.WireError) as exc:
         return {'status': 'rejected', 'evidence': [], 'errors': [exc.error]}
 
 
 def validate_frozen_submission(item, receipts, context, at):
+    """Public frozen entry point: even direct callers cannot consult live maps."""
+    with W.frozen_receipts(receipts, datetime.fromisoformat(at)):
+        return _validate_frozen_submission(item, receipts, context, at)
+
+
+def _validate_frozen_submission(item, receipts, context, at):
     """Step-7 pure checker: same fact/reference contract, no live reads/writes.
 
     Only receipts actually returned by the frozen tool server are in `receipts`.
@@ -886,6 +976,7 @@ def validate_frozen_submission(item, receipts, context, at):
     """
     token = _FROZEN.set({'receipts': receipts, 'at': datetime.fromisoformat(at)})
     try:
+        item = W.normalize_judgment(item)
         if not isinstance(item, dict): _fail('SCHEMA_ERROR', '$', 'Object required')
         _required_text(item.get('request_key'), 'request_key')
         code = _id(item.get('code'), 'code')
@@ -902,6 +993,8 @@ def validate_frozen_submission(item, receipts, context, at):
         ids = item.get('delivery_ids')
         if not isinstance(ids, list) or not ids: _fail('SCHEMA_ERROR', 'delivery_ids', 'Delivered references required')
         ctx = {**context, 'delivery_ids': ids}
+        if item.get('wire_submission'):
+            ctx['wire_bundles'] = item['wire_submission']['original']['bundle_refs']
         for i, did in enumerate(ids): _receipt(did, f'delivery_ids[{i}]', ctx)
         args = item.get('arguments')
         if not isinstance(args, list) or not args: _fail('SCHEMA_ERROR', 'arguments', 'Structured arguments required')
@@ -932,7 +1025,7 @@ def validate_frozen_submission(item, receipts, context, at):
         return {**copy.deepcopy(item), 'arguments': validated, 'status': 'accepted',
                 'scope': 'isolated_experiment', 'decision_validation': 'submitted_unverified',
                 'premise_status': 'experiment_proposals_not_registered', 'confidence_raw': float(score)}
-    except InvalidSubmission as exc:
+    except (InvalidSubmission, W.WireError) as exc:
         return {'status': 'rejected', 'errors': [exc.error], 'scope': 'isolated_experiment'}
     finally:
         _FROZEN.reset(token)

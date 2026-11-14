@@ -97,7 +97,17 @@ class Reader:
                 raise ValueError('SOURCE_OBJECT_REQUIRED')
             store = relative.split('/')[0]
             grade = 'plain_record'
-            if store in STORE_FORMATS:
+            parts = Path(relative).parts
+            wire_record = (parts[0] == 'evidence_wire' or
+                           store in ('case_review', 'learning_proposals', 'policy_validation')
+                           and len(parts) > 1 and parts[1] == 'evidence_wire')
+            if wire_record:
+                # Wire journals use the shared v2 commit+content-addressed
+                # envelope, not the older research-specific inner envelope.
+                if stored.get('format') != record_store.FORMAT:
+                    raise ValueError('SOURCE_INTEGRITY_ENVELOPE_REQUIRED')
+                grade = 'content_addressed_record_verified'
+            elif store in STORE_FORMATS:
                 if value.get('format') != STORE_FORMATS[store] or not isinstance(value.get('record'), dict):
                     raise ValueError('SOURCE_INTEGRITY_ENVELOPE_REQUIRED')
                 body = value['record']
@@ -380,6 +390,40 @@ def _research(reader, reservations):
 
 
 @objects.scoped
+def wire_views(reader, receipt, judgments):
+    """Original and explicitly cited detail deliveries, after holdout filtering."""
+    import evidence_wire as W
+    aliases = [receipt['bundle_alias']]
+    aliases.extend(b['bundle_alias'] for j in judgments
+                   for b in (j.get('wire_submission') or {}).get('bundles', [])
+                   if b.get('scope') == receipt['wire_scope'])
+    result = []
+    for alias in dict.fromkeys(aliases):
+        if not isinstance(alias, str) or not W.ALIAS.fullmatch(alias):
+            reader.errors.append({'reason': 'invalid_wire_bundle_alias'})
+            continue
+        relative = W.root(receipt['wire_scope']).relative_to(reader.root) / 'bundles' / (alias + '.json')
+        bundle = reader.read(relative, required=True)
+        if bundle and bundle.get('canonical_delivery_id') != receipt['delivery_id']:
+            continue  # a judgment may cite multiple independent receipts
+        try:
+            if (not bundle or bundle.get('scope') != receipt['wire_scope'] or
+                    bundle.get('bundle_alias') != alias or
+                    bundle.get('alias_map_hash') != digest(bundle.get('entries'))):
+                raise ValueError('WIRE_INTEGRITY_ERROR')
+            payload = objects.open_object(bundle['visible_payload_ref'], resolver=reader.resolver)
+            if digest(payload) != bundle.get('visible_payload_hash'):
+                raise ValueError('WIRE_PAYLOAD_HASH_MISMATCH')
+            result.append({'wire_format': bundle['wire_format'], 'bundle_alias': alias,
+                'renderer_version': bundle['renderer_version'], 'display_status': bundle['status'],
+                'visible_payload': payload, 'aliases': bundle['entries'],
+                'detail_request': bundle.get('detail_request'),
+                'visibility_note': '실제 서버 반환 시도. 모델 수신·읽음은 확인하지 않음. 원본 상세 전체가 AI에게 보였다는 뜻이 아님.'})
+        except (OSError, ValueError, KeyError) as exc:
+            reader.errors.append({'path': str(relative), 'reason': 'wire_bundle_unavailable_or_corrupt', 'error': str(exc)})
+    return result
+
+
 def build_projection(market_as_of=None, knowledge_as_of=None):
     """Build a bounded projection; caller must reserve research use before display."""
     now = C.now(); cutoff = instant(knowledge_as_of or now)
@@ -508,6 +552,13 @@ def build_projection(market_as_of=None, knowledge_as_of=None):
                     detail_errors.append({'delivery_id': did, 'reason': 'delivery_unavailable_at_cutoff'}); continue
                 if _blocked(receipt, reservations):
                     receipt_rows.append(_placeholder(did, 'shared_receipt_contains_reserved_data', delivery_id=did)); continue
+                if receipt.get('wire_format') == 'COMPACT_EVIDENCE@v1':
+                    views = wire_views(reader, receipt, own_j)
+                    if views:
+                        receipt = {**receipt, 'wire_view': views[0], 'additional_wire_views': views[1:]}
+                    else:
+                        receipt = {**receipt, 'wire_view': {'status': 'unavailable'}}
+                        detail_errors.append({'delivery_id': did, 'reason': 'wire_bundle_unavailable_or_corrupt'})
                 receipt_rows.append(receipt)
                 ref = reader.manifest.get('deliveries/' + did + '.json')
                 if ref: source_refs.append(ref)

@@ -1,5 +1,5 @@
 diff --git a/agent/run.py b/agent/run.py
-index 4e3a0ca..2c7c58c 100644
+index 4e3a0ca..854eb4e 100644
 --- a/agent/run.py
 +++ b/agent/run.py
 @@ -5,6 +5,13 @@
@@ -16,7 +16,7 @@ index 4e3a0ca..2c7c58c 100644
    python run.py review                수·금 15:50  주간 회고 (보고서 초안 + 조정 제안. 11-06 토 10:00 → 수 중간·금 주간, 16:00 조정이 기다렸다 바로 검토)
    python run.py tune                  평일 16:00     기준값 자동 조정 (src/tuning.py 가 검사 후 params.json 반영)
    python run.py monitor               08:30~15:20  손절·익절 감시 루프 (src/monitor.py)
-@@ -19,10 +26,13 @@ import shutil
+@@ -19,10 +26,14 @@ import shutil
  import subprocess
  import sys
  import time
@@ -27,10 +27,11 @@ index 4e3a0ca..2c7c58c 100644
  import common as C  # noqa: E402
 +import judgment_coverage as JC  # noqa: E402
 +import runtime_inputs  # noqa: E402
++import evidence_wire as W
  
  C.load_env()
  PY = sys.executable
-@@ -31,8 +41,18 @@ LOCK = os.path.join(C.WORK, "run.lock")
+@@ -31,8 +42,24 @@ LOCK = os.path.join(C.WORK, "run.lock")
  TOOLS_ALLOW = ["mcp__kiwoom__get_briefing", "mcp__kiwoom__get_account", "mcp__kiwoom__set_regime",
                 "mcp__kiwoom__plan_order", "mcp__kiwoom__place_order", "mcp__kiwoom__record_decision",
                 "mcp__kiwoom__submit_review", "mcp__kiwoom__get_tuning_context", "mcp__kiwoom__apply_tuning",
@@ -43,13 +44,28 @@ index 4e3a0ca..2c7c58c 100644
 +TOOLS_DENY += ["Read(./work/ontology/policy_validation/**)", "Read(./work/ontology/policy_registry/**)",
 +               "Read(./work/ontology/trace_view/**)",
 +               "mcp__kiwoom__get_policy_validation", "mcp__kiwoom__get_validation_cases"]
++TOOLS_DENY += ['Read(./work/ontology/**)', 'Read(./work/briefing.json)',
++               'Read(./work/prep_rows.json)', 'Read(./work/runs/**)']
 +CASE_REVIEW_TOOLS = ["mcp__kiwoom__get_case_review", "mcp__kiwoom__get_review_cases", "mcp__kiwoom__record_case_review"]
 +PROPOSAL_TOOLS = ["mcp__kiwoom__get_proposal_context", "mcp__kiwoom__get_proposal_cases",
 +                  "mcp__kiwoom__record_learning_proposals", "mcp__kiwoom__get_learning_proposals"]
++DETAIL_TOOL = 'mcp__kiwoom__get_evidence_detail'
++TOOLS_ALLOW += [DETAIL_TOOL]
++CASE_REVIEW_TOOLS += [DETAIL_TOOL]
++PROPOSAL_TOOLS += [DETAIL_TOOL]
  
  PROMPTS = {
      "decide": "정기 판단 실행입니다 ({time}). CLAUDE.md 의 'A. 정기 판단' 순서대로 진행하세요.",
-@@ -121,38 +141,349 @@ def claude(kind, prompt, dry=False):
+@@ -112,6 +139,8 @@ def summary_line(text):
+ 
+ 
+ def claude(kind, prompt, dry=False):
++    wire_format = W.selected_format()
++    prompt += W.instructions(wire_format)
+     run_id = f"{C.now().strftime('%Y%m%d-%H%M')}-{kind}"
+     exe = shutil.which("claude")
+     cmd = [exe or "claude", "-p", prompt, "--output-format", "json",
+@@ -121,38 +150,358 @@ def claude(kind, prompt, dry=False):
      if dry:
          log("DRY: " + " ".join(cmd[:4]) + " ...")
          return True
@@ -66,7 +82,8 @@ index 4e3a0ca..2c7c58c 100644
 +        holdout_record = validation_holdout.enroll_attempt(attempt, C.load_briefing(), C.read_json(C.ACCOUNT))
 +    except Exception as exc:
 +        holdout_record = {"recording_status": "recording_error", "error": str(exc)}
-+    env = {**os.environ, "RUN_ID": run_id, "RUN_MODE": kind, "RUN_ATTEMPT_ID": attempt_id}
++    env = {**os.environ, "RUN_ID": run_id, "RUN_MODE": kind, "RUN_ATTEMPT_ID": attempt_id,
++           W.ENV: wire_format}
 +    terminal = "error"
 +    raw_result = None
      t0 = time.time()
@@ -75,7 +92,7 @@ index 4e3a0ca..2c7c58c 100644
 +    rec['holdout_registration'] = holdout_record
 +    import runtime_inputs
 +    rec['input_snapshot'] = runtime_inputs.capture_attempt(attempt_id, kind, prompt, TOOLS_ALLOW,
-+                           {'strict_mcp_config': True, 'disallowed_tools': TOOLS_DENY})
++                           {'strict_mcp_config': True, 'disallowed_tools': TOOLS_DENY, 'wire_format': wire_format})
 +    from process_spool import Spool
 +    spool = Spool(attempt_id)
      try:
@@ -119,6 +136,9 @@ index 4e3a0ca..2c7c58c 100644
 +    try: rec['stdio'] = spool.capture()
 +    except Exception as exc: rec['stdio'] = {'recording_status':'recording_error','error':str(exc)}
 +    rec['usage'] = dict((raw_result or {}).get('usage') or {})
++    rec['usage_observation'] = runtime_inputs.usage_observation(raw_result)
++    rec['tokens_definition'] = 'legacy_sum_input_output_cache_creation; excludes_cache_read; not_account_usage'
++    rec['wire_format'] = wire_format
 +    rec['result_snapshot'] = runtime_inputs.record_result(attempt_id, terminal, raw_result, rec.get('note') if terminal != 'normal' else None)
 +    try:
 +        JC.finish_attempt(attempt_id, terminal)
@@ -192,13 +212,15 @@ index 4e3a0ca..2c7c58c 100644
 +            return status  # An interrupted invocation is visible, not silently relaunched.
 +        aid = "case-ai-" + uuid.uuid4().hex
 +        prompt = (f"별도 사례 복기입니다. review_id={review_id}. get_case_review와 get_review_cases로 고정된 자료만 읽으세요. "
-+                  "metric_catalog의 metric_id와 표시값을 사용하여 record_case_review에 구조화 findings와 hypotheses를 제출하세요. "
++                  "반환된 형식의 지표 참조와 표시값을 사용하여 record_case_review에 구조화 findings와 hypotheses를 제출하세요. "
 +                  "findings 예: {id:'f1',metric_id:'...',op:'value',value:0.25,unit:'ratio'}. "
 +                  "hypotheses 예: {id:'h1',text:'사후 가설',finding_ids:['f1'],case_ids:[]}. "
 +                  "유지·반증·진행·미확인과 표본 부족을 구분하고 반대 사례도 확인하세요. "
 +                  "통계는 연관·전제 반증 예측이며 인과·매매 개선·교훈 채택을 뜻하지 않습니다. "
 +                  "자유 사실 문장 대신 구조화 값을 제출하고 원인 설명은 미검증 가설로만 남기세요. "
 +                  "현재 계좌·시세·웹·파일·매매·튜닝 도구는 사용할 수 없습니다.")
++        wire_format = W.selected_format()
++        prompt += W.instructions(wire_format)
 +        folder = CS.root() / "ai_runtime" / aid
 +        folder.mkdir(parents=True, exist_ok=True)
 +        config = folder / "mcp.json"
@@ -207,14 +229,14 @@ index 4e3a0ca..2c7c58c 100644
 +            "env": {"MODE": C.mode(), "RUN_MODE": "case_review", "CASE_REVIEW_ID": review_id}}}})
 +        cmd = [shutil.which("claude") or "claude", "-p", prompt, "--output-format", "json",
 +               "--mcp-config", str(config), "--strict-mcp-config", "--tools", "", "--allowedTools", *CASE_REVIEW_TOOLS,
-+               "--disallowedTools", *TOOLS_DENY, *TOOLS_ALLOW,
++               "--disallowedTools", *TOOLS_DENY, *[t for t in TOOLS_ALLOW if t not in CASE_REVIEW_TOOLS],
 +               "--max-budget-usd", os.environ.get("MAX_BUDGET_USD", "5")]
 +        CS.archive("ai_attempts", aid, {"attempt_id": aid, "review_id": review_id,
 +                   "created_at": C.now().isoformat(), "prompt": prompt, "status": "started"})
 +        import runtime_inputs
-+        runtime_inputs.capture_attempt(aid, 'case_review', prompt, CASE_REVIEW_TOOLS, {'builtin_tools': []})
++        runtime_inputs.capture_attempt(aid, 'case_review', prompt, CASE_REVIEW_TOOLS, {'builtin_tools': [], 'wire_format': wire_format})
 +        env = {**os.environ, "RUN_MODE": "case_review", "CASE_REVIEW_ID": review_id,
-+               "RUN_ID": aid, "RUN_ATTEMPT_ID": "", "CASE_REVIEW_ATTEMPT_ID": aid}
++               "RUN_ID": aid, "RUN_ATTEMPT_ID": "", "CASE_REVIEW_ATTEMPT_ID": aid, W.ENV: wire_format}
 +        terminal = {"attempt_id": aid, "review_id": review_id, "status": "error"}
 +        from process_spool import Spool
 +        spool = Spool(aid)
@@ -322,11 +344,13 @@ index 4e3a0ca..2c7c58c 100644
 +            aid = 'proposal-ai-' + uuid.uuid4().hex
 +            prompt = (f"6번 별도 제안 실행입니다. proposal_run_id={proposal_run_id}. "
 +                      "get_proposal_context로 고정 자료와 제출 스키마를 먼저 확인하고 get_proposal_cases로 관련 사례와 반대 사례를 읽으세요. "
-+                      "실제로 전달받은 delivery_id와 복합 근거 참조만 사용하여 record_learning_proposals에 제출하세요. "
++                      "실제로 전달받은 형식의 묶음과 근거 참조만 사용하여 record_learning_proposals에 제출하세요. "
 +                      "수급 해석 조정과 추세 해석 조정을 별도 안으로 검토하고 자료가 부족하면 retain_current를 제출하세요. "
 +                      "사실은 구조화 필드로, 원인 설명과 기대 효과는 미검증 가설로 구분하세요. "
 +                      "계산 규칙 변경과 프롬프트·교훈 변경은 validation_kind로 구분하세요. "
 +                      "현재 자료를 추가 조회하거나 매매·설정·교훈을 반영할 수 없습니다. 7번 검증 대기까지가 이번 범위입니다.")
++            wire_format = W.selected_format()
++            prompt += W.instructions(wire_format)
 +            folder = S.root()/'ai_runtime'/aid
 +            folder.mkdir(parents=True, exist_ok=True)
 +            config = folder/'mcp.json'
@@ -335,9 +359,10 @@ index 4e3a0ca..2c7c58c 100644
 +                'env': {'MODE': C.mode(), 'RUN_MODE': 'proposal_review', 'PROPOSAL_RUN_ID': proposal_run_id}}}})
 +            cmd = [shutil.which('claude') or 'claude', '-p', prompt, '--output-format', 'json',
 +                   '--mcp-config', str(config), '--strict-mcp-config', '--tools', '',
-+                   '--allowedTools', *PROPOSAL_TOOLS, '--disallowedTools', *TOOLS_ALLOW, *TOOLS_DENY, *CASE_REVIEW_TOOLS,
++                   '--allowedTools', *PROPOSAL_TOOLS, '--disallowedTools',
++                   *[t for t in TOOLS_ALLOW + TOOLS_DENY + CASE_REVIEW_TOOLS if t not in PROPOSAL_TOOLS],
 +                   '--max-budget-usd', os.environ.get('MAX_BUDGET_USD', '5')]
-+            snapshot = runtime_inputs.capture_attempt(aid, 'proposal_review', prompt, PROPOSAL_TOOLS, {'builtin_tools': []})
++            snapshot = runtime_inputs.capture_attempt(aid, 'proposal_review', prompt, PROPOSAL_TOOLS, {'builtin_tools': [], 'wire_format': wire_format})
 +            S.archive('ai_attempts', aid, {'attempt_id': aid, 'proposal_run_id': proposal_run_id,
 +                      'created_at': C.now().isoformat(), 'status': 'started', 'prompt': prompt, 'input_snapshot': snapshot})
 +            terminal = {'attempt_id': aid, 'proposal_run_id': proposal_run_id, 'status': 'error'}
@@ -345,7 +370,7 @@ index 4e3a0ca..2c7c58c 100644
 +            spool = Spool(aid)
 +            try:
 +                opts = {'cwd': HERE, 'env': {**os.environ, 'RUN_MODE': 'proposal_review', 'PROPOSAL_RUN_ID': proposal_run_id,
-+                        'RUN_ID': aid, 'RUN_ATTEMPT_ID': '', 'PROPOSAL_ATTEMPT_ID': aid},
++                        'RUN_ID': aid, 'RUN_ATTEMPT_ID': '', 'PROPOSAL_ATTEMPT_ID': aid, W.ENV: wire_format},
 +                        'stdin': subprocess.DEVNULL, 'stdout': spool.stdout, 'stderr': spool.stderr,
 +                        'encoding': 'utf-8', 'errors': 'replace'}
 +                if os.name != 'nt': opts['start_new_session'] = True
@@ -408,7 +433,7 @@ index 4e3a0ca..2c7c58c 100644
  def publish(msg):
      """docs/data 를 갱신하고, GIT_PUSH=1 이면 커밋·푸시해서 대시보드에 반영."""
      py("logger.py")
-@@ -168,7 +499,7 @@ def publish(msg):
+@@ -168,7 +517,7 @@ def publish(msg):
  
  
  def briefing_fresh():
@@ -417,7 +442,7 @@ index 4e3a0ca..2c7c58c 100644
      return b.get("created", "").startswith(C.today().isoformat())
  
  
-@@ -178,10 +509,135 @@ def main():
+@@ -178,10 +527,135 @@ def main():
      ap.add_argument("kind")
      ap.add_argument("--codes", default="")
      ap.add_argument("--why", default="")
@@ -554,7 +579,7 @@ index 4e3a0ca..2c7c58c 100644
      if kind == "monitor":
          import monitor
          monitor.loop()
-@@ -191,14 +647,23 @@ def main():
+@@ -191,14 +665,23 @@ def main():
              pass
          return
      if kind == "prep":
@@ -584,7 +609,7 @@ index 4e3a0ca..2c7c58c 100644
          return
      if kind not in PROMPTS:
          sys.exit(f"알 수 없는 실행: {kind}\n{__doc__}")
-@@ -244,7 +709,11 @@ def main():
+@@ -244,7 +727,11 @@ def main():
          prompt = PROMPTS[kind].format(time=C.stamp(), codes=a.codes, why=a.why, next_trade=C.next_trade_time() or "내일",
                                        week=C.competition_week(p=p),
                                        period=("이번 주 월~수 (수요일 중간 회고)" if C.now().weekday() == 2 else f"{start} 이후 이번 주 (금요일 주간 회고)"))   # 11-06 S.Lee: 수·금 두 번

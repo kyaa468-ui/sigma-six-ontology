@@ -195,15 +195,24 @@ def _install_sources(mp):
 
 def _submission(text, *, key, direction="sell"):
     import common as C
-    delivery = text.split("브리핑 전달 ID: ")[-1].splitlines()[0]
-    receipt = __import__("record_store").load(Path(C.WORK) / "ontology/deliveries" / (delivery + ".json"))
-    evidence = next(e for e in receipt["evidence_catalog"] if e["subject"] == MAIN and e["field"] == "inst_net")
+    import evidence_wire as W
+    if text.startswith('# 판단 자료\n'):
+        payload = json.loads(text.split('\n', 1)[1])
+        evidence = next(e for e in W.public_rows(payload) if e['subject'] == MAIN and e['field'] == 'inst_net')
+        declaration = {'wire_format': W.FORMAT, 'bundle_refs': [payload['bundle_alias']]}
+        reference = evidence['ref']
+    else:
+        delivery = text.split("브리핑 전달 ID: ")[-1].splitlines()[0]
+        receipt = __import__("record_store").load(Path(C.WORK) / "ontology/deliveries" / (delivery + ".json"))
+        evidence = next(e for e in receipt["evidence_catalog"] if e["subject"] == MAIN and e["field"] == "inst_net")
+        declaration = {'delivery_ids': [delivery]}
+        reference = {"delivery_id": delivery, "evidence_id": evidence["evidence_id"]}
     return {"request_key": key, "code": MAIN, "recommended_action": "매수", "confidence_for": "매수",
             "confidence_raw": .7, "decision": "고정 모의 판단: 상반된 수급을 인정하고 추세 유지 가설을 제출함",
-            "delivery_ids": [delivery],
+            **declaration,
             "premises": [{"definition_id": "MA20_MAINTENANCE@v2", "days": 3, "direction": "above", "claim_ids": ["inst"]}],
             "arguments": [{"id": "inst", "kind": "fact_claim", "proposer": "bear", "stance": "oppose", "adoption": "reference",
-                "evidence": {"delivery_id": delivery, "evidence_id": evidence["evidence_id"]},
+                "evidence": reference,
                 "measurement_kind": evidence["kind"], "assertion": {"op": "sign", "direction": direction}},
                 {"id": "hypothesis", "kind": "hypothesis", "proposer": "bull", "stance": "support", "adoption": "adopted",
                  "text": "외국인 매수세가 기관 매도 압력을 받아낼 것이다", "claim_ids": ["inst"]}]}
@@ -281,10 +290,16 @@ def run_execution(mp, clock):
             assert (Path(C.WORK) / "ontology/attempts" / (out["run_attempt_id"] + ".json")).exists()
         def communicate(self, timeout):
             with mp.context() as child:
-                for key in ("RUN_ID", "RUN_MODE", "RUN_ATTEMPT_ID"):
+                for key in ("RUN_ID", "RUN_MODE", "RUN_ATTEMPT_ID", "SION_EVIDENCE_WIRE_FORMAT"):
                     child.setenv(key, self.env[key])
                 text = M.get_briefing()
-                assert "+2.0%" in text and "20,400" in text and "20,000" in text
+                if text.startswith('# 판단 자료\n'):
+                    from evidence_wire import public_rows
+                    shown = public_rows(json.loads(text.split('\n', 1)[1]))
+                    assert any(r['subject'] == MAIN and r['field'] == 'ma20' and r['value'] == 20000 for r in shown)
+                    assert any(r['subject'] == MAIN and r['field'] == 'price' and r['value'] == 20400 for r in shown)
+                else:
+                    assert "+2.0%" in text and "20,400" in text and "20,000" in text
                 out["briefing_text"] = text
                 out["account_delivery"] = M.get_account()
                 regime = M.set_regime("상승", "고정 모의 국면 분류")

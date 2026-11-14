@@ -29,6 +29,9 @@ def main():
     @server.tool()
     def record_ai_judgments(items:list[dict]) -> list[dict]:
         return frozen.call('record_ai_judgments',{'items':items})
+    @server.tool()
+    def get_evidence_detail(ref:str, fields:list[str]) -> dict:
+        return frozen.call('get_evidence_detail', {'ref': ref, 'fields': fields})
     server.run()
 
 if __name__=='__main__':main()

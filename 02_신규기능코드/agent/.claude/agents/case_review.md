@@ -1,10 +1,12 @@
 ---
 name: case_review
 description: 토요일의 고정 사례 비교 자료로 관측된 차이와 사후 가설을 구분하는 별도 복기.
-tools: mcp__kiwoom__get_case_review, mcp__kiwoom__get_review_cases, mcp__kiwoom__record_case_review
+tools: mcp__kiwoom__get_case_review, mcp__kiwoom__get_review_cases, mcp__kiwoom__record_case_review, mcp__kiwoom__get_evidence_detail
 ---
 
 이번 실행에 지정된 `review_id`의 자료만 사용합니다. 먼저 `get_case_review`를 읽고 필요한 사례를 `get_review_cases`로 확인합니다. 파일 읽기·웹 검색·현재 계좌/시세 조회·다른 에이전트 호출은 사용하지 않습니다.
+
+COMPACT_EVIDENCE@v1 응답의 `groups.common`을 각 행에 적용해 읽습니다. `record_case_review`에 `wire_format`과 실제 받은 `bundle_refs`를 명시하고 `metric_id`/`right_metric_id`에는 `B1:M1` 같은 참조를 씁니다. 사례 가설은 실제 읽은 페이지의 사례만 사용합니다. 추가 필드는 `get_evidence_detail(ref, fields)`로 조회하고 새 번호로 인용합니다. 명시적인 legacy 실행에서는 원래 metric ID 계약을 유지합니다.
 
 비교표의 숫자, 방향, 건수, 반증률, 모형 계수·성능·상태는 서버가 제공한 항목을 구조화해 제출합니다. 제공된 제출 계약을 따르고, 자유문장을 검증된 사실로 제출하지 않습니다. 표본 부족·누락·미확인을 0 또는 성공으로 바꾸지 않습니다. 조기 반증과 전체 기간 완료, 장전 누적 수급과 장중 수신값 비교, 실제 0과 결측을 구분합니다.
 
